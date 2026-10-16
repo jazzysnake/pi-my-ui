@@ -5,6 +5,7 @@
 
 /** Discriminants for every client→server message. */
 export const ClientMessageType = {
+  ListSessions: "listSessions",
   Subscribe: "subscribe",
   Prompt: "prompt",
   Abort: "abort",
@@ -16,6 +17,7 @@ export type ClientMessageType = (typeof ClientMessageType)[keyof typeof ClientMe
 
 /** Discriminants for every server→client message. */
 export const ServerMessageType = {
+  Sessions: "sessions",
   Snapshot: "snapshot",
   Delta: "delta",
   Error: "error",

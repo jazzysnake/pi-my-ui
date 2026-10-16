@@ -50,6 +50,8 @@ export interface TransportOptions {
 export interface Transport {
   start(): void;
   stop(): void;
+  /** Watch another Session without closing the link, from the start of its stream. */
+  switchSession(sessionId: string): void;
   /** Send one message to the Session's Pi child. Ignored while the link is down. */
   prompt(text: string): void;
   /** Cancel the Session's running turn. Ignored while the link is down. */
@@ -63,6 +65,7 @@ export interface Transport {
 export function createTransport(options: TransportOptions): Transport {
   let socket: WebSocket | null = null;
   let cursor: Cursor | undefined;
+  let activeSessionId = options.sessionId;
   let failedAttempts = 0;
   let started = false;
   let stopped = false;
@@ -77,8 +80,8 @@ export function createTransport(options: TransportOptions): Transport {
 
   function subscription(): ClientMessage {
     return cursor === undefined
-      ? { type: ClientMessageType.Subscribe, sessionId: options.sessionId }
-      : { type: ClientMessageType.Subscribe, sessionId: options.sessionId, cursor };
+      ? { type: ClientMessageType.Subscribe, sessionId: activeSessionId }
+      : { type: ClientMessageType.Subscribe, sessionId: activeSessionId, cursor };
   }
 
   function nextBackoffDelay(): number {
@@ -114,6 +117,8 @@ export function createTransport(options: TransportOptions): Transport {
       }
       failedAttempts = 0;
       connecting.send(JSON.stringify(subscription()));
+      // The list is refreshed on every open, so a Session started elsewhere appears without a reload.
+      connecting.send(JSON.stringify({ type: ClientMessageType.ListSessions }));
       options.handlers.onStatus(ConnectionStatus.Connected);
     });
 
@@ -122,9 +127,14 @@ export function createTransport(options: TransportOptions): Transport {
         return;
       }
       const message = JSON.parse(String(event.data)) as ServerMessage;
-      // The Cursor recorded here is the last one the store is about to apply, so a reconnect can
-      // ask for exactly what comes after it.
       if (message.type === ServerMessageType.Snapshot || message.type === ServerMessageType.Delta) {
+        // A frame from the Session switched away from is dropped before it can move the Cursor, so
+        // the next subscribe starts the new Session from the beginning of its stream.
+        if (message.sessionId !== activeSessionId) {
+          return;
+        }
+        // The Cursor recorded here is the last one the store is about to apply, so a reconnect can
+        // ask for exactly what comes after it.
         cursor = message.cursor;
       }
       options.handlers.onMessage(message);
@@ -158,11 +168,19 @@ export function createTransport(options: TransportOptions): Transport {
       socket = null;
       current?.close();
     },
+    switchSession(sessionId) {
+      if (sessionId === activeSessionId) {
+        return;
+      }
+      activeSessionId = sessionId;
+      cursor = undefined;
+      send(subscription());
+    },
     prompt(text) {
-      send({ type: ClientMessageType.Prompt, sessionId: options.sessionId, text });
+      send({ type: ClientMessageType.Prompt, sessionId: activeSessionId, text });
     },
     abort() {
-      send({ type: ClientMessageType.Abort, sessionId: options.sessionId });
+      send({ type: ClientMessageType.Abort, sessionId: activeSessionId });
     },
     listDirectory(path) {
       send({ type: ClientMessageType.ListDirectory, path });

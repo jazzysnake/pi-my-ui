@@ -69,6 +69,20 @@ export interface DeltaBatch {
   readonly deltas: readonly ProjectionDelta[];
 }
 
+/**
+ * One Session as a list row shows it: disk facts only. The transcript's live state arrives in that
+ * Session's Projection, never here, so a refreshed list cannot overwrite what the browser is watching.
+ */
+export interface SessionSummary {
+  readonly id: string;
+  /** The user-set name (pi's `session_info`), or `null` when the Session has none. */
+  readonly name: string | null;
+  /** The first user message, whitespace-collapsed and truncated, or `null` when there is none. */
+  readonly firstMessage: string | null;
+  /** The Session file's last activity, in epoch milliseconds. */
+  readonly lastActivityAt: number;
+}
+
 /** One Session's projected state, as a Snapshot carries it and Deltas advance it. */
 export interface SessionProjection {
   readonly sessionId: string;

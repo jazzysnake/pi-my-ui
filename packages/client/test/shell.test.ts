@@ -57,6 +57,7 @@ describe("the shell over the store's ServerMessage input", () => {
     const target = mountInto(Shell, {
       store,
       status: ConnectionStatus.Connected,
+      onSelectSession: () => undefined,
       onPrompt: () => undefined,
       onAbort: () => undefined,
       onListDirectory: () => undefined,

@@ -28,6 +28,7 @@ import { readPreview } from "./files/preview.js";
 import { createTrustPolicy } from "./origin.js";
 import type { SessionViewer } from "./session-host.js";
 import { createSessionPool } from "./session-pool.js";
+import { listSessions } from "./sessions.js";
 
 /** Health-check route path. */
 export const HEALTHZ_PATH = "/healthz";
@@ -153,6 +154,15 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     }
     const viewer: SessionViewer = { onMessage: (outbound) => send(socket, outbound) };
     try {
+      // The list is disk facts about the working directory, not a Session, so it is answered here
+      // rather than by a Session host; no Pi child starts to produce it.
+      if (message.type === ClientMessageType.ListSessions) {
+        send(socket, {
+          type: ServerMessageType.Sessions,
+          sessions: await listSessions(config.cwd, config.sessionDir),
+        });
+        return;
+      }
       // The file capability reads the server's working directory, not a Session, so it is answered
       // here rather than by a Session host.
       if (message.type === ClientMessageType.ListDirectory) {

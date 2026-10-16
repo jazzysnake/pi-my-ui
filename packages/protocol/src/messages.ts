@@ -5,8 +5,13 @@
 
 import { ClientMessageType, ServerMessageType } from "./constants.js";
 import type { DirectoryEntry } from "./files.js";
-import type { Cursor, DeltaBatch, SessionProjection } from "./model.js";
+import type { Cursor, DeltaBatch, SessionProjection, SessionSummary } from "./model.js";
 import type { ProtocolErrorInfo } from "./errors.js";
+
+/** List this server's Sessions. A Session-free capability, so it carries no Session and no Cursor. */
+export interface ListSessionsMessage {
+  readonly type: typeof ClientMessageType.ListSessions;
+}
 
 /** Identify the Session to watch, and the Cursor the browser already holds when it has one. */
 export interface SubscribeMessage {
@@ -44,7 +49,18 @@ export interface PreviewFileMessage {
 }
 
 export type ClientMessage =
-  SubscribeMessage | PromptMessage | AbortMessage | ListDirectoryMessage | PreviewFileMessage;
+  | ListSessionsMessage
+  | SubscribeMessage
+  | PromptMessage
+  | AbortMessage
+  | ListDirectoryMessage
+  | PreviewFileMessage;
+
+/** Every Session this server can serve, most recently active first. */
+export interface SessionsMessage {
+  readonly type: typeof ServerMessageType.Sessions;
+  readonly sessions: readonly SessionSummary[];
+}
 
 /** A full Projection at a Cursor. */
 export interface SnapshotMessage {
@@ -84,4 +100,9 @@ export interface FilePreviewMessage {
 }
 
 export type ServerMessage =
-  SnapshotMessage | DeltaMessage | ErrorMessage | DirectoryListingMessage | FilePreviewMessage;
+  | SessionsMessage
+  | SnapshotMessage
+  | DeltaMessage
+  | ErrorMessage
+  | DirectoryListingMessage
+  | FilePreviewMessage;

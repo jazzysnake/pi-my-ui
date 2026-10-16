@@ -14,6 +14,7 @@
     if (config.sessionId === null) {
       return;
     }
+    store.selectSession(config.sessionId);
     const created = createTransport({
       url: config.wsUrl,
       sessionId: config.sessionId,
@@ -38,6 +39,10 @@
 <Shell
   {store}
   {status}
+  onSelectSession={(sessionId) => {
+    store.selectSession(sessionId);
+    transport?.switchSession(sessionId);
+  }}
   onPrompt={(text) => transport?.prompt(text)}
   onAbort={() => transport?.abort()}
   onListDirectory={(path) => transport?.listDirectory(path)}

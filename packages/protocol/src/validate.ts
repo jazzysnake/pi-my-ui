@@ -93,6 +93,8 @@ export function validateClientMessage(value: unknown): ClientMessage {
     malformed('"type" must be a string');
   }
   switch (type) {
+    case ClientMessageType.ListSessions:
+      return { type: ClientMessageType.ListSessions };
     case ClientMessageType.Subscribe:
       return validateSubscribe(record);
     case ClientMessageType.Prompt:

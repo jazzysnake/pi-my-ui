@@ -19,6 +19,8 @@ export interface TranscriptSlice {
   /** The Session's working directory, empty until a Snapshot names it. */
   readonly cwd: string;
   receive(message: ServerMessage): void;
+  /** Drop the current Projection, so a switched-away Session leaves nothing behind. */
+  clear(): void;
 }
 
 export function createTranscriptSlice(): TranscriptSlice {
@@ -39,9 +41,17 @@ export function createTranscriptSlice(): TranscriptSlice {
         projection = message.projection;
         return;
       }
-      if (message.type === ServerMessageType.Delta && projection !== null) {
+      // A Delta from a switched-away Session must not advance the Projection that replaced it.
+      if (
+        message.type === ServerMessageType.Delta &&
+        projection !== null &&
+        message.sessionId === projection.sessionId
+      ) {
         projection = reduceDeltaBatch(projection, message);
       }
+    },
+    clear() {
+      projection = null;
     },
   };
 }

@@ -8,7 +8,9 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@earendil-works/pi-ai": "0.99.2",
     "@earendil-works/pi-coding-agent": "0.99.2",
+    "@pi-my-ui/scripted-provider": "0.0.0",
     "@tintinweb/pi-subagents": "0.22.0"
   },
   "devDependencies": {

@@ -1,0 +1,68 @@
+import type { Message } from "@earendil-works/pi-ai";
+
+import { ScriptError, type ScriptExpectation } from "./script.js";
+
+/** Plain text of a message's content, so a script can match what the model actually received. */
+export function textOf(content: Message["content"]): string {
+  if (typeof content === "string") {
+    return content;
+  }
+  return content
+    .filter((block) => block.type === "text")
+    .map((block) => block.text)
+    .join("");
+}
+
+/** The message a model call is answering: the last one pi sends the model, ignoring prompt state. */
+export function lastModelVisibleMessage(messages: readonly Message[]): Message {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message !== undefined && message.role !== "system") {
+      return message;
+    }
+  }
+  throw new ScriptError("scripted provider: the transcript has no model-visible message");
+}
+
+function describe(message: Message): string {
+  if (message.role === "user") {
+    return `user ${JSON.stringify(textOf(message.content))}`;
+  }
+  if (message.role === "toolResult") {
+    return `tool result from ${message.toolName} ${JSON.stringify(textOf(message.content))}`;
+  }
+  return `${message.role} message`;
+}
+
+function describeExpectation(expect: ScriptExpectation): string {
+  return expect.role === "user"
+    ? `user ${JSON.stringify(expect.text)}`
+    : `tool result from ${expect.toolName}`;
+}
+
+/**
+ * Fail unless `incoming` is the message the script bound to this call. Refusing here is the point:
+ * a replay that improvised around a prompt the recording never saw would hide a changed transcript.
+ */
+export function assertExpectation(expect: ScriptExpectation, incoming: Message): void {
+  if (expect.role === "user") {
+    if (incoming.role !== "user" || textOf(incoming.content) !== expect.text) {
+      throw new ScriptError(
+        `scripted provider: expected ${describeExpectation(expect)} but received ${describe(incoming)}`,
+      );
+    }
+    return;
+  }
+  if (incoming.role !== "toolResult" || incoming.toolName !== expect.toolName) {
+    throw new ScriptError(
+      `scripted provider: expected ${describeExpectation(expect)} but received ${describe(incoming)}`,
+    );
+  }
+  if (expect.text !== undefined && textOf(incoming.content) !== expect.text) {
+    throw new ScriptError(
+      `scripted provider: expected tool result text ${JSON.stringify(expect.text)} but received ${JSON.stringify(
+        textOf(incoming.content),
+      )}`,
+    );
+  }
+}

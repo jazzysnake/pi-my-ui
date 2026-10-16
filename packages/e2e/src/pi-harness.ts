@@ -175,6 +175,36 @@ export interface StartScriptedPiOptions {
   readonly session?: boolean;
 }
 
+/** What a hermetic pi child needs: its workspace, its private environment, and its model. */
+export interface ScriptedPiLaunch {
+  readonly cwd: string;
+  readonly env: Record<string, string>;
+  readonly args: readonly string[];
+  readonly provider: string;
+  readonly model: string;
+}
+
+/**
+ * Write `script` into `home` and describe the pi child that would replay it. Split from
+ * {@link startScriptedPi} so a test that runs pi itself (the server under test owns the children it
+ * spawns) launches them hermetically the same way.
+ */
+export async function scriptedPiLaunch(
+  home: HermeticHome,
+  script: Script,
+): Promise<ScriptedPiLaunch> {
+  await mkdir(home.sessionsDir, { recursive: true });
+  const scriptPath = join(home.root, "script.json");
+  await writeFile(scriptPath, `${JSON.stringify(script, null, 2)}\n`, "utf8");
+  return {
+    cwd: home.workspace,
+    env: hermeticEnv(home, scriptPath),
+    args: [...HERMETIC_PI_ARGS, "--extension", SCRIPTED_PROVIDER_EXTENSION],
+    provider: SCRIPTED_PROVIDER_ID,
+    model: SCRIPTED_MODEL_ID,
+  };
+}
+
 /**
  * Start a real `pi --mode rpc` child that answers model calls from `script`.
  *
@@ -188,22 +218,19 @@ export async function startScriptedPi(options: StartScriptedPiOptions): Promise<
     );
   }
 
-  const { home, script } = options;
-  await mkdir(home.sessionsDir, { recursive: true });
-  const scriptPath = join(home.root, "script.json");
-  await writeFile(scriptPath, `${JSON.stringify(script, null, 2)}\n`, "utf8");
-
-  const args = [...HERMETIC_PI_ARGS, "--extension", SCRIPTED_PROVIDER_EXTENSION];
+  const { home } = options;
+  const launch = await scriptedPiLaunch(home, options.script);
+  const args = [...launch.args];
   if (options.session === false) {
     args.push("--no-session");
   }
 
   const child = new RpcClient({
     cliPath: join(getPackageDir(), "dist", "cli.js"),
-    cwd: home.workspace,
-    env: hermeticEnv(home, scriptPath),
-    provider: SCRIPTED_PROVIDER_ID,
-    model: SCRIPTED_MODEL_ID,
+    cwd: launch.cwd,
+    env: launch.env,
+    provider: launch.provider,
+    model: launch.model,
     args,
   });
   await child.start();

@@ -10,6 +10,8 @@
   "dependencies": {
     "@earendil-works/pi-ai": "0.99.2",
     "@earendil-works/pi-coding-agent": "0.99.2",
+    "@pi-my-ui/protocol": "0.0.0",
+    "@pi-my-ui/server": "0.0.0",
     "@pi-my-ui/scripted-provider": "0.0.0",
     "@tintinweb/pi-subagents": "0.22.0"
   },

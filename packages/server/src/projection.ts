@@ -8,6 +8,7 @@ import {
   ContentBlockType,
   MessageRole,
   ProjectionDeltaKind,
+  ToolCallStatus,
   type ContentBlock,
   type DeltaBatch,
   type ProjectedEntry,
@@ -18,6 +19,18 @@ import type {
   SessionEntry,
   SessionMessageEntry,
 } from "@earendil-works/pi-coding-agent";
+import type { ToolResultMessage } from "@earendil-works/pi-ai";
+
+type AgentMessage = SessionMessageEntry["message"];
+
+/** What a tool result contributes to its call's card. */
+export interface ToolResultInfo {
+  readonly output: string;
+  readonly isError: boolean;
+}
+
+/** Resolves a tool-call id to the result that completed it, when the active path carries one. */
+export type ToolResultLookup = (toolCallId: string) => ToolResultInfo | undefined;
 
 export interface ProjectionSource {
   readonly entries: readonly SessionEntry[];
@@ -46,7 +59,70 @@ function activePath(entries: readonly SessionEntry[], leafId: string | null): Se
   return reversed.reverse();
 }
 
-export function blocksFromMessage(message: SessionMessageEntry["message"]): ContentBlock[] {
+/** The tool results a path carries for calls it declares, keyed by the call that produced them. */
+export function toolResultLookup(
+  entries: readonly SessionEntry[],
+): ReadonlyMap<string, ToolResultInfo> {
+  const calls = declaredToolCallIds(entries);
+  const results = new Map<string, ToolResultInfo>();
+  for (const entry of entries) {
+    if (entry.type !== "message" || entry.message.role !== "toolResult") {
+      continue;
+    }
+    // A result whose call is absent (an abandoned branch) has no card to fold into.
+    if (!calls.has(entry.message.toolCallId)) {
+      continue;
+    }
+    results.set(entry.message.toolCallId, {
+      output: toolResultOutput(entry.message),
+      isError: entry.message.isError,
+    });
+  }
+  return results;
+}
+
+/** Every tool-call id the path's assistant messages declare. */
+function declaredToolCallIds(entries: readonly SessionEntry[]): ReadonlySet<string> {
+  const ids = new Set<string>();
+  for (const entry of entries) {
+    if (entry.type !== "message" || entry.message.role !== "assistant") {
+      continue;
+    }
+    const content = entry.message.content;
+    if (!Array.isArray(content)) {
+      continue;
+    }
+    for (const block of content) {
+      if (block.type === ContentBlockType.ToolCall) {
+        ids.add(block.id);
+      }
+    }
+  }
+  return ids;
+}
+
+/** A tool result's visible text, flattened from its content blocks. */
+export function toolResultOutput(message: ToolResultMessage): string {
+  const parts: string[] = [];
+  for (const block of message.content) {
+    if (block.type === ContentBlockType.Text) {
+      parts.push(block.text);
+    }
+  }
+  return parts.join("\n");
+}
+
+function toolCallStatus(result: ToolResultInfo | undefined): ToolCallStatus {
+  if (result === undefined) {
+    return ToolCallStatus.Running;
+  }
+  return result.isError ? ToolCallStatus.Error : ToolCallStatus.Success;
+}
+
+export function blocksFromMessage(
+  message: AgentMessage,
+  lookup?: ToolResultLookup,
+): ContentBlock[] {
   // Assistant, user, toolResult and custom messages carry content; the state-only message kinds do
   // not, and they have no transcript row.
   if (!("content" in message)) {
@@ -62,18 +138,24 @@ export function blocksFromMessage(message: SessionMessageEntry["message"]): Cont
     } else if (block.type === "thinking") {
       blocks.push({ type: ContentBlockType.Reasoning, text: block.thinking });
     } else if (block.type === ContentBlockType.ToolCall) {
+      const result = lookup?.(block.id);
       blocks.push({
         type: ContentBlockType.ToolCall,
         id: block.id,
         name: block.name,
         arguments: block.arguments,
+        status: toolCallStatus(result),
+        ...(result === undefined || result.output === "" ? {} : { output: result.output }),
       });
     }
   }
   return blocks;
 }
 
-function projectMessage(entry: SessionMessageEntry): ProjectedEntry | undefined {
+function projectMessage(
+  entry: SessionMessageEntry,
+  lookup: ToolResultLookup,
+): ProjectedEntry | undefined {
   const message = entry.message;
   const role =
     message.role === "user"
@@ -93,7 +175,7 @@ function projectMessage(entry: SessionMessageEntry): ProjectedEntry | undefined 
     parentId: entry.parentId,
     role,
     timestamp: Date.parse(entry.timestamp),
-    blocks: blocksFromMessage(message),
+    blocks: blocksFromMessage(message, lookup),
   };
 }
 
@@ -129,9 +211,13 @@ function projectCustomMessage(entry: CustomMessageEntry): ProjectedEntry | undef
   };
 }
 
-function projectEntry(entry: SessionEntry): ProjectedEntry | undefined {
+function projectEntry(entry: SessionEntry, lookup: ToolResultLookup): ProjectedEntry | undefined {
   if (entry.type === "message") {
-    return projectMessage(entry);
+    // A result is folded into the card that produced it, so it is not also its own row.
+    if (entry.message.role === "toolResult" && lookup(entry.message.toolCallId) !== undefined) {
+      return undefined;
+    }
+    return projectMessage(entry, lookup);
   }
   if (entry.type === "custom_message") {
     return projectCustomMessage(entry);
@@ -141,9 +227,12 @@ function projectEntry(entry: SessionEntry): ProjectedEntry | undefined {
 
 /** The batch that takes an empty Projection to this Session's current one. */
 export function projectionBatch(source: ProjectionSource): DeltaBatch {
+  const path = activePath(source.entries, source.leafId);
+  const results = toolResultLookup(path);
+  const lookup: ToolResultLookup = (toolCallId) => results.get(toolCallId);
   const deltas: ProjectionDelta[] = [];
-  for (const entry of activePath(source.entries, source.leafId)) {
-    const projected = projectEntry(entry);
+  for (const entry of path) {
+    const projected = projectEntry(entry, lookup);
     if (projected === undefined) {
       continue;
     }

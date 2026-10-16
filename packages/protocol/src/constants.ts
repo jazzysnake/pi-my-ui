@@ -77,3 +77,12 @@ export const ContentBlockType = {
 } as const;
 
 export type ContentBlockType = (typeof ContentBlockType)[keyof typeof ContentBlockType];
+
+/** The lifecycle states a tool call shows as a card. */
+export const ToolCallStatus = {
+  Running: "running",
+  Success: "success",
+  Error: "error",
+} as const;
+
+export type ToolCallStatus = (typeof ToolCallStatus)[keyof typeof ToolCallStatus];

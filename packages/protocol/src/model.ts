@@ -4,7 +4,13 @@
  * to the next.
  */
 
-import { ContentBlockType, MessageRole, ProjectionDeltaKind, RunStateKind } from "./constants.js";
+import {
+  ContentBlockType,
+  MessageRole,
+  ProjectionDeltaKind,
+  RunStateKind,
+  ToolCallStatus,
+} from "./constants.js";
 
 /** A position in one Session's ordered stream of Delta batches. */
 export type Cursor = number;
@@ -27,6 +33,9 @@ export interface ToolCallBlock {
   readonly id: string;
   readonly name: string;
   readonly arguments: Readonly<Record<string, unknown>>;
+  readonly status: ToolCallStatus;
+  /** The tool's visible output, present once its result has arrived. */
+  readonly output?: string;
 }
 
 /** Any projected content block. */

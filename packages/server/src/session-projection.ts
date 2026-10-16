@@ -15,6 +15,7 @@ import {
   MessageRole,
   ProjectionDeltaKind,
   RunStateKind,
+  ToolCallStatus,
   reduceDeltaBatch,
   type ContentBlock,
   type ProjectedEntry,
@@ -24,7 +25,7 @@ import {
 } from "@pi-my-ui/protocol";
 import type { JsonAgentSessionEvent, SessionEntry } from "@earendil-works/pi-coding-agent";
 
-import { blocksFromMessage, projectionBatch } from "./projection.js";
+import { blocksFromMessage, projectionBatch, toolResultOutput } from "./projection.js";
 
 type AgentMessage = Extract<JsonAgentSessionEvent, { readonly type: "message_start" }>["message"];
 type MessageStartEvent = Extract<JsonAgentSessionEvent, { readonly type: "message_start" }>;
@@ -210,8 +211,39 @@ export function createSessionProjectionMachine(
     ]);
   }
 
+  function onToolResult(
+    message: Extract<AgentMessage, { readonly role: "toolResult" }>,
+  ): readonly ProjectionDelta[] {
+    for (const entry of projection.entries) {
+      if (entry.role !== MessageRole.Assistant) {
+        continue;
+      }
+      const index = entry.blocks.findIndex(
+        (block) => block.type === ContentBlockType.ToolCall && block.id === message.toolCallId,
+      );
+      const block = entry.blocks[index];
+      if (block === undefined || block.type !== ContentBlockType.ToolCall) {
+        continue;
+      }
+      const blocks = [...entry.blocks];
+      const output = toolResultOutput(message);
+      blocks[index] = {
+        ...block,
+        status: message.isError ? ToolCallStatus.Error : ToolCallStatus.Success,
+        ...(output === "" ? {} : { output }),
+      };
+      return emit([upsert({ ...entry, blocks })]);
+    }
+    return [];
+  }
+
   function onMessageEnd(event: MessageEndEvent): readonly ProjectionDelta[] {
     const message = event.message;
+    if (message.role === "toolResult") {
+      const folded = onToolResult(message);
+      // A result whose call is not on the path (an abandoned branch) keeps its own row.
+      return folded.length > 0 ? folded : appendMessage(message);
+    }
     if (roleOf(message) !== MessageRole.Assistant) {
       return appendMessage(message);
     }
@@ -282,6 +314,7 @@ export function createSessionProjectionMachine(
             id: update.id,
             name: update.toolName,
             arguments: {},
+            status: ToolCallStatus.Running,
           }),
         );
       case "toolcall_delta":
@@ -294,6 +327,7 @@ export function createSessionProjectionMachine(
             id: update.toolCall.id,
             name: update.toolCall.name,
             arguments: update.toolCall.arguments,
+            status: ToolCallStatus.Running,
           }),
         );
       case "start":

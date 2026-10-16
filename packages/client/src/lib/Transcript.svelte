@@ -3,6 +3,7 @@
 
   import Markdown from "./Markdown.svelte";
   import NotificationCard from "./NotificationCard.svelte";
+  import ToolCallCard from "./ToolCallCard.svelte";
   import { entryText } from "./transcript.js";
 
   let { entries }: { entries: readonly ProjectedEntry[] } = $props();
@@ -72,12 +73,7 @@
                   </p>
                 </details>
               {:else if block.type === ContentBlockType.ToolCall}
-                <div
-                  class="mb-1 rounded border border-neutral-800 px-2 py-1 text-xs"
-                  data-testid="tool-call"
-                >
-                  <span class="text-neutral-400">{block.name}</span>
-                </div>
+                <ToolCallCard {block} />
               {/if}
             {/each}
           </div>

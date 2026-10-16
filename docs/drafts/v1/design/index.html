@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pi-my-ui — design variants</title>
+<!--
+  Index for the D-T1 design exploration.
+  Exploratory mockups only — see README.md. No build, no network, opens from file://.
+  This index itself makes no network request: it only links to files in this folder.
+-->
+<style>
+:root{--bg:#07080c;--card:#12151c;--line:#242b36;--fg:#e8ebf0;--dim:#98a1b0;--dim2:#6b7482;--accent:#b6f36a}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);
+     font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+     padding:32px 16px 64px}
+.wrap{max-width:760px;margin:0 auto}
+h1{font-size:22px;margin:0 0 6px}
+.lede{color:var(--dim);margin:0 0 4px}
+.note{color:var(--dim2);font-size:13px;margin:14px 0 26px;border-left:3px solid var(--line);padding-left:12px}
+.note code{font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;background:#0e1016;border:1px solid var(--line);
+           border-radius:5px;padding:1px 5px;color:var(--accent)}
+.result{margin:0 0 22px;padding:12px 14px;border:1px solid var(--line);border-left:3px solid #79c0ff;
+        border-radius:10px;background:#0e1016;color:var(--fg);font-size:14px;line-height:1.55}
+.result code{font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;background:#05070a;border:1px solid var(--line);
+             border-radius:5px;padding:1px 5px;color:#79c0ff}
+.result a{color:#79c0ff}
+.mark{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;
+      border-radius:999px;margin-left:8px;vertical-align:2px;white-space:nowrap}
+.mark.chosen{color:#0b0d10;background:#79c0ff}
+.mark.rejected{color:var(--dim2);border:1px solid var(--line);background:transparent}
+.mark.partial{color:var(--dim2);border:1px dashed var(--line);background:transparent}
+.card{display:block;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;
+      margin-bottom:14px;text-decoration:none;color:inherit}
+.card:hover{border-color:var(--accent)}
+.card .swatch{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;vertical-align:1px}
+.card h2{margin:0 0 4px;font-size:17px}
+.card .thesis{margin:0;color:var(--dim)}
+.card .meta{margin:8px 0 0;font-size:12.5px;color:var(--dim2)}
+.card .meta b{color:var(--dim)}
+.card .open{color:var(--accent);font-weight:600;font-size:13px}
+.foot{margin-top:26px;color:var(--dim2);font-size:13px}
+.foot a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>pi-my-ui — design variants</h1>
+  <p class="lede">Three deliberately different visual directions for the mobile UI, rendered as plain
+    static HTML. Not shipped code — a way to react to layout and density before any Svelte is written.</p>
+  <p class="note">
+    Open a variant below, then fill in <code>CHOICES.md</code> (one row per surface). View by opening
+    these files directly with <code>file://</code>, or run
+    <code>python3 -m http.server</code> from the repo root and browse to
+    <code>docs/design/</code>. See <code>README.md</code> for scope.
+  </p>
+  <p class="result">
+    <strong>Chosen direction (2026-10-11):</strong> <strong>A — “Console”</strong> as the base — A's
+    blue/cyan-led palette and A's dense monospace-led type — with <strong>C's composer-control geometry</strong>
+    (a <code>44×44</code> round send/stop and a <code>44×44</code> square branch button, branch rightmost),
+    restyled into A. <strong>B is rejected</strong> — borrow nothing. Recorded verbatim in
+    <code>USER-FEEDBACK.md</code> and decided in
+    <a href="../adr/0017-ui-design-direction.md">ADR 0017</a>.
+  </p>
+
+  <a class="card" href="variant-a-console.html">
+    <h2><span class="swatch" style="background:#7ee787"></span>A — “Console”<span class="mark chosen">chosen base</span></h2>
+    <p class="thesis">Keep the terminal lineage: one dense monospace stream where every surface is a compact
+      hairline row and the transcript <em>is</em> the interface.</p>
+    <p class="meta"><b>Optimises for</b> density and fast scanning · <b>Trades away</b> touch comfort and
+      glance-level separation — <span class="open">open →</span></p>
+  </a>
+
+  <a class="card" href="variant-b-journal.html">
+    <h2><span class="swatch" style="background:#8b9cff"></span>B — “Journal”<span class="mark rejected">rejected</span></h2>
+    <p class="thesis">Treat the conversation as a calm timeline: each turn is a distinct card on a rail, with
+      generous spacing and one clear thing to read at a time.</p>
+    <p class="meta"><b>Optimises for</b> reading comfort and glanceability · <b>Trades away</b> density —
+      far fewer messages per screen, more scrolling — <span class="open">open →</span></p>
+  </a>
+
+  <a class="card" href="variant-c-focus.html">
+    <h2><span class="swatch" style="background:#b6f36a"></span>C — “Focus”<span class="mark partial">composer geometry adopted</span></h2>
+    <p class="thesis">Strip the chrome: the transcript is plain type on near-black, and every secondary
+      surface is a sheet you pull up, not a thing that lives on screen.</p>
+    <p class="meta"><b>Optimises for</b> one-handed reach and an immersive read · <b>Trades away</b>
+      at-a-glance status and discoverability — <span class="open">open →</span></p>
+  </a>
+
+  <p class="foot">
+    Every variant covers the same surfaces required by ADR 0012 and the E3 tickets: transcript, composer,
+    sidebar, agent pill and list, <code>/tree</code>, the <code>/</code> palette, <code>!</code>/<code>!!</code>
+    bash cards, and the errored / aborted / compacting run states. The variants differ only in layout,
+    hierarchy, density and navigation.
+  </p>
+</div>
+</body>
+</html>

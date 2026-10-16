@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Variant A — Console · pi-my-ui design exploration</title>
+<!--
+  Variant A — "Console"
+  Thesis: keep the terminal lineage — one dense monospace stream where every surface is a compact,
+          hairline-separated row and the transcript itself is the interface.
+  Optimises for: density and fast scanning of long sessions; most messages and status on one phone
+          screen; familiar to anyone who has used pi's TUI.
+  Trades away: touch comfort, generous tap targets, and the visual separation that helps a reader tell
+          message kinds apart at a glance. Navigation leans on commands rather than big affordances.
+  Scope note: exploratory mockup only. Not shipped code, no build, no network.
+-->
+<style>
+:root{
+  --bg:#0b0d10; --panel:#111418; --panel2:#161b21; --line:#232a31; --line2:#2d353d;
+  --fg:#c9d1d9; --dim:#7d8896; --dim2:#5a636e;
+  --green:#7ee787; --blue:#79c0ff; --amber:#e3b341; --red:#ff7b72; --purple:#d2a8ff;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:#05070a; color:var(--fg);
+  font:12.5px/1.5 ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  padding:24px 12px 72px;
+}
+.doc{max-width:1240px;margin:0 auto}
+.doc-head{border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:24px}
+.doc-head h1{margin:0 0 4px;font-size:15px;color:var(--fg)}
+.doc-head p{margin:2px 0;color:var(--dim);max-width:70ch}
+.doc-head .back{color:var(--blue);text-decoration:none}
+.frames{display:flex;flex-wrap:wrap;gap:30px 34px;justify-content:center;align-items:flex-start}
+.screen{width:390px}
+.screen > h2{
+  font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--dim);
+  margin:0 0 8px;font-weight:600;
+}
+.screen > h2 .n{color:var(--green)}
+.phone{
+  width:390px;height:844px;overflow:auto;background:var(--bg);
+  border:1px solid var(--line);border-radius:20px;position:relative;
+  box-shadow:0 16px 46px rgba(0,0,0,.55);
+  scrollbar-width:thin;scrollbar-color:var(--line2) transparent;
+}
+.phone::-webkit-scrollbar{width:6px}
+.phone::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
+
+/* app chrome */
+.bar{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);
+     background:linear-gradient(180deg,#12161b,#0d1014);position:sticky;top:0;z-index:5}
+.bar .name{font-weight:700;color:#e6edf3}
+.bar .sub{color:var(--dim2)}
+.bar .grow{margin-left:auto}
+.badge{font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid var(--line2);color:var(--dim)}
+.badge.ok{color:var(--green);border-color:#2c4a34;background:#0f1c14}
+.badge.warn{color:var(--amber);border-color:#4a3d1a;background:#1c1810}
+.badge.err{color:var(--red);border-color:#4a2826;background:#1c1010}
+.icon-btn{border:1px solid var(--line2);background:var(--panel2);color:var(--dim);border-radius:4px;
+          padding:2px 6px;font:inherit;cursor:default}
+
+/* transcript */
+.stream{padding:8px 10px 4px}
+.msg{display:grid;grid-template-columns:14px 1fr;gap:8px;padding:5px 0;border-bottom:1px dashed var(--line)}
+.msg:last-child{border-bottom:0}
+.g{color:var(--dim2);user-select:none}
+.msg.user .g{color:var(--blue)}
+.msg.asst .g{color:var(--green)}
+.msg .who{font-size:10px;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em}
+.msg .body{margin-top:1px}
+.msg p{margin:.35em 0}
+code.inline{background:#1b2027;border:1px solid var(--line);border-radius:3px;padding:0 3px;color:var(--purple)}
+.code{background:#0d1117;border:1px solid var(--line);border-radius:5px;margin:.5em 0;overflow:hidden}
+.code .cap{font-size:10px;color:var(--dim2);padding:3px 8px;border-bottom:1px solid var(--line);background:#12161b}
+.code pre{margin:0;padding:8px;overflow-x:auto;font-size:11px;line-height:1.45}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.str{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}
+
+details.reason{border:1px solid var(--line);border-radius:5px;background:#0e1216;margin:.4em 0}
+details.reason > summary{list-style:none;cursor:pointer;padding:4px 8px;color:var(--dim2);font-size:11px}
+details.reason > summary::-webkit-details-marker{display:none}
+details.reason > summary::before{content:"▸ ";color:var(--purple)}
+details.reason[open] > summary::before{content:"▾ "}
+details.reason .inner{padding:0 10px 8px;color:var(--dim);font-size:11px;border-top:1px solid var(--line)}
+
+details.tool{border:1px solid var(--line);border-radius:5px;background:#0e1216;margin:.45em 0}
+details.tool > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:7px;padding:4px 8px;font-size:11.5px}
+details.tool > summary::-webkit-details-marker{display:none}
+details.tool > summary::before{content:"▸";color:var(--dim2)}
+details.tool[open] > summary::before{content:"▾"}
+.tool-name{color:var(--blue);font-weight:700}
+.tool-arg{color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.st{font-size:10px;padding:0 6px;border-radius:3px;border:1px solid var(--line2)}
+.st.ok{color:var(--green);border-color:#2c4a34}
+.st.run{color:var(--amber);border-color:#4a3d1a}
+.st.err{color:var(--red);border-color:#4a2826}
+details.tool .toolbody{border-top:1px solid var(--line);padding:8px}
+.kv{color:var(--dim2);font-size:11px;margin-bottom:4px}
+.diff{border:1px solid var(--line);border-radius:4px;overflow:hidden;font-size:11px;background:#0d1117}
+.diff .dline{padding:1px 8px;white-space:pre;overflow-x:auto}
+.diff .ctx{color:var(--dim)}
+.diff .add{background:rgba(126,231,135,.10);color:#b6f0bd}
+.diff .del{background:rgba(255,123,114,.10);color:#ffb8b3}
+
+.caret{display:inline-block;width:7px;height:13px;background:var(--green);vertical-align:-2px;margin-left:2px;
+       animation:blink 1.05s steps(1) infinite}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+
+/* pills */
+.pillrow{display:flex;align-items:center;gap:6px;padding:6px 10px;border-bottom:1px solid var(--line)}
+.pill{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line2);background:var(--panel2);
+      border-radius:999px;padding:2px 9px;font-size:11px;color:var(--fg)}
+.pill .dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+.pill .cnt{color:var(--amber)}
+.spacer{margin-left:auto}
+.dot-live{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);
+          box-shadow:0 0 0 0 rgba(126,231,135,.6);animation:ping 1.6s infinite}
+@keyframes ping{0%{box-shadow:0 0 0 0 rgba(126,231,135,.55)}70%{box-shadow:0 0 0 6px rgba(126,231,135,0)}100%{box-shadow:0 0 0 0 rgba(126,231,135,0)}}
+
+/* composer */
+.composer{border-top:1px solid var(--line2);background:linear-gradient(180deg,#0e1216,#0b0d10);
+          padding:7px 10px 10px;position:sticky;bottom:0}
+.statusline{display:flex;align-items:center;gap:8px;font-size:10.5px;color:var(--dim);margin-bottom:6px;flex-wrap:wrap}
+.statusline .k{color:var(--dim2)}
+.bar-meter{width:56px;height:5px;border-radius:3px;background:#1c2229;overflow:hidden;display:inline-block;vertical-align:middle}
+.bar-meter > i{display:block;height:100%;width:21%;background:var(--green)}
+.inputrow{display:flex;align-items:flex-end;gap:6px}
+.input{flex:1;min-height:34px;max-height:96px;overflow:auto;border:1px solid var(--line2);border-radius:6px;
+       background:#0d1117;padding:6px 8px;color:var(--fg);font:inherit}
+.input .ph{color:var(--dim2)}
+.input .typed{color:var(--fg)}
+.sendbtn{border:1px solid #2c4a34;background:#12281a;color:var(--green);border-radius:6px;
+         padding:6px 9px;font:inherit;font-weight:700;cursor:default}
+.stopbtn{border:1px solid #4a2826;background:#2a1413;color:var(--red);border-radius:6px;padding:6px 9px;font:inherit;font-weight:700;cursor:default}
+.branchbtn{border:1px solid var(--line2);background:var(--panel2);color:var(--blue);border-radius:6px;padding:6px 8px;font:inherit;cursor:default}
+
+/* drawer / sidebar */
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.5)}
+.drawer{position:absolute;top:0;left:0;bottom:0;width:270px;background:#0d1117;border-right:1px solid var(--line2);
+        display:flex;flex-direction:column;z-index:6}
+.drawer .dhead{padding:10px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+.drawer .dhead .t{font-weight:700;color:#e6edf3}
+.newbtn{margin-left:auto;border:1px solid #2c4a34;background:#12281a;color:var(--green);border-radius:4px;padding:2px 7px;font:inherit;cursor:default}
+.sess{border-bottom:1px solid var(--line);padding:7px 10px}
+.sess .r1{display:flex;align-items:center;gap:6px}
+.sess .sid{color:var(--dim2);font-size:10px}
+.sess .title{color:var(--fg);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sess .prev{color:var(--dim2);font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sess.active{background:#101720;border-left:2px solid var(--green)}
+
+/* generic overlay modal (tree / palette) */
+.sheet{position:absolute;inset:0;background:rgba(3,5,7,.72);display:flex;flex-direction:column;justify-content:flex-start;z-index:8}
+.modal{background:#0d1117;border-bottom:1px solid var(--line2);border-radius:0 0 12px 12px;padding:10px;
+       box-shadow:0 12px 40px rgba(0,0,0,.6)}
+.modal h3{margin:0 0 8px;font-size:12px;color:#e6edf3}
+.search{display:flex;align-items:center;gap:6px;border:1px solid var(--line2);border-radius:6px;background:#0b0f14;padding:5px 8px;color:var(--dim)}
+.search .q{color:var(--fg)}
+.tree{margin-top:8px}
+.node{display:flex;align-items:center;gap:6px;padding:3px 0;color:var(--fg);white-space:nowrap;overflow:hidden}
+.node .ic{color:var(--dim2);width:14px;text-align:center}
+.node .tt{overflow:hidden;text-overflow:ellipsis}
+.node .ts{color:var(--dim2);font-size:10px;margin-left:auto}
+.node.cur{background:#10231a;border-radius:4px;padding-left:4px}
+.node.cur::after{content:"◄ leaf";color:var(--green);font-size:9px;margin-left:6px}
+.node.dim{color:var(--dim)}
+.indent1{margin-left:16px}.indent2{margin-left:32px}.indent3{margin-left:48px}
+.alt{color:var(--dim);border:1px dashed var(--line2);border-radius:4px;padding:2px 7px;display:inline-block;margin:2px 0 2px 32px;font-size:11px}
+.alt::before{content:"▸ "}
+
+/* palette */
+.cmd{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:4px}
+.cmd .c{color:var(--blue);font-weight:700;min-width:74px}
+.cmd .d{color:var(--dim)}
+.cmd.sel{background:#101a24;border:1px solid #1e3346}
+
+/* bash card */
+.bash{border:1px solid var(--line);border-radius:5px;background:#0e1216;margin:.45em 0;overflow:hidden}
+.bash .bhead{display:flex;align-items:center;gap:7px;padding:4px 8px;border-bottom:1px solid var(--line);font-size:11px}
+.bash .cmd{color:var(--fg);font-weight:700}
+.bash .cmd::before{content:"$ ";color:var(--dim2)}
+.context{font-size:10px;padding:0 6px;border-radius:3px}
+.context.in{color:var(--green);border:1px solid #2c4a34;background:#0f1c14}
+.context.out{color:var(--amber);border:1px solid #4a3d1a;background:#1c1810}
+.bash .out{padding:6px 8px;color:var(--dim);font-size:11px;white-space:pre-wrap}
+.bash .out .ok{color:var(--green)}
+
+/* run states */
+.run{border-left:3px solid var(--line2);padding:6px 9px;margin:.4em 0;background:#0e1216;border-radius:0 5px 5px 0}
+.run.err{border-color:var(--red)}
+.run.abort{border-color:var(--amber)}
+.run.compact{border-color:var(--purple)}
+.run .rt{font-weight:700}
+.run.err .rt{color:var(--red)}
+.run.abort .rt{color:var(--amber)}
+.run.compact .rt{color:var(--purple)}
+.run .rd{color:var(--dim);font-size:11px}
+.run .act{color:var(--blue);font-size:11px;margin-top:3px}
+.spinner{display:inline-block;width:8px;height:8px;border:1.5px solid var(--purple);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;vertical-align:-1px;margin-right:5px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.caret,.dot-live,.spinner{animation:none}}
+
+/* agent list */
+.agent{display:flex;align-items:center;gap:8px;padding:7px 9px;border-bottom:1px solid var(--line)}
+.agent .nm{font-weight:700}
+.agent .desc{color:var(--dim2);font-size:10.5px}
+.agent .meta{margin-left:auto;text-align:right;font-size:10px;color:var(--dim2)}
+.agent .tag{font-size:10px;color:var(--dim);border:1px solid var(--line2);border-radius:3px;padding:0 5px}
+.agent.focus{background:#101720;border-left:2px solid var(--green)}
+</style>
+</head>
+<body>
+<div class="doc">
+  <header class="doc-head">
+    <h1>Variant A — “Console”</h1>
+    <p><strong>Thesis:</strong> keep the terminal lineage — one dense monospace stream where every surface is a
+      compact hairline-separated row and the transcript itself is the interface.</p>
+    <p><strong>Optimises for:</strong> density and fast scanning; most of a long session and its status on one
+      phone screen; familiar to a pi TUI user.</p>
+    <p><strong>Trades away:</strong> touch comfort, generous tap targets, and the glance-level separation that
+      helps distinguish message kinds. Navigation leans on commands, not big affordances.</p>
+    <p><a class="back" href="index.html">← all variants</a></p>
+  </header>
+
+  <div class="frames">
+
+    <!-- 1. MAIN TRANSCRIPT -->
+    <section class="screen">
+      <h2><span class="n">1</span> · Transcript, composer, pill</h2>
+      <div class="phone">
+        <div class="bar">
+          <span class="icon-btn">≡</span>
+          <span class="name">pi-my-ui</span>
+          <span class="sub">/ fix ws resync</span>
+          <span class="grow"></span>
+          <span class="badge ok">● connected</span>
+        </div>
+        <div class="pillrow">
+          <span class="pill"><span class="dot"></span>main</span>
+          <span class="spacer"></span>
+          <span class="badge">sonnet-4.5 · high</span>
+        </div>
+        <div class="stream">
+          <div class="msg user">
+            <span class="g">›</span>
+            <div>
+              <div class="who">you · 14:02</div>
+              <div class="body">The transcript duplicates the last assistant message after a reconnect.
+                Can we make resync replace the buffer atomically instead of appending onto it?</div>
+            </div>
+          </div>
+
+          <div class="msg asst">
+            <span class="g">⏺</span>
+            <div>
+              <div class="who">pi · reasoning</div>
+              <details class="reason">
+                <summary>reasoning · 312 tokens</summary>
+                <div class="inner">The snapshot merge in applyDelta doesn't clear the in-flight partial.
+                  Order is: message_delta arrives, then a full snapshot on reconnect. Need to check the
+                  buffer key matches the message id, otherwise the snapshot copy lands after the partial.</div>
+              </details>
+            </div>
+          </div>
+
+          <div class="msg asst">
+            <span class="g">⏺</span>
+            <div>
+              <div class="who">pi · 14:02</div>
+              <div class="body">
+                <p>Found it. In <code class="inline">applyDelta</code> we append each delta onto
+                  <code class="inline">partial.text</code>, but on <code class="inline">resync</code> the
+                  snapshot goes through the same reducer without clearing that buffer first. So the
+                  snapshot's copy of the message lands <em>after</em> the partial already there — two copies
+                  of the same id.</p>
+                <div class="code">
+                  <div class="cap">transcript.svelte.ts</div>
+                  <pre><span class="kw">export</span> <span class="kw">function</span> <span class="fn">apply</span>(state, event) {
+  <span class="kw">if</span> (event.kind === <span class="str">'snapshot'</span>) <span class="kw">return</span> <span class="fn">replace</span>(state, event);
+  <span class="kw">return</span> <span class="fn">mergeDelta</span>(state, event);
+}</pre>
+                </div>
+                <p>Applying the edit:</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="msg asst">
+            <span class="g">⏺</span>
+            <div>
+              <details class="tool" open>
+                <summary>
+                  <span class="tool-name">edit</span>
+                  <span class="tool-arg">transcript.svelte.ts · 1 hunk</span>
+                  <span class="st ok">ok</span>
+                </summary>
+                <div class="toolbody">
+                  <div class="kv">{ "path": "packages/client/src/lib/state/transcript.svelte.ts" }</div>
+                  <div class="diff">
+                    <div class="dline ctx">@@ -18,7 +18,9 @@ import { replace, mergeDelta } from './reducer';</div>
+                    <div class="dline del">-  const next = mergeDelta(state, event);</div>
+                    <div class="dline add">+  const next = event.kind === 'snapshot'</div>
+                    <div class="dline add">+    ? replace(event)</div>
+                    <div class="dline add">+    : mergeDelta(state, event);</div>
+                  </div>
+                </div>
+              </details>
+              <details class="tool">
+                <summary>
+                  <span class="tool-name">read</span>
+                  <span class="tool-arg">reducer.ts · lines 1–40</span>
+                  <span class="st ok">ok</span>
+                </summary>
+                <div class="toolbody"><div class="kv">output collapsed — 40 lines</div></div>
+              </details>
+            </div>
+          </div>
+
+          <div class="msg asst">
+            <span class="g">⏺</span>
+            <div>
+              <div class="who">pi · streaming</div>
+              <div class="body">
+                <p>Now a reconnect replaces the in-flight partial with the authoritative snapshot, so the
+                  same message id can't appear twice. Running the reducer tests to confirm
+                  <span class="caret"></span></p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="composer">
+          <div class="statusline">
+            <span class="k">model</span> sonnet-4.5
+            <span class="k">· think</span> high
+            <span class="k">· ctx</span>
+            <span class="bar-meter"><i></i></span> 41.2k/200k 21%
+          </div>
+          <div class="inputrow">
+            <div class="input"><span class="ph">message pi — ⏎ newline, send when ready…</span></div>
+            <button class="stopbtn">■ stop</button>
+            <button class="branchbtn">⑂</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. SIDEBAR -->
+    <section class="screen">
+      <h2><span class="n">2</span> · Session sidebar (collapsed → open drawer)</h2>
+      <div class="phone">
+        <div class="bar">
+          <span class="icon-btn">≡</span>
+          <span class="name">pi-my-ui</span>
+          <span class="grow"></span>
+          <span class="badge ok">● connected</span>
+        </div>
+        <div class="scrim"></div>
+        <aside class="drawer">
+          <div class="dhead">
+            <span class="t">sessions</span>
+            <button class="newbtn">+ new</button>
+          </div>
+          <div class="sess active">
+            <div class="r1"><span class="dot-live"></span><span class="title">fix ws resync</span>
+              <span class="sid">#12</span></div>
+            <div class="prev">…so the same message id can't appear twice</div>
+          </div>
+          <div class="sess">
+            <div class="r1"><span class="title">mobile shell layout</span><span class="sid">#11</span></div>
+            <div class="prev">three regions, sidebar collapsed by default</div>
+          </div>
+          <div class="sess">
+            <div class="r1"><span class="title">subagent bridge spike</span><span class="sid">#9</span></div>
+            <div class="prev">pill shows main + running count</div>
+          </div>
+          <div class="sess">
+            <div class="r1"><span class="title">caddy + tailscale</span><span class="sid">#7</span></div>
+            <div class="prev">bind 127.0.0.1, origin allow-list</div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- 3. AGENT PILL + LIST -->
+    <section class="screen">
+      <h2><span class="n">3</span> · Agent pill (both states) + opened list</h2>
+      <div class="phone">
+        <div class="bar">
+          <span class="icon-btn">≡</span>
+          <span class="name">pi-my-ui</span>
+          <span class="grow"></span>
+          <span class="badge ok">● connected</span>
+        </div>
+        <div class="pillrow">
+          <span class="k" style="color:var(--dim2)">pill state 1 →</span>
+          <span class="pill"><span class="dot"></span>main</span>
+          <span class="spacer"></span>
+          <span class="k" style="color:var(--dim2)">state 2 →</span>
+          <span class="pill"><span class="dot"></span>explore-2 <span class="cnt">+2</span></span>
+        </div>
+        <div class="stream">
+          <div class="agent focus">
+            <span class="tag">main</span>
+            <span><span class="nm">main</span><div class="desc">focused · your conversation</div></span>
+            <span class="meta">—</span>
+          </div>
+          <div class="agent">
+            <span class="tag">explore</span>
+            <span><span class="nm">explore-2</span><div class="desc">locating the resync reducer path</div></span>
+            <span class="meta"><span class="st run">running</span><br>01:12</span>
+          </div>
+          <div class="agent">
+            <span class="tag">task</span>
+            <span><span class="nm">test-runner</span><div class="desc">vitest on transcript reducer</div></span>
+            <span class="meta"><span class="st run">running</span><br>00:43</span>
+          </div>
+          <div class="agent">
+            <span class="tag">task</span>
+            <span><span class="nm">docs-writer</span><div class="desc">queued · update ADR 0005 note</div></span>
+            <span class="meta"><span class="st">queued</span><br>00:00</span>
+          </div>
+          <div class="kv" style="padding:8px 10px">
+            The list is the only subagent navigation surface (ADR 0012 / E5-T3). Selecting a row focuses
+            that agent in the main view and retargets the composer; “main” is always the way back.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. TREE MODAL -->
+    <section class="screen">
+      <h2><span class="n">4</span> · /tree modal (search top, tree below, alternatives collapsed)</h2>
+      <div class="phone">
+        <div class="bar">
+          <span class="icon-btn">≡</span>
+          <span class="name">pi-my-ui</span>
+          <span class="sub">/ fix ws resync</span>
+          <span class="grow"></span>
+          <span class="badge">tree</span>
+        </div>
+        <div class="sheet">
+          <div class="modal">
+            <h3>session tree</h3>
+            <div class="search"><span>⌕</span><span class="q">resync</span><span style="color:var(--dim2)">|</span></div>
+            <div class="tree">
+              <div class="node"><span class="ic">›</span><span class="tt">Add the mobile shell</span><span class="ts">14:40</span></div>
+              <div class="node indent1"><span class="ic">⏺</span><span class="tt">I'll scaffold three regions…</span><span class="ts">14:41</span></div>
+              <div class="node indent2 cur"><span class="ic">›</span><span class="tt">Fix ws resync</span><span class="ts">14:02</span></div>
+              <div class="node indent3"><span class="ic">⏺</span><span class="tt">Found it — applyDelta appends…</span><span class="ts">14:02</span></div>
+              <div class="node indent3 dim"><span class="ic">⚙</span><span class="tt">edit transcript.svelte.ts</span><span class="ts">14:03</span></div>
+              <span class="alt">2 alternative branches (collapsed)</span>
+              <div class="node indent1 dim"><span class="ic">⏺</span><span class="tt">Alternative: dedupe by id on merge</span><span class="ts">14:38</span></div>
+              <span class="alt">3 alternative branches (collapsed)</span>
+            </div>
+          </div>
+          <div class="kv" style="padding:10px;color:var(--dim2)">
+            Only the root→leaf path is expanded. Tapping an alternative expands it; tapping a user message
+            returns its text to the composer for edit-and-resubmit (ADR 0012 / E4-T4).
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. COMMAND PALETTE -->
+    <section class="screen">
+      <h2><span class="n">5</span> · / command palette</h2>
+      <div class="phone">
+        <div class="bar">
+          <span class="icon-btn">≡</span>
+          <span class="name">pi-my-ui</span>
+          <span class="grow"></span>
+          <span class="badge">palette</span>
+        </div>
+        <div class="sheet">
+          <div class="modal">
+            <div class="search"><span>/</span><span style="color:var(--dim2)">type a command or template…</span><span style="color:var(--dim2)">|</span></div>
+            <div class="tree">
+              <div class="cmd sel"><span class="c">/tree</span><span class="d">browse &amp; switch branches</span></div>
+              <div class="cmd"><span class="c">/fork</span><span class="d">branch from an earlier message</span></div>
+              <div class="cmd"><span class="c">/clone</span><span class="d">copy this session</span></div>
+              <div class="cmd"><span class="c">/compact</span><span class="d">summarise context, free tokens</span></div>
+              <div class="cmd"><span class="c">/model</span><span class="d">switch model</span></div>
+              <div class="cmd"><span class="c">/resume</span><span class="d">open an earlier session</span></div>
+              <div class="cmd"><span class="c">/new</span><span class="d">start a fresh session</span></div>
+              <div class="cmd"><span class="c">/attach</span><span class="d">add an image</span></div>
+              <div class="cmd"><span class="c">/help</span><span class="d">what pi can do</span></div>
+              <div class="cmd" style="color:var(--dim2)"><span class="c" style="color:var(--dim)">templates</span><span class="d">review · changelog · test-plan</span></div>
+            </div>
+          </div>
+          <div class="kv" style="padding:10px;color:var(--dim2)">
+            One palette for slash commands and prompt templates (ADR 0000). Fuzzy-filtered as you type.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. BASH CARDS -->
+    <section class="screen">
+      <h2><span class="n">6</span> · Bash cards — <code>!</code> (into context) vs <code>!!</code> (excluded)</h2>
+      <div class="phone">
+        <div class="bar">
+          <span class="icon-btn">≡</span>
+          <span class="name">pi-my-ui</span>
+          <span class="sub">/ fix ws resync</span>
+          <span class="grow"></span>
+          <span class="badge ok">● connected</span>
+        </div>
+        <div class="stream">
+          <div class="msg user">
+            <span class="g">!</span>
+            <div>
+              <div class="who">you · bash</div>
+              <div class="bash">
+                <div class="bhead">
+                  <span class="cmd">pnpm -C packages/client test -- --run resync</span>
+                  <span class="context in">enters context on next prompt</span>
+                </div>
+                <div class="out">✓ transcript.reducer (7 tests)
+✓ resync.spec (3 tests)
+<span class="ok">Test Files  2 passed (2)</span>
+      Tests 10 passed (10)   1.84s</div>
+              </div>
+              <div class="who">you · bash</div>
+              <div class="bash">
+                <div class="bhead">
+                  <span class="cmd">git status --short</span>
+                  <span class="context out">excluded from context</span>
+                </div>
+                <div class="out"> M packages/client/src/lib/state/transcript.svelte.ts
+ M packages/client/src/lib/state/reducer.ts</div>
+              </div>
+            </div>
+          </div>
+          <div class="kv" style="padding:8px 0;color:var(--dim2)">
+            <code class="inline">!</code> includes the output in the model context on the next prompt;
+            <code class="inline">!!</code> runs it and leaves it out (ADR 0011). The marker is informational —
+            pi stays authoritative for when context is applied.
+          </div>
+        </div>
+        <div class="composer">
+          <div class="inputrow">
+            <div class="input"><span style="color:var(--amber)">!!</span> <span class="typed">git diff --stat</span></div>
+            <button class="sendbtn">send</button>
+            <button class="branchbtn">⑂</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. RUN STATES -->
+    <section class="screen">
+      <h2><span class="n">7</span> · Run states — errored, aborted, compacting</h2>
+      <div class="phone">
+        <div class="bar">
+          <span class="icon-btn">≡</span>
+          <span class="name">pi-my-ui</span>
+          <span class="grow"></span>
+          <span class="badge warn">reconnecting…</span>
+        </div>
+        <div class="stream">
+          <div class="run err">
+            <div class="rt">✕ errored</div>
+            <div class="rd">protocol version mismatch — client 3, server 2. The run cannot continue from here.</div>
+            <div class="act">↻ reload after updating the server</div>
+          </div>
+          <div class="run abort">
+            <div class="rt">■ aborted</div>
+            <div class="rd">Stopped by you at 14:06 — partial output kept.</div>
+            <div class="act">↻ resend</div>
+          </div>
+          <div class="run compact">
+            <div class="rt"><span class="spinner"></span>compacting</div>
+            <div class="rd">84 messages → summary. Context meter shows “recalculating”, not zero.</div>
+          </div>
+          <div class="run" style="border-color:var(--dim2)">
+            <div class="rt" style="color:var(--dim)">⋯ retrying (attempt 2 of 3)</div>
+            <div class="rd">upstream 503 — will settle normally if it recovers.</div>
+          </div>
+          <div class="run" style="border-color:var(--dim2)">
+            <div class="rt" style="color:var(--dim)">✂ context compacted here</div>
+            <div class="rd">past boundary — 84 messages replaced by a summary. Distinct from “compacting now”.</div>
+          </div>
+        </div>
+        <div class="composer">
+          <div class="statusline">
+            <span class="k">model</span> sonnet-4.5
+            <span class="k">· ctx</span> recalculating…
+          </div>
+          <div class="inputrow">
+            <div class="input"><span class="ph">message pi…</span></div>
+            <button class="sendbtn" style="border-color:#4a3d1a;background:#2a2410;color:var(--amber)">send</button>
+            <button class="branchbtn">⑂</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+</body>
+</html>

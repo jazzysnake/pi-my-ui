@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+.svelte-kit/
+coverage/
+playwright-report/
+test-results/
+.worktrees/
+.env
+.env.*
+*.log
+.DS_Store

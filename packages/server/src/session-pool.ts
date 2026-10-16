@@ -7,6 +7,7 @@ import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { ProtocolError, ProtocolErrorCode } from "@pi-my-ui/protocol";
 
 import type { ServerConfig } from "./config.js";
+import { systemClock } from "./clock.js";
 import { createSessionHost, type SessionHost } from "./session-host.js";
 
 export interface SessionPool {
@@ -23,6 +24,7 @@ export function createSessionPool(config: ServerConfig): SessionPool {
       sessionId,
       sessionFile,
       launch: { cwd: config.cwd, ...config.pi },
+      clock: config.clock ?? systemClock,
     });
     hosts.set(sessionFile, host);
     pending.delete(sessionFile);

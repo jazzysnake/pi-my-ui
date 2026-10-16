@@ -1,5 +1,6 @@
 /** The backend that owns the Session pool and serves Projections over its WebSocket. */
 
+export { systemClock, type ServerClock } from "./clock.js";
 export { DEFAULT_HOST, DEFAULT_PORT, type PiLaunchOptions, type ServerConfig } from "./config.js";
 export {
   HEALTHZ_PATH,

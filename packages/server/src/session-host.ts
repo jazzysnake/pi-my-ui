@@ -6,6 +6,7 @@
 
 import {
   ServerMessageType,
+  type Cursor,
   type DeltaMessage,
   type ProjectionDelta,
   type ServerMessage,
@@ -13,6 +14,7 @@ import {
 } from "@pi-my-ui/protocol";
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 
+import type { ServerClock } from "./clock.js";
 import { startPiChild, type PiChild, type PiChildLaunch } from "./pi-child.js";
 import { createSessionProjectionMachine } from "./session-projection.js";
 
@@ -24,8 +26,11 @@ export interface SessionViewer {
 export interface SessionHost {
   readonly sessionId: string;
   readonly sessionFile: string;
-  /** Send the current Snapshot and start receiving Deltas; returns a detach. */
-  attach(viewer: SessionViewer): Promise<() => void>;
+  /**
+   * Deliver what a viewer missed: the Deltas after `from` when that Cursor is still retained, a
+   * fresh Snapshot when it is not, and a Snapshot when the viewer has no Cursor. Returns a detach.
+   */
+  attach(viewer: SessionViewer, from?: Cursor): Promise<() => void>;
   prompt(text: string): Promise<void>;
   abort(): Promise<void>;
   close(): Promise<void>;
@@ -35,7 +40,19 @@ export interface SessionHostOptions {
   readonly sessionId: string;
   readonly sessionFile: string;
   readonly launch: PiChildLaunch;
+  readonly clock: ServerClock;
 }
+
+/** One published Delta batch, kept so a reconnecting viewer can replay what it missed. */
+interface RetainedBatch {
+  readonly message: DeltaMessage;
+  readonly publishedAt: number;
+}
+
+/** Batches retained per Session; the oldest is dropped past this, falling a viewer back to a Snapshot. */
+const MAX_RETAINED_BATCHES = 2048;
+/** Age bound on the retained batches, so an unwatched Session does not hold Deltas indefinitely. */
+const DELTA_HISTORY_TTL_MS = 5 * 60_000;
 
 export function createSessionHost(options: SessionHostOptions): SessionHost {
   const machine = createSessionProjectionMachine(options.sessionId, options.launch.cwd);
@@ -45,8 +62,26 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
   let seeding: Promise<void> | undefined;
   let seeded = false;
   let cursor = 0;
+  const history: RetainedBatch[] = [];
   /** Events delivered while the seed reads pi; applied once the Projection exists, never dropped. */
   let buffering: JsonAgentSessionEvent[] | null = null;
+
+  /** Drop batches past either bound from the front, so the retained window is always the newest. */
+  function retain(message: DeltaMessage): void {
+    history.push({ message, publishedAt: options.clock.now() });
+    for (;;) {
+      const oldest = history[0];
+      if (oldest === undefined) {
+        return;
+      }
+      const tooMany = history.length > MAX_RETAINED_BATCHES;
+      const tooOld = options.clock.now() - oldest.publishedAt > DELTA_HISTORY_TTL_MS;
+      if (!tooMany && !tooOld) {
+        return;
+      }
+      history.shift();
+    }
+  }
 
   function publish(deltas: readonly ProjectionDelta[]): void {
     if (deltas.length === 0 || !seeded) {
@@ -61,9 +96,31 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       cursor,
       deltas,
     };
+    retain(message);
     for (const viewer of [...viewers]) {
       viewer.onMessage(message);
     }
+  }
+
+  /**
+   * The messages a viewer at `from` is owed, or `undefined` when the server must send a Snapshot
+   * instead. Every retained Cursor between the oldest batch's start and the current one is a batch
+   * boundary, so a value in that range bridges; anything else is unknown.
+   */
+  function missedFrom(from: Cursor | undefined): readonly ServerMessage[] | undefined {
+    if (from === undefined) {
+      return undefined;
+    }
+    const oldest = history[0];
+    if (oldest === undefined) {
+      return from === cursor ? [] : undefined;
+    }
+    if (from < oldest.message.fromCursor || from > cursor) {
+      return undefined;
+    }
+    return history
+      .filter((retained) => retained.message.cursor > from)
+      .map((retained) => retained.message);
   }
 
   function onEvent(event: JsonAgentSessionEvent): void {
@@ -127,10 +184,17 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
   return {
     sessionId: options.sessionId,
     sessionFile: options.sessionFile,
-    async attach(viewer) {
+    async attach(viewer, from) {
       await ensureSeeded();
-      // Registering after the synchronous send keeps the Snapshot ahead of every Delta that follows.
-      viewer.onMessage(snapshot());
+      const missed = missedFrom(from);
+      if (missed === undefined) {
+        viewer.onMessage(snapshot());
+      } else {
+        for (const message of missed) {
+          viewer.onMessage(message);
+        }
+      }
+      // Registering after the synchronous sends keeps the replayed Deltas ahead of every new one.
       viewers.add(viewer);
       return () => {
         viewers.delete(viewer);

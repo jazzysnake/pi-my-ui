@@ -1,5 +1,7 @@
 /** What a running server is told once, at start. Tests override the paths and the pi launch. */
 
+import type { ServerClock } from "./clock.js";
+
 export const DEFAULT_HOST = "127.0.0.1";
 export const DEFAULT_PORT = 8787;
 
@@ -27,4 +29,6 @@ export interface ServerConfig {
   readonly keepAlive?: boolean | undefined;
   /** Where a refused upgrade is reported; defaults to stderr. */
   readonly log?: ((line: string) => void) | undefined;
+  /** The time source every server-side deadline reads; defaults to the system clock. */
+  readonly clock?: ServerClock | undefined;
 }

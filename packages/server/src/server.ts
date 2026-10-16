@@ -69,6 +69,11 @@ export interface RunningServer {
   /** The HTTP origin, for the health endpoint and any same-origin route. */
   readonly httpUrl: string;
   readonly port: number;
+  /**
+   * Terminate every attached viewer socket without stopping the server; the Sessions keep running.
+   * Test-only, so a spec can exercise a viewer's reconnect and resync against the real transport.
+   */
+  dropViewerConnections(): number;
   close(): Promise<void>;
 }
 
@@ -143,7 +148,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       const host = await pool.hostFor(message.sessionId);
       if (message.type === ClientMessageType.Subscribe) {
         attachment.detach?.();
-        attachment.detach = await host.attach(viewer);
+        attachment.detach = await host.attach(viewer, message.cursor);
         return;
       }
       if (message.type === ClientMessageType.Prompt) {
@@ -185,6 +190,13 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     url: `ws://${bindHost}:${String(boundPort)}`,
     httpUrl: `http://${bindHost}:${String(boundPort)}`,
     port: boundPort,
+    dropViewerConnections() {
+      const dropped = sockets.clients.size;
+      for (const client of sockets.clients) {
+        client.terminate();
+      }
+      return dropped;
+    },
     async close() {
       for (const client of sockets.clients) {
         client.terminate();

@@ -59,6 +59,9 @@ describe("the shell over the store's ServerMessage input", () => {
       status: ConnectionStatus.Connected,
       onPrompt: () => undefined,
       onAbort: () => undefined,
+      onListDirectory: () => undefined,
+      onPreviewFile: () => undefined,
+      onDownloadFile: () => undefined,
     });
 
     const message: ServerMessage = snapshotOf([

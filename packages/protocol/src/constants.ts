@@ -8,6 +8,8 @@ export const ClientMessageType = {
   Subscribe: "subscribe",
   Prompt: "prompt",
   Abort: "abort",
+  ListDirectory: "listDirectory",
+  PreviewFile: "previewFile",
 } as const;
 
 export type ClientMessageType = (typeof ClientMessageType)[keyof typeof ClientMessageType];
@@ -17,6 +19,8 @@ export const ServerMessageType = {
   Snapshot: "snapshot",
   Delta: "delta",
   Error: "error",
+  DirectoryListing: "directoryListing",
+  FilePreview: "filePreview",
 } as const;
 
 export type ServerMessageType = (typeof ServerMessageType)[keyof typeof ServerMessageType];
@@ -50,6 +54,16 @@ export const MessageRole = {
 } as const;
 
 export type MessageRole = (typeof MessageRole)[keyof typeof MessageRole];
+
+/** The kind of a directory entry, as a listing reports it. */
+export const FileEntryType = {
+  File: "file",
+  Directory: "directory",
+  Symlink: "symlink",
+  Other: "other",
+} as const;
+
+export type FileEntryType = (typeof FileEntryType)[keyof typeof FileEntryType];
 
 /** Discriminants for a projected content block. */
 export const ContentBlockType = {

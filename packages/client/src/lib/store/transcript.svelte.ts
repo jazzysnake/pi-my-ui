@@ -16,6 +16,8 @@ import {
 export interface TranscriptSlice {
   readonly entries: readonly ProjectedEntry[];
   readonly runState: RunState;
+  /** The Session's working directory, empty until a Snapshot names it. */
+  readonly cwd: string;
   receive(message: ServerMessage): void;
 }
 
@@ -28,6 +30,9 @@ export function createTranscriptSlice(): TranscriptSlice {
     },
     get runState() {
       return projection?.runState ?? { kind: RunStateKind.Idle };
+    },
+    get cwd() {
+      return projection?.cwd ?? "";
     },
     receive(message) {
       if (message.type === ServerMessageType.Snapshot) {

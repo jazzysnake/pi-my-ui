@@ -6,7 +6,13 @@
 import { ClientMessageType } from "./constants.js";
 import { ProtocolError, ProtocolErrorCode } from "./errors.js";
 import type { Cursor } from "./model.js";
-import type { ClientMessage, PromptMessage, SubscribeMessage } from "./messages.js";
+import type {
+  ClientMessage,
+  ListDirectoryMessage,
+  PreviewFileMessage,
+  PromptMessage,
+  SubscribeMessage,
+} from "./messages.js";
 
 function malformed(message: string): never {
   throw new ProtocolError(ProtocolErrorCode.MalformedPayload, message);
@@ -54,6 +60,23 @@ function requireText(record: Record<string, unknown>): string {
   return text;
 }
 
+/** A path relative to the server root. Empty means the root itself, so only the type is checked. */
+function requirePath(record: Record<string, unknown>): string {
+  const path = record["path"];
+  if (typeof path !== "string") {
+    malformed('"path" must be a string');
+  }
+  return path;
+}
+
+function validateListDirectory(record: Record<string, unknown>): ListDirectoryMessage {
+  return { type: ClientMessageType.ListDirectory, path: requirePath(record) };
+}
+
+function validatePreviewFile(record: Record<string, unknown>): PreviewFileMessage {
+  return { type: ClientMessageType.PreviewFile, path: requirePath(record) };
+}
+
 function validatePrompt(record: Record<string, unknown>): PromptMessage {
   return {
     type: ClientMessageType.Prompt,
@@ -76,6 +99,10 @@ export function validateClientMessage(value: unknown): ClientMessage {
       return validatePrompt(record);
     case ClientMessageType.Abort:
       return { type: ClientMessageType.Abort, sessionId: requireSessionId(record) };
+    case ClientMessageType.ListDirectory:
+      return validateListDirectory(record);
+    case ClientMessageType.PreviewFile:
+      return validatePreviewFile(record);
     default:
       throw new ProtocolError(
         ProtocolErrorCode.UnknownType,

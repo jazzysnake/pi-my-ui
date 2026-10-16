@@ -22,6 +22,9 @@ import {
 import { WebSocket, WebSocketServer } from "ws";
 
 import { DEFAULT_HOST, DEFAULT_PORT, type ServerConfig } from "./config.js";
+import { handleFileDownload, isFileDownloadPath } from "./files/route.js";
+import { listDirectory } from "./files/listing.js";
+import { readPreview } from "./files/preview.js";
 import { createTrustPolicy } from "./origin.js";
 import type { SessionViewer } from "./session-host.js";
 import { createSessionPool } from "./session-pool.js";
@@ -97,9 +100,14 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
   const pool = createSessionPool(config);
 
   const httpServer = createHttpServer((request, response) => {
-    if (pathnameOf(request.url) === HEALTHZ_PATH) {
+    const pathname = pathnameOf(request.url);
+    if (pathname === HEALTHZ_PATH) {
       response.writeHead(200, { "content-type": "application/json" });
       response.end(healthBody());
+      return;
+    }
+    if (isFileDownloadPath(pathname)) {
+      handleFileDownload(request, response, { cwd: config.cwd, trust, log });
       return;
     }
     response.writeHead(404);
@@ -145,6 +153,22 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     }
     const viewer: SessionViewer = { onMessage: (outbound) => send(socket, outbound) };
     try {
+      // The file capability reads the server's working directory, not a Session, so it is answered
+      // here rather than by a Session host.
+      if (message.type === ClientMessageType.ListDirectory) {
+        send(socket, {
+          type: ServerMessageType.DirectoryListing,
+          ...listDirectory(config.cwd, message.path),
+        });
+        return;
+      }
+      if (message.type === ClientMessageType.PreviewFile) {
+        send(socket, {
+          type: ServerMessageType.FilePreview,
+          ...readPreview(config.cwd, message.path),
+        });
+        return;
+      }
       const host = await pool.hostFor(message.sessionId);
       if (message.type === ClientMessageType.Subscribe) {
         attachment.detach?.();

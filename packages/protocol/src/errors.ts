@@ -13,6 +13,8 @@ export const ProtocolErrorCode = {
   UnknownSession: "unknownSession",
   /** The server failed to do what the message asked; the message itself was well-formed. */
   InternalError: "internalError",
+  /** A filesystem path that escapes the served root: a security refusal, not a malformed request. */
+  PathEscape: "pathEscape",
 } as const;
 
 export type ProtocolErrorCode = (typeof ProtocolErrorCode)[keyof typeof ProtocolErrorCode];
@@ -21,20 +23,26 @@ export type ProtocolErrorCode = (typeof ProtocolErrorCode)[keyof typeof Protocol
 export interface ProtocolErrorInfo {
   readonly code: ProtocolErrorCode;
   readonly message: string;
+  /** What the failure concerns — a requested path — so a client can attach it to the right node. */
+  readonly detail?: string;
 }
 
 /** A typed boundary failure. Validators throw it; the transport converts it with `toInfo`. */
 export class ProtocolError extends Error {
   readonly code: ProtocolErrorCode;
+  readonly detail: string | undefined;
 
-  constructor(code: ProtocolErrorCode, message: string) {
+  constructor(code: ProtocolErrorCode, message: string, detail?: string) {
     super(message);
     this.name = "ProtocolError";
     this.code = code;
+    this.detail = detail;
   }
 
   toInfo(): ProtocolErrorInfo {
-    return { code: this.code, message: this.message };
+    return this.detail === undefined
+      ? { code: this.code, message: this.message }
+      : { code: this.code, message: this.message, detail: this.detail };
   }
 }
 

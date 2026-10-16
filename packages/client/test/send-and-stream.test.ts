@@ -81,7 +81,15 @@ function mountShell(store: ClientStore, status: ConnectionStatus): Mounted {
   flushSync(() => {
     mount(Shell as Component<Record<string, unknown>>, {
       target,
-      props: { store, status, onPrompt: prompt, onAbort: abort },
+      props: {
+        store,
+        status,
+        onPrompt: prompt,
+        onAbort: abort,
+        onListDirectory: () => undefined,
+        onPreviewFile: () => undefined,
+        onDownloadFile: () => undefined,
+      },
     });
   });
   return { target, prompt, abort };

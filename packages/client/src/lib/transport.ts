@@ -54,6 +54,10 @@ export interface Transport {
   prompt(text: string): void;
   /** Cancel the Session's running turn. Ignored while the link is down. */
   abort(): void;
+  /** Ask for one directory of the server's working directory. Ignored while the link is down. */
+  listDirectory(path: string): void;
+  /** Ask for a bounded text preview of one file. Ignored while the link is down. */
+  previewFile(path: string): void;
 }
 
 export function createTransport(options: TransportOptions): Transport {
@@ -159,6 +163,12 @@ export function createTransport(options: TransportOptions): Transport {
     },
     abort() {
       send({ type: ClientMessageType.Abort, sessionId: options.sessionId });
+    },
+    listDirectory(path) {
+      send({ type: ClientMessageType.ListDirectory, path });
+    },
+    previewFile(path) {
+      send({ type: ClientMessageType.PreviewFile, path });
     },
   };
 }

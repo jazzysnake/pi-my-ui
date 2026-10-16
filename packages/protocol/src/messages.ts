@@ -4,6 +4,7 @@
  */
 
 import { ClientMessageType, ServerMessageType } from "./constants.js";
+import type { DirectoryEntry } from "./files.js";
 import type { Cursor, DeltaBatch, SessionProjection } from "./model.js";
 import type { ProtocolErrorInfo } from "./errors.js";
 
@@ -27,7 +28,23 @@ export interface AbortMessage {
   readonly sessionId: string;
 }
 
-export type ClientMessage = SubscribeMessage | PromptMessage | AbortMessage;
+/**
+ * List one directory of the server's working directory. `path` is relative to that root; `""` is the
+ * root itself. A filesystem read is not Session state, so it carries no Session and no Cursor.
+ */
+export interface ListDirectoryMessage {
+  readonly type: typeof ClientMessageType.ListDirectory;
+  readonly path: string;
+}
+
+/** Read a bounded text preview of one text-like file, relative to the server's working directory. */
+export interface PreviewFileMessage {
+  readonly type: typeof ClientMessageType.PreviewFile;
+  readonly path: string;
+}
+
+export type ClientMessage =
+  SubscribeMessage | PromptMessage | AbortMessage | ListDirectoryMessage | PreviewFileMessage;
 
 /** A full Projection at a Cursor. */
 export interface SnapshotMessage {
@@ -49,4 +66,22 @@ export interface ErrorMessage {
   readonly error: ProtocolErrorInfo;
 }
 
-export type ServerMessage = SnapshotMessage | DeltaMessage | ErrorMessage;
+/** One directory's entries, echoing the normalized relative `path` the request named. */
+export interface DirectoryListingMessage {
+  readonly type: typeof ServerMessageType.DirectoryListing;
+  readonly path: string;
+  readonly entries: readonly DirectoryEntry[];
+}
+
+/** A bounded text preview of one text-like file, with the truncation stated rather than implied. */
+export interface FilePreviewMessage {
+  readonly type: typeof ServerMessageType.FilePreview;
+  readonly path: string;
+  readonly text: string;
+  /** The file's full size in bytes, so a client can state what the preview left out. */
+  readonly size: number;
+  readonly truncated: boolean;
+}
+
+export type ServerMessage =
+  SnapshotMessage | DeltaMessage | ErrorMessage | DirectoryListingMessage | FilePreviewMessage;

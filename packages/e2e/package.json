@@ -1,0 +1,17 @@
+{
+  "name": "@pi-my-ui/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Hermetic end-to-end harness, fixture builder and Playwright specs.",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "0.99.2",
+    "@tintinweb/pi-subagents": "0.22.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0"
+  }
+}

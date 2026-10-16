@@ -1,0 +1,28 @@
+{
+  "name": "@pi-my-ui/server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "HTTP and WebSocket backend that owns the Session pool and Projections.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "pi-my-ui": "./dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@pi-my-ui/protocol": "0.0.0",
+    "@hono/node-server": "2.1.4",
+    "hono": "4.13.13",
+    "ws": "8.22.0"
+  }
+}

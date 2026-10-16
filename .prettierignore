@@ -1,0 +1,18 @@
+node_modules/
+dist/
+build/
+coverage/
+.worktrees/
+
+package-lock.json
+skills-lock.json
+*.tsbuildinfo
+
+playwright-report/
+test-results/
+
+# Prose and ticket material is owned by its own documents, not by the formatter.
+docs/
+.scratch/
+.agents/
+.claude/

@@ -1,0 +1,23 @@
+{
+  "name": "@pi-my-ui/bridge-extension",
+  "version": "0.0.0",
+  "private": true,
+  "description": "pi extension loaded into every Pi child that carries what pi's RPC does not expose.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@pi-my-ui/protocol": "0.0.0",
+    "@earendil-works/pi-coding-agent": "0.99.2"
+  }
+}

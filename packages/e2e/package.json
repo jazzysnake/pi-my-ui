@@ -16,6 +16,7 @@
     "@tintinweb/pi-subagents": "0.22.0"
   },
   "devDependencies": {
-    "@playwright/test": "1.64.0"
+    "@playwright/test": "1.64.0",
+    "ws": "8.22.0"
   }
 }

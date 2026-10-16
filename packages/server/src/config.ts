@@ -19,4 +19,12 @@ export interface ServerConfig {
   readonly host?: string | undefined;
   readonly port?: number | undefined;
   readonly pi?: PiLaunchOptions | undefined;
+  /** Origins allowed on the WebSocket upgrade; empty means the loopback development default. */
+  readonly allowedOrigins?: readonly string[] | undefined;
+  /** Idle window the launcher carries for Session eviction. */
+  readonly idleTimeoutMs?: number | undefined;
+  /** Disable idle eviction for this server. */
+  readonly keepAlive?: boolean | undefined;
+  /** Where a refused upgrade is reported; defaults to stderr. */
+  readonly log?: ((line: string) => void) | undefined;
 }

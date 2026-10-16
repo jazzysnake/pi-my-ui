@@ -1,0 +1,273 @@
+import { execFileSync, spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { createServer } from "node:net";
+import { fileURLToPath } from "node:url";
+
+import { expect, test } from "@playwright/test";
+import {
+  runLauncher,
+  startServer,
+  type LauncherIo,
+  type LauncherSignals,
+  type RunningServer,
+} from "@pi-my-ui/server";
+import type { Script } from "@pi-my-ui/scripted-provider";
+import { WebSocket } from "ws";
+
+import { seedSession } from "../src/fixture-builder";
+import { createHermeticHome, createPortNamespace, scriptedPiLaunch } from "../src/pi-harness";
+import { connectWsSession } from "../src/ws-session-client";
+
+const PI_TEST_TIMEOUT_MS = 90_000;
+test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
+
+const CLI_PATH = fileURLToPath(new URL("../../server/dist/cli.js", import.meta.url));
+
+/** The flags `--help` must name; a flagship without a line here is undiscoverable. */
+const DOCUMENTED_FLAGS = [
+  "--cwd",
+  "--port",
+  "--host",
+  "--idle-timeout",
+  "--keep-alive",
+  "--allowed-origin",
+  "--help",
+] as const;
+
+const UNUSED_SCRIPT: Script = [
+  {
+    expect: { role: "user", text: "a prompt this recording never saw" },
+    reply: { content: [{ type: "text", text: "unused" }], stopReason: "stop" },
+  },
+];
+
+function occupiedPort(): Promise<{ port: number; release: () => Promise<void> }> {
+  return new Promise((resolve, reject) => {
+    const holder = createServer();
+    holder.once("error", reject);
+    holder.listen(0, "127.0.0.1", () => {
+      const address = holder.address();
+      if (address === null || typeof address === "string") {
+        reject(new Error("the port holder did not bind a TCP address"));
+        return;
+      }
+      resolve({
+        port: address.port,
+        release: () =>
+          new Promise<void>((done) => {
+            holder.close(() => done());
+          }),
+      });
+    });
+  });
+}
+
+async function waitForHealth(
+  url: string,
+  child: ChildProcess,
+  stderr: () => string,
+): Promise<void> {
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) {
+      throw new Error(
+        `the launcher exited ${String(child.exitCode)} before listening: ${stderr()}`,
+      );
+    }
+    try {
+      const response = await fetch(url);
+      if (response.status === 200) {
+        return;
+      }
+    } catch {
+      // Not listening yet.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`the launcher never answered ${url}: ${stderr()}`);
+}
+
+/** Resolve `true` when the upgrade is accepted; `false` when the server refuses it. */
+function upgradeAccepted(url: string, origin: string | undefined): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = new WebSocket(url, origin === undefined ? {} : { headers: { origin } });
+    socket.on("open", () => {
+      socket.close();
+      resolve(true);
+    });
+    const refused = (): void => {
+      resolve(false);
+    };
+    socket.on("error", refused);
+    socket.on("unexpected-response", refused);
+  });
+}
+
+/** The `pi` children of this worker; pi sets its process title to `pi`, so the argv is the marker. */
+function ownPiChildPids(): number[] {
+  const output = execFileSync("ps", ["-eww", "-o", "pid=,ppid=,args="], { encoding: "utf8" });
+  const pids: number[] = [];
+  for (const line of output.split("\n")) {
+    const parts = line.trim().split(/\s+/);
+    const pid = Number.parseInt(parts[0] ?? "", 10);
+    const ppid = Number.parseInt(parts[1] ?? "", 10);
+    const command = parts.slice(2).join(" ");
+    if (ppid === process.pid && command === "pi" && Number.isInteger(pid)) {
+      pids.push(pid);
+    }
+  }
+  return pids;
+}
+
+function signalSource(): { source: LauncherSignals; emit(signal: NodeJS.Signals): void } {
+  const listeners = new Map<NodeJS.Signals, Set<() => void>>();
+  return {
+    source: {
+      on(signal, listener) {
+        const set = listeners.get(signal) ?? new Set();
+        set.add(listener);
+        listeners.set(signal, set);
+      },
+      off(signal, listener) {
+        listeners.get(signal)?.delete(listener);
+      },
+    },
+    emit(signal) {
+      for (const listener of listeners.get(signal) ?? []) {
+        listener();
+      }
+    },
+  };
+}
+
+const SILENT_IO: LauncherIo = { out: () => undefined, err: () => undefined };
+
+test("--help lists every flag", () => {
+  const result = spawnSync("node", [CLI_PATH, "--help"], { encoding: "utf8" });
+  expect(result.status).toBe(0);
+  for (const flag of DOCUMENTED_FLAGS) {
+    expect(result.stdout).toContain(flag);
+  }
+});
+
+test("a taken port fails with one line naming --port", async () => {
+  const taken = await occupiedPort();
+  try {
+    const result = spawnSync("node", [CLI_PATH, "--port", String(taken.port)], {
+      encoding: "utf8",
+      timeout: 20_000,
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("--port");
+    expect(result.stderr.trim().split("\n")).toHaveLength(1);
+  } finally {
+    await taken.release();
+  }
+});
+
+test("health answers and the server serves no pages", async () => {
+  const home = await createHermeticHome();
+  const port = home.ports.allocate();
+  const child = spawn("node", [CLI_PATH, "--port", String(port)], {
+    cwd: home.workspace,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let stdout = "";
+  let stderr = "";
+  child.stdout.on("data", (chunk: Buffer) => {
+    stdout += chunk.toString();
+  });
+  child.stderr.on("data", (chunk: Buffer) => {
+    stderr += chunk.toString();
+  });
+  try {
+    await waitForHealth(`http://127.0.0.1:${String(port)}/healthz`, child, () => stderr);
+
+    const listening = `http://127.0.0.1:${String(port)}`;
+    await expect.poll(() => stdout.includes(listening)).toBe(true);
+    expect(stdout).toContain(`cwd ${home.workspace}`);
+
+    const health = await fetch(`${listening}/healthz`);
+    expect(await health.json()).toEqual({ status: "ok", service: "pi-my-ui-server" });
+    for (const path of ["/", "/index.html", "/assets/app.js"]) {
+      const response = await fetch(`${listening}${path}`);
+      expect(response.status).toBe(404);
+    }
+  } finally {
+    child.kill("SIGINT");
+    await new Promise<void>((resolve) => {
+      child.once("exit", () => resolve());
+    });
+    await home.dispose();
+  }
+});
+
+test("a foreign or missing origin is refused and logged", async () => {
+  const ports = await createPortNamespace();
+  const logLines: string[] = [];
+  const server = await startServer({
+    cwd: process.cwd(),
+    host: "127.0.0.1",
+    port: ports.allocate(),
+    allowedOrigins: ["http://allowed.example"],
+    log: (line) => logLines.push(line),
+  });
+  try {
+    expect(await upgradeAccepted(server.url, "http://allowed.example")).toBe(true);
+    expect(await upgradeAccepted(server.url, "http://evil.example")).toBe(false);
+    expect(await upgradeAccepted(server.url, undefined)).toBe(false);
+    expect(logLines.some((line) => line.includes("http://evil.example"))).toBe(true);
+  } finally {
+    await server.close();
+  }
+});
+
+test("SIGINT shuts down cleanly and stops the Pi child it started", async () => {
+  const home = await createHermeticHome();
+  const seeded = await seedSession(home, "plain");
+  const launch = await scriptedPiLaunch(home, UNUSED_SCRIPT);
+  const signals = signalSource();
+  let running: RunningServer | undefined;
+
+  try {
+    const run = runLauncher({
+      argv: ["--port", String(home.ports.allocate())],
+      cwd: home.workspace,
+      io: SILENT_IO,
+      signals: signals.source,
+      startServer: async (config) => {
+        running = await startServer({
+          ...config,
+          sessionDir: home.sessionsDir,
+          pi: {
+            args: launch.args,
+            env: launch.env,
+            provider: launch.provider,
+            model: launch.model,
+          },
+        });
+        return running;
+      },
+    });
+
+    await expect.poll(() => running?.port ?? 0).toBeGreaterThan(0);
+    const server = running;
+    if (server === undefined) {
+      throw new Error("the launcher never started a server");
+    }
+
+    const client = await connectWsSession(server.url);
+    client.send({ type: "subscribe", sessionId: seeded.id });
+    const snapshotMessage = await client.next();
+    expect(snapshotMessage.type).toBe("snapshot");
+    await client.close();
+
+    expect(ownPiChildPids().length).toBeGreaterThan(0);
+
+    signals.emit("SIGINT");
+    expect(await run).toBe(0);
+    await expect.poll(() => ownPiChildPids().length).toBe(0);
+  } finally {
+    await running?.close().catch(() => undefined);
+    await home.dispose();
+  }
+});

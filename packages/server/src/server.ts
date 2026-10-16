@@ -1,7 +1,11 @@
 /**
- * The WebSocket transport. A connection carries one Session's Snapshot at a Cursor. Every inbound
- * frame is validated at the boundary; a rejected frame is answered with a typed error and never
- * reaches the Session pool.
+ * The HTTP and WebSocket transport. A connection carries one Session's Snapshot at a Cursor. Every
+ * inbound frame is validated at the boundary; a rejected frame is answered with a typed error and
+ * never reaches the Session pool.
+ *
+ * The HTTP surface is deliberately tiny: `GET /healthz` and nothing else. The built client is
+ * served by a static host (Caddy in production, the Vite dev server locally), so the backend stays
+ * a backend.
  */
 
 import { createServer as createHttpServer } from "node:http";
@@ -16,19 +20,95 @@ import {
 import { WebSocket, WebSocketServer } from "ws";
 
 import { DEFAULT_HOST, DEFAULT_PORT, type ServerConfig } from "./config.js";
+import { createTrustPolicy } from "./origin.js";
 import { createSessionPool } from "./session-pool.js";
 
+/** Health-check route path. */
+export const HEALTHZ_PATH = "/healthz";
+/** Service name reported by the health endpoint. */
+export const HEALTHZ_SERVICE_NAME = "pi-my-ui-server";
+
+/** The errno recorded when a failed bind carried no OS code (never a silent success). */
+export const UNKNOWN_BIND_ERROR_CODE = "UNKNOWN";
+
+/** The requested address could not be bound, with the errno so a caller can name the flag to change. */
+export class ServerBindError extends Error {
+  public override readonly name = "ServerBindError";
+
+  public constructor(
+    public readonly code: string,
+    public readonly hostname: string,
+    public readonly port: number,
+    options?: { readonly cause?: unknown },
+  ) {
+    super(`could not bind ${JSON.stringify(hostname)}:${String(port)} (${code})`, options);
+  }
+}
+
+function errnoCode(error: unknown): string {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    const code = error.code;
+    if (typeof code === "string") {
+      return code;
+    }
+  }
+  return UNKNOWN_BIND_ERROR_CODE;
+}
+
 export interface RunningServer {
+  /** The WebSocket URL a browser connects to. */
   readonly url: string;
+  /** The HTTP origin, for the health endpoint and any same-origin route. */
+  readonly httpUrl: string;
   readonly port: number;
   close(): Promise<void>;
 }
 
+function healthBody(): string {
+  return JSON.stringify({ status: "ok", service: HEALTHZ_SERVICE_NAME });
+}
+
+function pathnameOf(url: string | undefined): string {
+  return new URL(url ?? "/", "http://localhost").pathname;
+}
+
 export async function startServer(config: ServerConfig): Promise<RunningServer> {
   const bindHost = config.host ?? DEFAULT_HOST;
+  const bindPort = config.port ?? DEFAULT_PORT;
+  const log =
+    config.log ??
+    ((line: string): void => {
+      process.stderr.write(`${line}\n`);
+    });
+  const trust = createTrustPolicy(config.allowedOrigins ?? []);
   const pool = createSessionPool(config);
-  const httpServer = createHttpServer();
-  const sockets = new WebSocketServer({ server: httpServer });
+
+  const httpServer = createHttpServer((request, response) => {
+    if (pathnameOf(request.url) === HEALTHZ_PATH) {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(healthBody());
+      return;
+    }
+    response.writeHead(404);
+    response.end();
+  });
+
+  const sockets = new WebSocketServer({ noServer: true });
+
+  httpServer.on("upgrade", (request, socket, head) => {
+    const rawOrigin = request.headers.origin;
+    const origin = rawOrigin === undefined || rawOrigin === "" ? undefined : rawOrigin;
+    const decision = trust.decide({ origin, peerAddress: request.socket.remoteAddress });
+    if (!decision.allowed) {
+      log(`refused WebSocket upgrade: ${decision.reason}`);
+      socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+    sockets.handleUpgrade(request, socket, head, (websocket) => {
+      sockets.emit("connection", websocket, request);
+    });
+  });
 
   function send(socket: WebSocket, message: ServerMessage): void {
     // A browser can disconnect while its Snapshot is being built; writing to a closed socket would
@@ -60,14 +140,24 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     });
   });
 
-  await new Promise<void>((resolve) => {
-    httpServer.listen(config.port ?? DEFAULT_PORT, bindHost, resolve);
+  await new Promise<void>((resolve, reject) => {
+    // A failed `listen` emits `error`; without a listener Node aborts with a raw stack trace.
+    const onError = (error: Error): void => {
+      reject(new ServerBindError(errnoCode(error), bindHost, bindPort, { cause: error }));
+    };
+    httpServer.once("error", onError);
+    httpServer.listen(bindPort, bindHost, () => {
+      httpServer.off("error", onError);
+      resolve();
+    });
   });
   const address = httpServer.address() as AddressInfo;
+  const boundPort = address.port;
 
   return {
-    url: `ws://${bindHost}:${address.port}`,
-    port: address.port,
+    url: `ws://${bindHost}:${String(boundPort)}`,
+    httpUrl: `http://${bindHost}:${String(boundPort)}`,
+    port: boundPort,
     async close() {
       for (const client of sockets.clients) {
         client.terminate();

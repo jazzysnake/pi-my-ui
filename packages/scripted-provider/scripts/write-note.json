@@ -1,0 +1,46 @@
+[
+  {
+    "expect": {
+      "role": "user",
+      "text": "write a note"
+    },
+    "reply": {
+      "content": [
+        {
+          "type": "thinking",
+          "thinking": "I will write the note."
+        },
+        {
+          "type": "text",
+          "text": "Writing the note."
+        },
+        {
+          "type": "toolCall",
+          "id": "call_record_1",
+          "name": "write",
+          "arguments": {
+            "path": "note.txt",
+            "content": "recorded"
+          }
+        }
+      ],
+      "stopReason": "toolUse"
+    }
+  },
+  {
+    "expect": {
+      "role": "toolResult",
+      "toolName": "write",
+      "text": "Successfully wrote to note.txt"
+    },
+    "reply": {
+      "content": [
+        {
+          "type": "text",
+          "text": "The note is written."
+        }
+      ],
+      "stopReason": "stop"
+    }
+  }
+]

@@ -17,6 +17,7 @@ import {
   SCRIPTED_PROVIDER_ID,
   type Script,
 } from "@pi-my-ui/scripted-provider";
+import { HERMETIC_PI_ARGS } from "@pi-my-ui/scripted-provider/record";
 
 const PORT_NAMESPACE_SIZE = 16;
 const DEFAULT_PROMPT_TIMEOUT_MS = 60_000;
@@ -99,7 +100,14 @@ export async function createHermeticHome(): Promise<HermeticHome> {
   };
 }
 
-function hermeticEnv(home: HermeticHome, scriptPath: string): Record<string, string> {
+/**
+ * The private environment every hermetic pi child gets. `extra` carries the credentials a test
+ * deliberately passes through; nothing from the developer's own environment leaks in by default.
+ */
+export function hermeticPiEnv(
+  home: HermeticHome,
+  extra: Record<string, string> = {},
+): Record<string, string> {
   return {
     HOME: home.home,
     XDG_CONFIG_HOME: join(home.home, ".config"),
@@ -109,20 +117,13 @@ function hermeticEnv(home: HermeticHome, scriptPath: string): Record<string, str
     // Set explicitly so pi cannot fall back to the developer's own agent directory.
     PI_CODING_AGENT_DIR: home.agentDir,
     PI_CODING_AGENT_SESSION_DIR: home.sessionsDir,
-    [SCRIPT_ENV_VAR]: scriptPath,
+    ...extra,
   };
 }
 
-/** pi flags that disable every discovery source which could reach the developer's real state. */
-const HERMETIC_PI_ARGS = [
-  "--offline",
-  "--no-extensions",
-  "--no-skills",
-  "--no-prompt-templates",
-  "--no-context-files",
-  "--no-themes",
-  "--approve",
-] as const;
+function hermeticEnv(home: HermeticHome, scriptPath: string): Record<string, string> {
+  return hermeticPiEnv(home, { [SCRIPT_ENV_VAR]: scriptPath });
+}
 
 export interface PiTurn {
   /** Every RPC event pi emitted between the prompt and settling. */

@@ -7,5 +7,5 @@
     "types": ["node"],
     "customConditions": ["source"]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "playwright.config.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "playwright.config.ts", "playwright.smoke.config.ts"]
 }

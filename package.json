@@ -25,7 +25,9 @@
     "format:check": "prettier --check .",
     "test": "npm run build:protocol && npm run test --workspaces --if-present",
     "build": "npm run build:protocol && npm run build --workspaces --if-present",
-    "test:e2e": "playwright test --config packages/e2e/playwright.config.ts"
+    "test:e2e": "playwright test --config packages/e2e/playwright.config.ts",
+    "test:smoke": "npm run build --workspace @pi-my-ui/scripted-provider && playwright test --config packages/e2e/playwright.smoke.config.ts",
+    "rerecord": "npm run build --workspace @pi-my-ui/scripted-provider && node scripts/rerecord.mjs"
   },
   "devDependencies": {
     "@earendil-works/pi-ai": "0.99.2",

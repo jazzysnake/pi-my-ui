@@ -11,6 +11,11 @@
       "source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./record": {
+      "source": "./src/record.ts",
+      "types": "./dist/record.d.ts",
+      "import": "./dist/record.js"
     }
   },
   "scripts": {

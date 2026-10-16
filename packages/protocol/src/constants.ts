@@ -53,6 +53,8 @@ export const MessageRole = {
   User: "user",
   Assistant: "assistant",
   ToolResult: "toolResult",
+  /** An extension-injected message (pi's `custom` role), rendered as a notification card. */
+  Notification: "notification",
 } as const;
 
 export type MessageRole = (typeof MessageRole)[keyof typeof MessageRole];

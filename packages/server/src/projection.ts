@@ -13,7 +13,11 @@ import {
   type ProjectedEntry,
   type ProjectionDelta,
 } from "@pi-my-ui/protocol";
-import type { SessionEntry, SessionMessageEntry } from "@earendil-works/pi-coding-agent";
+import type {
+  CustomMessageEntry,
+  SessionEntry,
+  SessionMessageEntry,
+} from "@earendil-works/pi-coding-agent";
 
 export interface ProjectionSource {
   readonly entries: readonly SessionEntry[];
@@ -70,14 +74,17 @@ export function blocksFromMessage(message: SessionMessageEntry["message"]): Cont
 }
 
 function projectMessage(entry: SessionMessageEntry): ProjectedEntry | undefined {
+  const message = entry.message;
   const role =
-    entry.message.role === "user"
+    message.role === "user"
       ? MessageRole.User
-      : entry.message.role === "assistant"
+      : message.role === "assistant"
         ? MessageRole.Assistant
-        : entry.message.role === "toolResult"
+        : message.role === "toolResult"
           ? MessageRole.ToolResult
-          : undefined;
+          : message.role === "custom" && message.display !== false
+            ? MessageRole.Notification
+            : undefined;
   if (role === undefined) {
     return undefined;
   }
@@ -86,18 +93,57 @@ function projectMessage(entry: SessionMessageEntry): ProjectedEntry | undefined 
     parentId: entry.parentId,
     role,
     timestamp: Date.parse(entry.timestamp),
-    blocks: blocksFromMessage(entry.message),
+    blocks: blocksFromMessage(message),
   };
+}
+
+/** An extension message's content is its payload text; image blocks are not part of a transcript. */
+function customMessageBlocks(content: CustomMessageEntry["content"]): ContentBlock[] {
+  if (typeof content === "string") {
+    return content === "" ? [] : [{ type: ContentBlockType.Text, text: content }];
+  }
+  const blocks: ContentBlock[] = [];
+  for (const block of content) {
+    if (block.type === ContentBlockType.Text) {
+      blocks.push({ type: ContentBlockType.Text, text: block.text });
+    }
+  }
+  return blocks;
+}
+
+function projectCustomMessage(entry: CustomMessageEntry): ProjectedEntry | undefined {
+  // pi hides a `display: false` custom message in its own UI, so the transcript leaves it out too.
+  if (entry.display === false) {
+    return undefined;
+  }
+  const blocks = customMessageBlocks(entry.content);
+  if (blocks.length === 0) {
+    return undefined;
+  }
+  return {
+    id: entry.id,
+    parentId: entry.parentId,
+    role: MessageRole.Notification,
+    timestamp: Date.parse(entry.timestamp),
+    blocks,
+  };
+}
+
+function projectEntry(entry: SessionEntry): ProjectedEntry | undefined {
+  if (entry.type === "message") {
+    return projectMessage(entry);
+  }
+  if (entry.type === "custom_message") {
+    return projectCustomMessage(entry);
+  }
+  return undefined;
 }
 
 /** The batch that takes an empty Projection to this Session's current one. */
 export function projectionBatch(source: ProjectionSource): DeltaBatch {
   const deltas: ProjectionDelta[] = [];
   for (const entry of activePath(source.entries, source.leafId)) {
-    if (entry.type !== "message") {
-      continue;
-    }
-    const projected = projectMessage(entry);
+    const projected = projectEntry(entry);
     if (projected === undefined) {
       continue;
     }

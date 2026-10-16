@@ -45,6 +45,9 @@ function roleOf(message: AgentMessage): MessageRole | undefined {
   if (message.role === "toolResult") {
     return MessageRole.ToolResult;
   }
+  if (message.role === "custom") {
+    return message.display === false ? undefined : MessageRole.Notification;
+  }
   return undefined;
 }
 

@@ -74,7 +74,8 @@ describe("the shell over the store's ServerMessage input", () => {
     });
 
     const rows = [...target.querySelectorAll('[data-testid="transcript-entry"]')];
-    expect(rows.map((row) => row.textContent)).toEqual(["first message", "second message"]);
+    // Each row also carries its copy control, so compare the trimmed message text.
+    expect(rows.map((row) => row.textContent?.trim())).toEqual(["first message", "second message"]);
     expect(target.querySelector('[data-testid="transcript"]')).not.toBeNull();
   });
 });

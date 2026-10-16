@@ -20,7 +20,7 @@
     "verify": "node scripts/verify.mjs",
     "build:protocol": "npm run build --workspace @pi-my-ui/protocol",
     "typecheck": "npm run build:protocol && npm run typecheck --workspaces --if-present",
-    "lint": "eslint . && node scripts/hygiene-check.mjs",
+    "lint": "eslint . && node scripts/hygiene-check.mjs && node scripts/fixture-check.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "npm run build:protocol && npm run test --workspaces --if-present",

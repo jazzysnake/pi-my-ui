@@ -1,16 +1,91 @@
 import { devices, expect, test } from "@playwright/test";
 
-import { startPlaceholderPageServer } from "../src/placeholder-page-server";
+import { startServer, type RunningServer } from "@pi-my-ui/server";
+import type { Script } from "@pi-my-ui/scripted-provider";
 
-test("the pinned phone browser renders a served page", async ({ page }) => {
-  const server = await startPlaceholderPageServer();
+import { startClientPageServer, type ClientPageServer } from "../src/client-page-server";
+import { seedSession, type FixtureSession } from "../src/fixture-builder";
+import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
+
+const PI_TEST_TIMEOUT_MS = 90_000;
+const PI_START_TIMEOUT_MS = 30_000;
+
+test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
+
+// The seeded Session never asks the model anything, but pi still has to be launched with a model
+// it can resolve, and the scripted provider is the only model substitute the suite has.
+const UNUSED_SCRIPT: Script = [
+  {
+    expect: { role: "user", text: "a prompt this recording never saw" },
+    reply: { content: [{ type: "text", text: "unused" }], stopReason: "stop" },
+  },
+];
+
+interface Harness {
+  readonly home: HermeticHome;
+  readonly seeded: FixtureSession;
+  readonly server: RunningServer;
+  readonly client: ClientPageServer;
+}
+
+async function startHarness(): Promise<Harness> {
+  const home = await createHermeticHome();
+  const seeded = await seedSession(home, "plain");
+  const launch = await scriptedPiLaunch(home, UNUSED_SCRIPT);
+  const server = await startServer({
+    cwd: launch.cwd,
+    sessionDir: home.sessionsDir,
+    port: home.ports.allocate(),
+    pi: {
+      args: launch.args,
+      env: launch.env,
+      provider: launch.provider,
+      model: launch.model,
+    },
+  });
+  const client = await startClientPageServer();
+  return { home, seeded, server, client };
+}
+
+async function disposeHarness(harness: Harness): Promise<void> {
+  await harness.client.close();
+  await harness.server.close();
+  await harness.home.dispose();
+}
+
+test("the app opens, connects and renders a seeded transcript on a phone", async ({ page }) => {
+  const harness = await startHarness();
   try {
-    await page.goto(server.url);
-
-    await expect(page.getByRole("heading", { name: "pi-my-ui" })).toBeVisible();
-    await expect(page.getByTestId("layer")).toHaveText("browser");
     expect(page.viewportSize()).toEqual(devices["Pixel 5"].viewport);
+
+    const url = `${harness.client.url}?session=${encodeURIComponent(harness.seeded.id)}&ws=${encodeURIComponent(harness.server.url)}`;
+    await page.goto(url);
+
+    const status = page.getByTestId("connection-status");
+    await expect(status).toHaveAttribute("data-status", "connected");
+
+    const transcript = page.getByTestId("transcript");
+    await expect(transcript).toContainText("Seed text block 3.", { timeout: PI_START_TIMEOUT_MS });
+    await expect(transcript).toContainText("Seed text block 54.");
+    await expect(page.getByTestId("transcript-entry").first()).toBeVisible();
   } finally {
-    await server.close();
+    await disposeHarness(harness);
+  }
+});
+
+test("the connection label is revealed on tap", async ({ page }) => {
+  const harness = await startHarness();
+  try {
+    await page.goto(
+      `${harness.client.url}?session=${encodeURIComponent(harness.seeded.id)}&ws=${encodeURIComponent(harness.server.url)}`,
+    );
+
+    const label = page.getByTestId("connection-status-label");
+    await expect(label).toHaveCSS("opacity", "0");
+    await page.getByTestId("connection-status").click();
+    await expect(label).toHaveText("Connected");
+    await expect(label).toHaveCSS("opacity", "1");
+  } finally {
+    await disposeHarness(harness);
   }
 });

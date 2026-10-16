@@ -1,10 +1,34 @@
 <script lang="ts">
-  import PlaceholderList from "./lib/PlaceholderList.svelte";
+  import Shell from "./lib/Shell.svelte";
+  import { resolveClientConfig } from "./lib/config.js";
+  import { ClientStore } from "./lib/store/client-store.svelte.js";
+  import { ConnectionStatus, createTransport } from "./lib/transport.js";
 
-  const placeholder = ["client shell"];
+  const store = new ClientStore();
+  let status = $state<ConnectionStatus>(ConnectionStatus.Connecting);
+
+  $effect(() => {
+    const config = resolveClientConfig(window.location.href, window.location.search);
+    if (config.sessionId === null) {
+      return;
+    }
+    const transport = createTransport({
+      url: config.wsUrl,
+      sessionId: config.sessionId,
+      handlers: {
+        onStatus(next) {
+          status = next;
+        },
+        onMessage(message) {
+          store.receive(message);
+        },
+      },
+    });
+    transport.start();
+    return () => {
+      transport.stop();
+    };
+  });
 </script>
 
-<main class="min-h-dvh bg-neutral-950 p-4 text-neutral-100">
-  <h1 class="text-lg font-semibold">pi-my-ui</h1>
-  <PlaceholderList items={placeholder} />
-</main>
+<Shell {store} {status} />

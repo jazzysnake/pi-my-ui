@@ -39,7 +39,10 @@ function loadScript(): LoadedScript {
 
 function replyFor(step: ScriptStep, context: TranscriptContext): AssistantMessage {
   assertExpectation(step.expect, lastModelVisibleMessage(context.messages));
-  return fauxAssistantMessage([...step.reply.content], { stopReason: step.reply.stopReason });
+  return fauxAssistantMessage([...step.reply.content], {
+    stopReason: step.reply.stopReason,
+    ...(step.reply.errorMessage === undefined ? {} : { errorMessage: step.reply.errorMessage }),
+  });
 }
 
 /**

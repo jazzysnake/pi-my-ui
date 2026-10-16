@@ -5,7 +5,12 @@
 
 import { join } from "node:path";
 
-import { getPackageDir, RpcClient, type SessionEntry } from "@earendil-works/pi-coding-agent";
+import {
+  getPackageDir,
+  RpcClient,
+  type JsonAgentSessionEvent,
+  type SessionEntry,
+} from "@earendil-works/pi-coding-agent";
 
 import type { PiLaunchOptions } from "./config.js";
 
@@ -20,6 +25,10 @@ export interface PiEntries {
 
 export interface PiChild {
   entries(): Promise<PiEntries>;
+  /** Subscribe to pi's live event stream; returns an unsubscribe. */
+  onEvent(listener: (event: JsonAgentSessionEvent) => void): () => void;
+  prompt(text: string): Promise<void>;
+  abort(): Promise<void>;
   stop(): Promise<void>;
 }
 
@@ -36,6 +45,11 @@ export async function startPiChild(sessionFile: string, launch: PiChildLaunch): 
   await client.start();
   return {
     entries: () => client.getEntries(),
+    onEvent: (listener) => client.onEvent(listener),
+    prompt: async (text) => {
+      await client.prompt(text);
+    },
+    abort: () => client.abort(),
     stop: () => client.stop(),
   };
 }

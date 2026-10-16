@@ -4,7 +4,7 @@
  * to the next.
  */
 
-import { ContentBlockType, MessageRole, ProjectionDeltaKind } from "./constants.js";
+import { ContentBlockType, MessageRole, ProjectionDeltaKind, RunStateKind } from "./constants.js";
 
 /** A position in one Session's ordered stream of Delta batches. */
 export type Cursor = number;
@@ -45,7 +45,22 @@ export interface ProjectedEntry {
 export type ProjectionDelta =
   | { readonly kind: typeof ProjectionDeltaKind.EntryUpsert; readonly entry: ProjectedEntry }
   | { readonly kind: typeof ProjectionDeltaKind.EntryRemoved; readonly entryId: string }
-  | { readonly kind: typeof ProjectionDeltaKind.LeafChanged; readonly leafId: string | null };
+  | { readonly kind: typeof ProjectionDeltaKind.LeafChanged; readonly leafId: string | null }
+  | { readonly kind: typeof ProjectionDeltaKind.RunState; readonly runState: RunState };
+
+/** What a Session's run is doing. `aborted` and `errored` linger until the next run starts. */
+export type RunState =
+  | { readonly kind: typeof RunStateKind.Idle }
+  | { readonly kind: typeof RunStateKind.Streaming }
+  | {
+      readonly kind: typeof RunStateKind.Retrying;
+      readonly attempt: number;
+      readonly maxAttempts: number;
+      readonly errorMessage: string;
+      readonly delayMs: number;
+    }
+  | { readonly kind: typeof RunStateKind.Aborted }
+  | { readonly kind: typeof RunStateKind.Errored; readonly message: string };
 
 /** A cursor-addressed, ordered group of deltas. */
 export interface DeltaBatch {
@@ -60,4 +75,5 @@ export interface SessionProjection {
   readonly cwd: string;
   readonly leafId: string | null;
   readonly entries: readonly ProjectedEntry[];
+  readonly runState: RunState;
 }

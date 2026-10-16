@@ -2,17 +2,18 @@
   import Shell from "./lib/Shell.svelte";
   import { resolveClientConfig } from "./lib/config.js";
   import { ClientStore } from "./lib/store/client-store.svelte.js";
-  import { ConnectionStatus, createTransport } from "./lib/transport.js";
+  import { ConnectionStatus, createTransport, type Transport } from "./lib/transport.js";
 
   const store = new ClientStore();
   let status = $state<ConnectionStatus>(ConnectionStatus.Connecting);
+  let transport = $state<Transport | null>(null);
 
   $effect(() => {
     const config = resolveClientConfig(window.location.href, window.location.search);
     if (config.sessionId === null) {
       return;
     }
-    const transport = createTransport({
+    const created = createTransport({
       url: config.wsUrl,
       sessionId: config.sessionId,
       handlers: {
@@ -24,11 +25,18 @@
         },
       },
     });
-    transport.start();
+    transport = created;
+    created.start();
     return () => {
-      transport.stop();
+      created.stop();
+      transport = null;
     };
   });
 </script>
 
-<Shell {store} {status} />
+<Shell
+  {store}
+  {status}
+  onPrompt={(text) => transport?.prompt(text)}
+  onAbort={() => transport?.abort()}
+/>

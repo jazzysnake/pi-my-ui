@@ -1,10 +1,22 @@
 <script lang="ts">
+  import Composer from "./Composer.svelte";
   import ConnectionStatusIndicator from "./ConnectionStatusIndicator.svelte";
+  import RunStateRow from "./RunStateRow.svelte";
   import Transcript from "./Transcript.svelte";
   import type { ClientStore } from "./store/client-store.svelte.js";
   import type { ConnectionStatus } from "./transport.js";
 
-  let { store, status }: { store: ClientStore; status: ConnectionStatus } = $props();
+  let {
+    store,
+    status,
+    onPrompt,
+    onAbort,
+  }: {
+    store: ClientStore;
+    status: ConnectionStatus;
+    onPrompt: (text: string) => void;
+    onAbort: () => void;
+  } = $props();
 </script>
 
 <div
@@ -18,4 +30,6 @@
     </div>
   </header>
   <Transcript entries={store.transcript.entries} />
+  <RunStateRow runState={store.transcript.runState} />
+  <Composer runState={store.transcript.runState} {status} {onPrompt} {onAbort} />
 </div>

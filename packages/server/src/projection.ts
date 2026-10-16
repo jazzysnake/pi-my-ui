@@ -42,7 +42,7 @@ function activePath(entries: readonly SessionEntry[], leafId: string | null): Se
   return reversed.reverse();
 }
 
-function blocksFrom(message: SessionMessageEntry["message"]): ContentBlock[] {
+export function blocksFromMessage(message: SessionMessageEntry["message"]): ContentBlock[] {
   // Assistant, user, toolResult and custom messages carry content; the state-only message kinds do
   // not, and they have no transcript row.
   if (!("content" in message)) {
@@ -86,7 +86,7 @@ function projectMessage(entry: SessionMessageEntry): ProjectedEntry | undefined 
     parentId: entry.parentId,
     role,
     timestamp: Date.parse(entry.timestamp),
-    blocks: blocksFrom(entry.message),
+    blocks: blocksFromMessage(entry.message),
   };
 }
 

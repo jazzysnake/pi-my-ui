@@ -6,6 +6,8 @@
 /** Discriminants for every client→server message. */
 export const ClientMessageType = {
   Subscribe: "subscribe",
+  Prompt: "prompt",
+  Abort: "abort",
 } as const;
 
 export type ClientMessageType = (typeof ClientMessageType)[keyof typeof ClientMessageType];
@@ -24,7 +26,19 @@ export const ProjectionDeltaKind = {
   EntryUpsert: "entryUpsert",
   EntryRemoved: "entryRemoved",
   LeafChanged: "leafChanged",
+  RunState: "runState",
 } as const;
+
+/** The states a Session's run can be in, as the transcript shows them. */
+export const RunStateKind = {
+  Idle: "idle",
+  Streaming: "streaming",
+  Retrying: "retrying",
+  Aborted: "aborted",
+  Errored: "errored",
+} as const;
+
+export type RunStateKind = (typeof RunStateKind)[keyof typeof RunStateKind];
 
 export type ProjectionDeltaKind = (typeof ProjectionDeltaKind)[keyof typeof ProjectionDeltaKind];
 

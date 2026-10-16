@@ -6,7 +6,7 @@
 import { ClientMessageType } from "./constants.js";
 import { ProtocolError, ProtocolErrorCode } from "./errors.js";
 import type { Cursor } from "./model.js";
-import type { ClientMessage, SubscribeMessage } from "./messages.js";
+import type { ClientMessage, PromptMessage, SubscribeMessage } from "./messages.js";
 
 function malformed(message: string): never {
   throw new ProtocolError(ProtocolErrorCode.MalformedPayload, message);
@@ -46,6 +46,22 @@ function validateSubscribe(record: Record<string, unknown>): SubscribeMessage {
     : { type: ClientMessageType.Subscribe, sessionId, cursor };
 }
 
+function requireText(record: Record<string, unknown>): string {
+  const text = record["text"];
+  if (typeof text !== "string" || text === "") {
+    malformed('"text" must be a non-empty string');
+  }
+  return text;
+}
+
+function validatePrompt(record: Record<string, unknown>): PromptMessage {
+  return {
+    type: ClientMessageType.Prompt,
+    sessionId: requireSessionId(record),
+    text: requireText(record),
+  };
+}
+
 /** Parse one already-decoded client message, or throw a typed {@link ProtocolError}. */
 export function validateClientMessage(value: unknown): ClientMessage {
   const record = asRecord(value);
@@ -56,6 +72,10 @@ export function validateClientMessage(value: unknown): ClientMessage {
   switch (type) {
     case ClientMessageType.Subscribe:
       return validateSubscribe(record);
+    case ClientMessageType.Prompt:
+      return validatePrompt(record);
+    case ClientMessageType.Abort:
+      return { type: ClientMessageType.Abort, sessionId: requireSessionId(record) };
     default:
       throw new ProtocolError(
         ProtocolErrorCode.UnknownType,

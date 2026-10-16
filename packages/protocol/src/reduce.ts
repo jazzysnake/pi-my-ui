@@ -33,6 +33,8 @@ export function applyDelta(
       };
     case ProjectionDeltaKind.LeafChanged:
       return { ...projection, leafId: delta.leafId };
+    case ProjectionDeltaKind.RunState:
+      return { ...projection, runState: delta.runState };
   }
 }
 

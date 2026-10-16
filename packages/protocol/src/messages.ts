@@ -14,7 +14,20 @@ export interface SubscribeMessage {
   readonly cursor?: Cursor;
 }
 
-export type ClientMessage = SubscribeMessage;
+/** Send one message to the Session's Pi child, starting or steering its run. */
+export interface PromptMessage {
+  readonly type: typeof ClientMessageType.Prompt;
+  readonly sessionId: string;
+  readonly text: string;
+}
+
+/** Cancel the Session's running turn. */
+export interface AbortMessage {
+  readonly type: typeof ClientMessageType.Abort;
+  readonly sessionId: string;
+}
+
+export type ClientMessage = SubscribeMessage | PromptMessage | AbortMessage;
 
 /** A full Projection at a Cursor. */
 export interface SnapshotMessage {

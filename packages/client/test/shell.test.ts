@@ -24,6 +24,7 @@ function snapshotOf(entries: readonly ProjectedEntry[]): SnapshotMessage {
       cwd: "/workspace",
       leafId: entries.at(-1)?.id ?? null,
       entries,
+      runState: { kind: "idle" },
     },
   };
 }
@@ -53,7 +54,12 @@ function mountInto<Props extends Record<string, unknown>>(
 describe("the shell over the store's ServerMessage input", () => {
   it("renders the transcript entries a Snapshot carries", () => {
     const store = new ClientStore();
-    const target = mountInto(Shell, { store, status: ConnectionStatus.Connected });
+    const target = mountInto(Shell, {
+      store,
+      status: ConnectionStatus.Connected,
+      onPrompt: () => undefined,
+      onAbort: () => undefined,
+    });
 
     const message: ServerMessage = snapshotOf([
       userEntry("entry-1", "first message"),

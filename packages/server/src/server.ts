@@ -12,15 +12,18 @@ import { createServer as createHttpServer } from "node:http";
 import type { AddressInfo } from "node:net";
 
 import {
+  ClientMessageType,
   ServerMessageType,
   parseClientMessage,
   toProtocolErrorInfo,
+  type ClientMessage,
   type ServerMessage,
 } from "@pi-my-ui/protocol";
 import { WebSocket, WebSocketServer } from "ws";
 
 import { DEFAULT_HOST, DEFAULT_PORT, type ServerConfig } from "./config.js";
 import { createTrustPolicy } from "./origin.js";
+import type { SessionViewer } from "./session-host.js";
 import { createSessionPool } from "./session-pool.js";
 
 /** Health-check route path. */
@@ -53,6 +56,11 @@ function errnoCode(error: unknown): string {
     }
   }
   return UNKNOWN_BIND_ERROR_CODE;
+}
+
+/** The one Session a socket has attached to, so a later frame can detach it on close. */
+interface SocketAttachment {
+  detach: (() => void) | undefined;
 }
 
 export interface RunningServer {
@@ -118,25 +126,44 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     }
   }
 
-  async function handle(socket: WebSocket, frame: string): Promise<void> {
-    let sessionId: string;
+  async function handle(
+    socket: WebSocket,
+    attachment: SocketAttachment,
+    frame: string,
+  ): Promise<void> {
+    let message: ClientMessage;
     try {
-      sessionId = parseClientMessage(frame).sessionId;
+      message = parseClientMessage(frame);
     } catch (error) {
       send(socket, { type: ServerMessageType.Error, error: toProtocolErrorInfo(error) });
       return;
     }
+    const viewer: SessionViewer = { onMessage: (outbound) => send(socket, outbound) };
     try {
-      const host = await pool.hostFor(sessionId);
-      send(socket, await host.snapshot());
+      const host = await pool.hostFor(message.sessionId);
+      if (message.type === ClientMessageType.Subscribe) {
+        attachment.detach?.();
+        attachment.detach = await host.attach(viewer);
+        return;
+      }
+      if (message.type === ClientMessageType.Prompt) {
+        await host.prompt(message.text);
+        return;
+      }
+      await host.abort();
     } catch (error) {
       send(socket, { type: ServerMessageType.Error, error: toProtocolErrorInfo(error) });
     }
   }
 
   sockets.on("connection", (socket) => {
+    const attachment: SocketAttachment = { detach: undefined };
+    socket.on("close", () => {
+      attachment.detach?.();
+      attachment.detach = undefined;
+    });
     socket.on("message", (data) => {
-      void handle(socket, data.toString());
+      void handle(socket, attachment, data.toString());
     });
   });
 

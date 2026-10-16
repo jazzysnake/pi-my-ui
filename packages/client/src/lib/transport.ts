@@ -32,10 +32,21 @@ export interface TransportOptions {
 export interface Transport {
   start(): void;
   stop(): void;
+  /** Send one message to the Session's Pi child. Ignored while the link is down. */
+  prompt(text: string): void;
+  /** Cancel the Session's running turn. Ignored while the link is down. */
+  abort(): void;
 }
 
 export function createTransport(options: TransportOptions): Transport {
   let socket: WebSocket | null = null;
+
+  function send(message: ClientMessage): void {
+    const current = socket;
+    if (current !== null && current.readyState === WebSocket.OPEN) {
+      current.send(JSON.stringify(message));
+    }
+  }
 
   function open(): void {
     options.handlers.onStatus(ConnectionStatus.Connecting);
@@ -61,6 +72,12 @@ export function createTransport(options: TransportOptions): Transport {
     stop() {
       socket?.close();
       socket = null;
+    },
+    prompt(text) {
+      send({ type: ClientMessageType.Prompt, sessionId: options.sessionId, text });
+    },
+    abort() {
+      send({ type: ClientMessageType.Abort, sessionId: options.sessionId });
     },
   };
 }

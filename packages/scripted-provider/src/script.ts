@@ -16,7 +16,9 @@ export type ScriptExpectation =
 /** An assistant turn as a session file stores it: content blocks plus how the turn ended. */
 export interface ScriptedReply {
   readonly content: readonly ScriptedBlock[];
-  readonly stopReason: "stop" | "toolUse" | "length";
+  readonly stopReason: "stop" | "toolUse" | "length" | "error";
+  /** The provider failure, required when `stopReason` is `"error"`. */
+  readonly errorMessage?: string;
 }
 
 export type ScriptedBlock =
@@ -125,8 +127,23 @@ function parseReply(value: unknown, source: string, where: string): ScriptedRepl
   );
 
   const stopReason = record["stopReason"];
-  if (stopReason !== "stop" && stopReason !== "toolUse" && stopReason !== "length") {
-    fail(source, where, '"stopReason" must be "stop", "toolUse" or "length"');
+  if (
+    stopReason !== "stop" &&
+    stopReason !== "toolUse" &&
+    stopReason !== "length" &&
+    stopReason !== "error"
+  ) {
+    fail(source, where, '"stopReason" must be "stop", "toolUse", "length" or "error"');
+  }
+
+  const errorMessage = record["errorMessage"];
+  if (stopReason === "error") {
+    // A failed turn without a message cannot be told from a refusal or retried meaningfully.
+    if (typeof errorMessage !== "string" || errorMessage === "") {
+      fail(source, where, 'a reply with stopReason "error" needs a non-empty "errorMessage"');
+    }
+  } else if (errorMessage !== undefined) {
+    fail(source, where, '"errorMessage" is only valid with stopReason "error"');
   }
 
   // Pi decides whether to run tools from the stop reason, so a mismatched recording would either
@@ -139,7 +156,9 @@ function parseReply(value: unknown, source: string, where: string): ScriptedRepl
       'a reply with a toolCall block must have stopReason "toolUse", and only then',
     );
   }
-  return { content, stopReason };
+  return errorMessage === undefined
+    ? { content, stopReason }
+    : { content, stopReason, errorMessage };
 }
 
 /** Parse and validate a script. Every problem is reported with its source location. */

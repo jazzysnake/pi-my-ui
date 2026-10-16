@@ -4,15 +4,18 @@
  */
 
 import {
+  RunStateKind,
   ServerMessageType,
   reduceDeltaBatch,
   type ProjectedEntry,
+  type RunState,
   type ServerMessage,
   type SessionProjection,
 } from "@pi-my-ui/protocol";
 
 export interface TranscriptSlice {
   readonly entries: readonly ProjectedEntry[];
+  readonly runState: RunState;
   receive(message: ServerMessage): void;
 }
 
@@ -22,6 +25,9 @@ export function createTranscriptSlice(): TranscriptSlice {
   return {
     get entries() {
       return projection?.entries ?? [];
+    },
+    get runState() {
+      return projection?.runState ?? { kind: RunStateKind.Idle };
     },
     receive(message) {
       if (message.type === ServerMessageType.Snapshot) {

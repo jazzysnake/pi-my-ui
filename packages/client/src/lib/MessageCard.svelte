@@ -38,6 +38,17 @@
     <ToolCallCard {block} />
   {:else if block.type === ContentBlockType.BashExecution}
     <BashCard {block} />
+  {:else if block.type === ContentBlockType.Error}
+    <!-- The failed attempt's durable record: no copy control, because there is nothing to copy. -->
+    <div class="rounded border border-danger/50 bg-danger/5 px-2.5 py-2" data-testid="error-block">
+      <p class="text-meta tracking-wider text-danger uppercase" data-testid="error-label">error</p>
+      <p
+        class="mt-0.5 text-body break-words whitespace-pre-wrap text-danger"
+        data-testid="error-text"
+      >
+        {block.text}
+      </p>
+    </div>
   {/if}
 {/snippet}
 

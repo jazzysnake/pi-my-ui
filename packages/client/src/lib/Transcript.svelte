@@ -5,8 +5,11 @@
   import NotificationCard from "./NotificationCard.svelte";
   import ToolCallCard from "./ToolCallCard.svelte";
   import { entryText } from "./transcript.js";
+  import { windowEntries } from "./transcript-window.js";
 
   let { entries }: { entries: readonly ProjectedEntry[] } = $props();
+
+  const mounted = $derived(windowEntries(entries));
 
   let container = $state<HTMLElement | null>(null);
   let pinned = $state(true);
@@ -60,7 +63,16 @@
   data-testid="transcript"
   onscroll={handleScroll}
 >
-  {#each entries as entry (entry.id)}
+  {#if mounted.hiddenCount > 0}
+    <p
+      class="mb-3 text-xs text-neutral-500"
+      data-testid="hidden-older"
+      data-hidden-count={mounted.hiddenCount}
+    >
+      {mounted.hiddenCount} older messages are not shown
+    </p>
+  {/if}
+  {#each mounted.visible as entry (entry.id)}
     <article
       class="mb-3 last:mb-0"
       data-testid="transcript-entry"

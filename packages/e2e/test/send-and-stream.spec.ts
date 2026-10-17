@@ -47,7 +47,9 @@ async function openHarness(page: Page, harness: Harness): Promise<void> {
   const url = `${harness.client.url}?session=${encodeURIComponent(harness.seeded.id)}&ws=${encodeURIComponent(harness.server.url)}`;
   await page.goto(url);
   await expect(page.getByTestId("connection-status")).toHaveAttribute("data-status", "connected");
-  await expect(page.getByTestId("transcript")).toContainText("Seed text block 3.");
+  // A long seed's early turns are outside the mounted window, so the first mounted row is the load
+  // signal; one Snapshot renders the whole window at once.
+  await expect(page.getByTestId("transcript-entry").first()).toBeVisible();
 }
 
 /** Distance from the transcript's bottom edge in CSS px; 0 means pinned to the newest content. */

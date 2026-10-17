@@ -93,8 +93,9 @@ The id is the Session's own id, the one in its file name under pi's session dire
 open. Once the page is connected, the drawer's `+` starts new Sessions without touching the address,
 so a reload after that returns to the Session the address still names.
 
-Opening the bare address without `?session=` shows the shell and a connection dot that never
-reaches Connected, because no Session is named for it to open. If that happens, add the parameter.
+Opening the bare address without `?session=` still connects: no Session is selected, so the
+Sessions list opens and its `+` starts a new one. Picking a Session or starting one does not rewrite
+the address, so a reload returns to whatever the address named — the list, if it was bare.
 
 ## 6. Open it on the phone
 

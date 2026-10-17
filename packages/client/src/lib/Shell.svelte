@@ -44,6 +44,7 @@
     onReconnect = () => undefined,
     onSteerSubagent = () => undefined,
     onGetSubagentTranscript = () => undefined,
+    startWithSessionsOpen = false,
   }: {
     store: ClientStore;
     status: ConnectionStatus;
@@ -76,6 +77,8 @@
     onSteerSubagent?: (agentId: string, message: string) => void;
     /** Read one settled run's own conversation from the session file pi-subagents wrote. */
     onGetSubagentTranscript?: (agentId: string) => void;
+    /** A page opened without a Session shows the list instead of an empty transcript. */
+    startWithSessionsOpen?: boolean;
   } = $props();
 
   let filesOpen = $state(false);
@@ -97,12 +100,34 @@
       : store.subagents.transcriptOf(store.subagents.focusedAgentId),
   );
 
+  /**
+   * Whether a Session is open: one selected by the reader, or one whose Projection has arrived.
+   * The second half covers a page opened straight at `?session=`, where the selection and the first
+   * Snapshot race.
+   */
+  const sessionOpen = $derived(
+    store.sessions.activeSessionId !== null || store.transcript.sessionId !== null,
+  );
+
   /** The sentence for an agent whose transcript is empty, so an empty view is never unexplained. */
   const shownEmpty = $derived(
     store.subagents.focusedAgentId === null
-      ? null
+      ? sessionOpen
+        ? null
+        : "No session open. Pick one from the Sessions list, or start a new one."
       : (store.subagents.emptyStateOf(store.subagents.focusedAgentId)?.message ?? null),
   );
+
+  /**
+   * A page opened with no Session named shows the list rather than an empty transcript. The page
+   * decides this from its address; the drawer otherwise stays collapsed so the transcript gets the
+   * screen.
+   */
+  $effect(() => {
+    if (startWithSessionsOpen && !sessionOpen && store.sessions.rows !== null) {
+      sessionsOpen = true;
+    }
+  });
 
   // Focusing an agent is what asks for its conversation on disk, and the ask is repeated after a
   // resync drops the answer: both are facts the store holds, so the effect follows them rather than
@@ -332,6 +357,7 @@
     {steerTarget}
     steerInFlight={store.subagents.steerInFlight}
     onSteer={handleSteer}
+    sessionActive={sessionOpen}
     bind:text={composerText}
   />
   {#if forkOpen}

@@ -19,6 +19,8 @@ import {
 
 export interface TranscriptSlice {
   readonly entries: readonly ProjectedEntry[];
+  /** The watched Session's id once its Projection has arrived, else `null`. */
+  readonly sessionId: string | null;
   readonly runState: RunState;
   /** The Session's working directory, empty until a Snapshot names it. */
   readonly cwd: string;
@@ -41,6 +43,9 @@ export function createTranscriptSlice(): TranscriptSlice {
   return {
     get entries() {
       return projection?.entries ?? [];
+    },
+    get sessionId() {
+      return projection?.sessionId ?? null;
     },
     get runState() {
       return projection?.runState ?? { kind: RunStateKind.Idle };

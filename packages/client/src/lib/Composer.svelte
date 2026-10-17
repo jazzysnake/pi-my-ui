@@ -53,6 +53,7 @@
     steerTarget = null,
     steerInFlight = null,
     onSteer = () => undefined,
+    sessionActive = true,
     text = $bindable(""),
   }: {
     runState: RunState;
@@ -82,6 +83,8 @@
     steerInFlight?: SteerInFlight | null;
     /** Hand one message to the focused subagent instead of the Session. */
     onSteer?: (agentId: string, message: string) => void;
+    /** Whether a Session is open; a bare page can list Sessions but has nothing to send to yet. */
+    sessionActive?: boolean;
     /** The draft itself, so a view can put a message back here for editing and resubmitting. */
     text?: string;
   } = $props();
@@ -110,7 +113,7 @@
   const hasContent = $derived(text.trim() !== "" || attachments.length > 0);
   const steerRefusal = $derived(steerRefusalOf(steerTarget));
   const canSend = $derived(
-    connected && pendingFrom === null && hasContent && steerRefusal === null,
+    connected && sessionActive && pendingFrom === null && hasContent && steerRefusal === null,
   );
 
   const query = $derived(paletteQuery(text));

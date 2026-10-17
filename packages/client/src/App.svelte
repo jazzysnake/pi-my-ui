@@ -11,10 +11,9 @@
   let transport = $state<Transport | null>(null);
 
   $effect(() => {
-    if (config.sessionId === null) {
-      return;
+    if (config.sessionId !== null) {
+      store.selectSession(config.sessionId);
     }
-    store.selectSession(config.sessionId);
     const created = createTransport({
       url: config.wsUrl,
       sessionId: config.sessionId,
@@ -42,6 +41,7 @@
 <Shell
   {store}
   {status}
+  startWithSessionsOpen={config.sessionId === null}
   onSelectSession={(sessionId) => {
     store.selectSession(sessionId);
     transport?.switchSession(sessionId);

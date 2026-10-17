@@ -88,7 +88,8 @@ node packages/server/dist/cli.js --cwd /path/to/project --port 8787
 npm exec --workspace @pi-my-ui/client -- vite dev
 ```
 
-Open the URL Vite prints, with a Session: `http://localhost:5173/?session=<id>`. The proxy forwards
+Open the URL Vite prints. With no `?session=` the link still connects, the Sessions list opens, and
+its `+` starts a new Session; adding `?session=<id>` opens that Session directly. The proxy forwards
 `/ws` and `/healthz` to `http://127.0.0.1:8787`; set `PI_MY_UI_BACKEND_ORIGIN` to point it at a
 backend on another port. File downloads are not proxied in development, so the download button needs
 the Caddy setup. A browser on `localhost` or `127.0.0.1` is accepted without an allowlist; if you

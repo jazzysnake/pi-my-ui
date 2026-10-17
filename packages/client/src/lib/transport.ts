@@ -48,7 +48,8 @@ export interface TransportHandlers {
 
 export interface TransportOptions {
   readonly url: string;
-  readonly sessionId: string;
+  /** The Session named by the page address, or absent when the reader has not picked one yet. */
+  readonly sessionId?: string | null;
   readonly handlers: TransportHandlers;
 }
 
@@ -104,7 +105,7 @@ export interface Transport {
 export function createTransport(options: TransportOptions): Transport {
   let socket: WebSocket | null = null;
   let cursor: Cursor | undefined;
-  let activeSessionId = options.sessionId;
+  let activeSessionId: string | null = options.sessionId ?? null;
   let failedAttempts = 0;
   let started = false;
   let stopped = false;
@@ -117,7 +118,23 @@ export function createTransport(options: TransportOptions): Transport {
     }
   }
 
-  function subscription(): ClientMessage {
+  /** Send a frame that names the watched Session; a no-op until one is selected. */
+  function sendForSession(build: (sessionId: string) => ClientMessage): void {
+    const sessionId = activeSessionId;
+    if (sessionId === null) {
+      return;
+    }
+    send(build(sessionId));
+  }
+
+  /**
+   * The subscribe frame, or `null` while no Session is named. Listing the Sessions needs no
+   * subscription, so a bare page still opens the link and can show the list.
+   */
+  function subscription(): ClientMessage | null {
+    if (activeSessionId === null) {
+      return null;
+    }
     return cursor === undefined
       ? { type: ClientMessageType.Subscribe, sessionId: activeSessionId }
       : { type: ClientMessageType.Subscribe, sessionId: activeSessionId, cursor };
@@ -155,7 +172,10 @@ export function createTransport(options: TransportOptions): Transport {
         return;
       }
       failedAttempts = 0;
-      connecting.send(JSON.stringify(subscription()));
+      const subscriptionMessage = subscription();
+      if (subscriptionMessage !== null) {
+        connecting.send(JSON.stringify(subscriptionMessage));
+      }
       // The list is refreshed on every open, so a Session started elsewhere appears without a reload.
       connecting.send(JSON.stringify({ type: ClientMessageType.ListSessions }));
       options.handlers.onStatus(ConnectionStatus.Connected);
@@ -178,7 +198,10 @@ export function createTransport(options: TransportOptions): Transport {
         // told and a later frame cannot overtake it.
         activeSessionId = opened;
         cursor = undefined;
-        send(subscription());
+        const subscriptionMessage = subscription();
+        if (subscriptionMessage !== null) {
+          send(subscriptionMessage);
+        }
         options.handlers.onSessionOpened?.(opened);
         options.handlers.onMessage(message);
         return;
@@ -230,90 +253,106 @@ export function createTransport(options: TransportOptions): Transport {
       }
       activeSessionId = sessionId;
       cursor = undefined;
-      send(subscription());
+      const subscriptionMessage = subscription();
+      if (subscriptionMessage !== null) {
+        send(subscriptionMessage);
+      }
     },
     createSession() {
       send({ type: ClientMessageType.CreateSession });
     },
     prompt(text, images, behavior) {
-      send({
+      sendForSession((sessionId) => ({
         type: ClientMessageType.Prompt,
-        sessionId: activeSessionId,
+        sessionId,
         text,
         ...(images === undefined || images.length === 0 ? {} : { images }),
         ...(behavior === undefined ? {} : { streamingBehavior: behavior }),
-      });
+      }));
     },
     bash(command, excludeFromContext) {
-      send({
+      sendForSession((sessionId) => ({
         type: ClientMessageType.Bash,
-        sessionId: activeSessionId,
+        sessionId,
         command,
         excludeFromContext,
-      });
+      }));
     },
     steerSubagent(agentId, message) {
-      send({
+      sendForSession((sessionId) => ({
         type: ClientMessageType.SteerSubagent,
-        sessionId: activeSessionId,
+        sessionId,
         agentId,
         message,
-      });
+      }));
     },
     getSubagentTranscript(agentId) {
-      send({
+      sendForSession((sessionId) => ({
         type: ClientMessageType.GetSubagentTranscript,
-        sessionId: activeSessionId,
+        sessionId,
         agentId,
-      });
+      }));
     },
     abort() {
-      send({ type: ClientMessageType.Abort, sessionId: activeSessionId });
+      sendForSession((sessionId) => ({ type: ClientMessageType.Abort, sessionId }));
     },
     setModel(provider, modelId) {
-      send({ type: ClientMessageType.SetModel, sessionId: activeSessionId, provider, modelId });
+      sendForSession((sessionId) => ({
+        type: ClientMessageType.SetModel,
+        sessionId,
+        provider,
+        modelId,
+      }));
     },
     setThinkingLevel(level) {
-      send({ type: ClientMessageType.SetThinkingLevel, sessionId: activeSessionId, level });
+      sendForSession((sessionId) => ({
+        type: ClientMessageType.SetThinkingLevel,
+        sessionId,
+        level,
+      }));
     },
     setAutoCompaction(enabled) {
-      send({ type: ClientMessageType.SetAutoCompaction, sessionId: activeSessionId, enabled });
+      sendForSession((sessionId) => ({
+        type: ClientMessageType.SetAutoCompaction,
+        sessionId,
+        enabled,
+      }));
     },
     compact(customInstructions) {
-      send({
+      sendForSession((sessionId) => ({
         type: ClientMessageType.Compact,
-        sessionId: activeSessionId,
+        sessionId,
         ...(customInstructions === undefined || customInstructions === ""
           ? {}
           : { customInstructions }),
-      });
+      }));
     },
     getSessionStats() {
-      send({ type: ClientMessageType.GetSessionStats, sessionId: activeSessionId });
+      sendForSession((sessionId) => ({ type: ClientMessageType.GetSessionStats, sessionId }));
     },
     setSessionName(name) {
-      send({ type: ClientMessageType.SetSessionName, sessionId: activeSessionId, name });
+      sendForSession((sessionId) => ({ type: ClientMessageType.SetSessionName, sessionId, name }));
     },
     exportSession() {
-      send({ type: ClientMessageType.ExportSession, sessionId: activeSessionId });
+      sendForSession((sessionId) => ({ type: ClientMessageType.ExportSession, sessionId }));
     },
     getForkMessages() {
-      send({ type: ClientMessageType.GetForkMessages, sessionId: activeSessionId });
+      sendForSession((sessionId) => ({ type: ClientMessageType.GetForkMessages, sessionId }));
     },
     forkSession(entryId) {
-      send({ type: ClientMessageType.ForkSession, sessionId: activeSessionId, entryId });
+      sendForSession((sessionId) => ({ type: ClientMessageType.ForkSession, sessionId, entryId }));
     },
     cloneSession() {
-      send({ type: ClientMessageType.CloneSession, sessionId: activeSessionId });
+      sendForSession((sessionId) => ({ type: ClientMessageType.CloneSession, sessionId }));
     },
     reconnect() {
-      send({ type: ClientMessageType.Reconnect, sessionId: activeSessionId });
+      sendForSession((sessionId) => ({ type: ClientMessageType.Reconnect, sessionId }));
     },
     getTree() {
-      send({ type: ClientMessageType.GetTree, sessionId: activeSessionId });
+      sendForSession((sessionId) => ({ type: ClientMessageType.GetTree, sessionId }));
     },
     moveLeaf(entryId) {
-      send({ type: ClientMessageType.MoveLeaf, sessionId: activeSessionId, entryId });
+      sendForSession((sessionId) => ({ type: ClientMessageType.MoveLeaf, sessionId, entryId }));
     },
     listDirectory(path) {
       send({ type: ClientMessageType.ListDirectory, path });

@@ -1,6 +1,11 @@
 /** Text derivations the transcript needs from a ProjectedEntry, shared by its row components. */
 
-import { ContentBlockType, EntryKind, type ProjectedEntry } from "@pi-my-ui/protocol";
+import {
+  ContentBlockType,
+  EntryKind,
+  type ContentBlock,
+  type ProjectedEntry,
+} from "@pi-my-ui/protocol";
 
 /** The label a notification falls back to when its payload carries no readable summary. */
 export const NOTIFICATION_FALLBACK_SUMMARY = "Extension message";
@@ -26,6 +31,29 @@ function decodeXmlEntities(value: string): string {
 }
 
 /**
+ * One block's contribution to the clipboard text. The switch covers the whole `ContentBlock` union
+ * with a `never` default, so a new block type has to decide what it copies rather than quietly
+ * copying nothing.
+ */
+function blockCopyText(block: ContentBlock): string {
+  switch (block.type) {
+    case ContentBlockType.Text:
+      return block.text;
+    case ContentBlockType.BashExecution:
+      return [`$ ${block.command}`, block.output].filter((part) => part !== "").join("\n");
+    case ContentBlockType.Reasoning:
+    case ContentBlockType.ToolCall:
+    case ContentBlockType.Error:
+      // A failure is the record of what stopped the turn, not text the reader quotes.
+      return "";
+    default: {
+      const unhandled: never = block;
+      return unhandled;
+    }
+  }
+}
+
+/**
  * A message's clipboard text: its concatenated text blocks, with a bash card contributing its command
  * and output so its copy control is not inert.
  */
@@ -35,15 +63,7 @@ export function entryText(entry: ProjectedEntry): string {
     return entry.summary;
   }
   return entry.blocks
-    .map((block) => {
-      if (block.type === ContentBlockType.Text) {
-        return block.text;
-      }
-      if (block.type === ContentBlockType.BashExecution) {
-        return [`$ ${block.command}`, block.output].filter((part) => part !== "").join("\n");
-      }
-      return "";
-    })
+    .map(blockCopyText)
     .filter((part) => part !== "")
     .join("\n\n");
 }

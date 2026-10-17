@@ -115,8 +115,8 @@ export async function seedSession(home: HermeticHome, name: SeedName): Promise<F
   return await writeSessionFile(home, rehomed);
 }
 
-/** The two facts a fork, clone or subagent child adds to a Session file: a parent pointer and a name. */
-export interface RelatedSessionOptions {
+/** The two facts a Session file can add to its header: a parent pointer and a name. */
+export interface ParentedSessionOptions {
   /** The Session file the new file names as its parent, as pi writes it for a fork or a child. */
   readonly parentSessionPath?: string;
   /** The name pi records in the file, which is what the drawer reads a row's title from. */
@@ -130,9 +130,9 @@ export interface RelatedSessionOptions {
  * child from the owner's own fork. pi's own writer stamps the header, so the file is one pi would
  * resume.
  */
-export async function writeRelatedSession(
+export async function writeParentedSession(
   home: HermeticHome,
-  options: RelatedSessionOptions,
+  options: ParentedSessionOptions,
 ): Promise<FixtureSession> {
   await mkdir(home.sessionsDir, { recursive: true });
   const manager = SessionManager.create(
@@ -148,7 +148,7 @@ export async function writeRelatedSession(
   });
   const path = manager.getSessionFile();
   if (path === undefined) {
-    throw new Error("the related session writer produced no Session file");
+    throw new Error("the parented session writer produced no Session file");
   }
   return {
     id: manager.getSessionId(),

@@ -182,6 +182,17 @@ export function type(target: HTMLElement, value: string): void {
   element.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
+/**
+ * Let an async click handler's clipboard promise settle, then paint the result. Both copy controls
+ * read the clipboard through a promise, so a test that asserts on the painted confirmation has to
+ * yield to it before asserting.
+ */
+export async function settle(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  flushSync();
+}
+
 export function streaming(): readonly ProjectionDelta[] {
   return [{ kind: ProjectionDeltaKind.RunState, runState: { kind: RunStateKind.Streaming } }];
 }

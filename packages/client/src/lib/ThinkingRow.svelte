@@ -10,7 +10,6 @@
   >
     <Icon name="chevron-right" class="size-3 shrink-0 group-open:rotate-90" />
     <span>Thinking</span>
-    <span class="h-px flex-1 bg-hairline" aria-hidden="true"></span>
   </summary>
   <p class="px-2 pb-2 text-meta break-words whitespace-pre-wrap text-dim">{text}</p>
 </details>

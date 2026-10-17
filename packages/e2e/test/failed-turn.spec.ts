@@ -11,6 +11,7 @@ import {
   type HermeticHome,
   type ScriptedPiLaunch,
 } from "../src/pi-harness";
+import { themeColor } from "../src/theme-colors";
 
 const PI_TEST_TIMEOUT_MS = 120_000;
 
@@ -18,9 +19,6 @@ test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
 
 // The message card's own copy control needs the browser clipboard, as the markdown spec does.
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
-
-/** The danger token every failure states itself in, resolved to the colour the browser paints. */
-const DANGER_RGB = "rgb(255, 123, 114)";
 
 interface Harness {
   readonly home: HermeticHome;
@@ -113,13 +111,14 @@ test("a failed turn states pi's error in the transcript, live and again from the
     await expect(page.getByTestId("run-state")).toHaveAttribute("data-run-state", "errored");
     await expect(page.getByTestId("run-state-detail")).toHaveText("the model exploded");
 
+    const danger = await themeColor(page, "--color-danger");
     const live = failedCard(page);
     await expect(live).toHaveCount(1);
     await expect(live.getByTestId("error-label")).toHaveText("error");
     await expect(live.getByTestId("error-text")).toHaveText("the model exploded");
     expect(
       await live.getByTestId("error-text").evaluate((element) => getComputedStyle(element).color),
-    ).toBe(DANGER_RGB);
+    ).toBe(danger);
     // A failure with no content left nothing to copy, so its card offers no control.
     await expect(live.getByTestId("copy-message")).toHaveCount(0);
 
@@ -135,10 +134,41 @@ test("a failed turn states pi's error in the transcript, live and again from the
       await reseeded
         .getByTestId("error-text")
         .evaluate((element) => getComputedStyle(element).color),
-    ).toBe(DANGER_RGB);
+    ).toBe(danger);
     await expect(reseeded.getByTestId("copy-message")).toHaveCount(0);
     // Nothing is running after the re-seed, so the card is the only record of the failure left.
     await expect(page.getByTestId("run-state")).toHaveCount(0);
+  } finally {
+    await disposeHarness(harness);
+  }
+});
+
+test("a live failure whose error text is blank states the fallback in both places", async ({
+  page,
+}) => {
+  const home = await createHermeticHome();
+  const seeded = await seedSession(home, "plain");
+  const harness = await startHarness(home, [
+    {
+      expect: { role: "user", text: "break the run quietly" },
+      reply: { content: [], stopReason: "error", errorMessage: "   " },
+    },
+  ]);
+  try {
+    await openSession(page, harness, seeded.id);
+    await expect(page.getByTestId("transcript")).toContainText("Seed text block 3.");
+
+    await page.getByTestId("composer-input").fill("break the run quietly");
+    await page.getByTestId("composer-send").click();
+
+    // Blank error text would render an error with nothing in it, so both the live row and the
+    // durable card state the same sentence the run state uses when pi records no error at all.
+    await expect(page.getByTestId("run-state")).toHaveAttribute("data-run-state", "errored");
+    await expect(page.getByTestId("run-state-detail")).toHaveText("the run failed");
+
+    const live = failedCard(page);
+    await expect(live).toHaveCount(1);
+    await expect(live.getByTestId("error-text")).toHaveText("the run failed");
   } finally {
     await disposeHarness(harness);
   }
@@ -156,6 +186,7 @@ test("a seeded attempt keeps its error after the content, and an attempt with no
       errorMessage: "the connection dropped",
     },
     { prompt: "try the summary", stopReason: "error" },
+    { prompt: "try once more", stopReason: "error", errorMessage: "" },
     { prompt: "cancel this one", stopReason: "aborted" },
   ]);
   const harness = await startHarness(home, [
@@ -168,11 +199,11 @@ test("a seeded attempt keeps its error after the content, and an attempt with no
     await openSession(page, harness, seeded.id);
     await expect(page.getByTestId("transcript")).toContainText("read the file");
 
-    // Three prompts answered by three attempts, and the cancelled one left no row of its own.
-    await expect(page.getByTestId("transcript-entry")).toHaveCount(5);
+    // Four prompts answered by four attempts, and the cancelled one left no row of its own.
+    await expect(page.getByTestId("transcript-entry")).toHaveCount(7);
 
     const failed = failedCard(page);
-    await expect(failed).toHaveCount(2);
+    await expect(failed).toHaveCount(3);
 
     const partial = failed.filter({ hasText: "the connection dropped" });
     await expect(partial.getByTestId("error-label")).toHaveText("error");
@@ -191,17 +222,21 @@ test("a seeded attempt keeps its error after the content, and an attempt with no
     await expect(copy).toHaveAttribute("data-copied", "true");
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("I will read it now.");
 
-    // pi gave no error text, so the block states the fallback the run state uses.
+    // pi gave no error text on one attempt and an empty one on another, so both state the fallback
+    // the run state uses rather than an error block with nothing in it.
     const bare = failed.filter({ hasText: "the run failed" });
-    await expect(bare.getByTestId("error-text")).toHaveText("the run failed");
-    await expect(bare.getByTestId("copy-message")).toHaveCount(0);
+    await expect(bare).toHaveCount(2);
+    for (const card of await bare.all()) {
+      await expect(card.getByTestId("error-text")).toHaveText("the run failed");
+      await expect(card.getByTestId("copy-message")).toHaveCount(0);
+    }
 
     // The same file read again produces the same rows: the record does not depend on the run.
     await page.reload();
     await expect(page.getByTestId("connection-status")).toHaveAttribute("data-status", "connected");
-    await expect(page.getByTestId("transcript-entry")).toHaveCount(5);
-    await expect(failedCard(page)).toHaveCount(2);
-    await expect(page.getByTestId("error-text")).toHaveCount(2);
+    await expect(page.getByTestId("transcript-entry")).toHaveCount(7);
+    await expect(failedCard(page)).toHaveCount(3);
+    await expect(page.getByTestId("error-text")).toHaveCount(3);
     await expect(page.getByTestId("run-state")).toHaveCount(0);
   } finally {
     await disposeHarness(harness);

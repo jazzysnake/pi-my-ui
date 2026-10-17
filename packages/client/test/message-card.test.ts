@@ -11,7 +11,7 @@ import {
 } from "@pi-my-ui/protocol";
 
 import { ClientStore } from "../src/lib/store/client-store.svelte.js";
-import { mountShell, snapshotOf } from "./composer-harness.js";
+import { mountShell, settle, snapshotOf } from "./composer-harness.js";
 
 function message(
   id: string,
@@ -85,13 +85,6 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
-
-/** Let an async click handler's clipboard promise settle, then paint the result. */
-async function settle(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
-  flushSync();
-}
 
 describe("a message as a card", () => {
   it("draws every message row inside a card, with the reader's surface raised", () => {
@@ -332,9 +325,17 @@ describe("the thinking row and the copy column", () => {
     expect(getComputedStyle(firstBlock).paddingRight).toBe("44px");
     expect(firstBlock.contains(thinking)).toBe(true);
     expect(thinking.open).toBe(false);
-    expect(thinking.textContent).toContain("Thinking");
     expect(thinking.querySelector("svg")?.dataset["icon"]).toBe("chevron-right");
     expect(thinking.querySelector('[data-testid="copy-message"]')).toBeNull();
+
+    const header = thinking.querySelector("summary");
+    if (header === null) {
+      throw new Error("the thinking row has no header");
+    }
+    // The approved row is a chevron and the word only: a rule in a collapsed header is chrome the
+    // reader has no control to explain.
+    expect(header.textContent?.trim()).toBe("Thinking");
+    expect(header.querySelector('[class*="bg-hairline"]')).toBeNull();
   });
 
   it("gives a thinking-only message no control and the full card width", () => {

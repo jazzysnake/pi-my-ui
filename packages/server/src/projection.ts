@@ -128,12 +128,21 @@ function toolCallStatus(result: ToolResultInfo | undefined): ToolCallStatus {
 export const RUN_FAILED_TEXT = "the run failed";
 
 /**
+ * The failure text both the durable error block and the live run-state row state. pi can record an
+ * attempt as failed with no error text, or with one that is only whitespace; an error block holding
+ * either would look like an empty message, so both fall back to the one failure sentence.
+ */
+export function failureText(errorMessage: string | undefined): string {
+  return errorMessage === undefined || errorMessage.trim() === "" ? RUN_FAILED_TEXT : errorMessage;
+}
+
+/**
  * pi's record of an attempt that ended in error: its own error text, after whatever content the
  * attempt produced. Both readers project a failure through this one rule, so neither can drift.
  */
 function errorBlockOf(message: AgentMessage): ContentBlock | undefined {
   return "stopReason" in message && message.stopReason === "error"
-    ? { type: ContentBlockType.Error, text: message.errorMessage ?? RUN_FAILED_TEXT }
+    ? { type: ContentBlockType.Error, text: failureText(message.errorMessage) }
     : undefined;
 }
 

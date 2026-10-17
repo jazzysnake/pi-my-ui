@@ -4,7 +4,7 @@ import { startServer, type RunningServer } from "@pi-my-ui/server";
 import type { Script } from "@pi-my-ui/scripted-provider";
 
 import { startClientPageServer, type ClientPageServer } from "../src/client-page-server";
-import { seedSession, writeRelatedSession, type FixtureSession } from "../src/fixture-builder";
+import { seedSession, writeParentedSession, type FixtureSession } from "../src/fixture-builder";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 
 const PI_TEST_TIMEOUT_MS = 120_000;
@@ -76,12 +76,12 @@ test("the drawer hides a subagent child and keeps the owner's own fork", async (
   const harness = await startHarness();
   try {
     // Both carry the spawning Session in their header, as pi writes a parent for both.
-    const fork = await writeRelatedSession(harness.home, {
+    const fork = await writeParentedSession(harness.home, {
       parentSessionPath: harness.seeded.path,
       name: OWNER_FORK_NAME,
       firstMessage: "the owner forked this session",
     });
-    const child = await writeRelatedSession(harness.home, {
+    const child = await writeParentedSession(harness.home, {
       parentSessionPath: harness.seeded.path,
       name: SUBAGENT_CHILD_NAME,
       firstMessage: "the subagent ran this session",
@@ -102,12 +102,12 @@ test("a Session with only one of a child's facts stays listed", async ({ page })
   const harness = await startHarness();
   try {
     // The run-id name shape alone: pi reported no parent path for this file.
-    const runIdNamed = await writeRelatedSession(harness.home, {
+    const runIdNamed = await writeParentedSession(harness.home, {
       name: SUBAGENT_CHILD_NAME,
       firstMessage: "the owner gave this session a run-id-shaped name",
     });
     // A parent pointer alone, which is what pi writes for a fork whose name it never filled in.
-    const parentLinked = await writeRelatedSession(harness.home, {
+    const parentLinked = await writeParentedSession(harness.home, {
       parentSessionPath: harness.seeded.path,
       name: OWNER_FORK_NAME,
       firstMessage: "the owner forked this session",

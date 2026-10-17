@@ -6,6 +6,7 @@ import type { Script } from "@pi-my-ui/scripted-provider";
 import { startClientPageServer, type ClientPageServer } from "../src/client-page-server";
 import { seedSession, type FixtureSession, type SeedName } from "../src/fixture-builder";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
+import { themeColor } from "../src/theme-colors";
 
 const PI_TEST_TIMEOUT_MS = 120_000;
 
@@ -192,7 +193,7 @@ test("renders assistant markdown, contains a wide code block, and copies raw mar
     await expect(copy).toHaveAttribute("data-copied", "true");
     await expect(copy.locator("svg")).toHaveAttribute("data-icon", "check");
     expect(await copy.evaluate((element) => getComputedStyle(element).color)).toBe(
-      "rgb(126, 231, 135)",
+      await themeColor(page, "--color-success"),
     );
 
     // The message card's control copies the whole message, fences and all, not just the code.

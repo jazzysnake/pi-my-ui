@@ -35,10 +35,10 @@ import { createLiveBash, type LiveBash } from "./live-bash.js";
 import { createLiveCompaction } from "./live-compaction.js";
 import {
   blocksFromMessage,
+  failureText,
   projectionBatch,
   roleOf,
   toolResultOutput,
-  RUN_FAILED_TEXT,
 } from "./projection.js";
 import { blockEditOf } from "./streaming-blocks.js";
 import { createSubagentTranscripts } from "./subagent-transcripts.js";
@@ -350,7 +350,7 @@ export function createSessionProjectionMachine(
         return emit([
           setRunState({
             kind: RunStateKind.Errored,
-            message: message.errorMessage ?? RUN_FAILED_TEXT,
+            message: failureText(message.errorMessage),
           }),
         ]);
       }

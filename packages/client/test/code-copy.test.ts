@@ -10,7 +10,7 @@ import {
 } from "@pi-my-ui/protocol";
 
 import { ClientStore } from "../src/lib/store/client-store.svelte.js";
-import { deltaOf, mountShell, snapshotOf } from "./composer-harness.js";
+import { deltaOf, mountShell, settle, snapshotOf } from "./composer-harness.js";
 
 const TWO_BLOCKS = [
   "Run the suite first:",
@@ -54,13 +54,6 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
-
-/** Let an async click handler's clipboard promise settle, then paint the result. */
-async function settle(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
-  flushSync();
-}
 
 describe("a fenced code block's copy control", () => {
   it("gives every fenced block one control named Copy code, in a strip clear of the scrolling code", () => {

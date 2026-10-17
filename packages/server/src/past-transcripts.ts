@@ -33,7 +33,7 @@ import { SessionManager } from "@earendil-works/pi-coding-agent";
 
 import { errorText } from "./error-text.js";
 import { projectionBatch } from "./projection.js";
-import { RUN_ID_PREFIX_LENGTH, childRunIdPrefixOf } from "./subagent-child-session.js";
+import { childRunIdPrefixOf, runIdPrefixOf } from "./subagent-child-session.js";
 
 /** Only these files are session files, the same rule pi's own discovery uses. */
 const SESSION_FILE_EXTENSION = ".jsonl";
@@ -45,13 +45,6 @@ export interface PastTranscriptRequest {
   readonly agentId: string;
   /** Every run id this Session lists, so a shared prefix is refused before any file is read. */
   readonly agentIds: readonly string[];
-}
-
-/** The first characters of a run id, in the lower case a child's name is written in. */
-function prefixOf(id: string): string | undefined {
-  return id.length < RUN_ID_PREFIX_LENGTH
-    ? undefined
-    : id.slice(0, RUN_ID_PREFIX_LENGTH).toLowerCase();
 }
 
 function unreadable(detail: string): SubagentTranscriptLookup {
@@ -133,14 +126,14 @@ function transcriptEntries(manager: SessionManager): readonly ProjectedEntry[] {
  * is a stated outcome, because the client draws all three of them differently.
  */
 export function readPastTranscript(request: PastTranscriptRequest): SubagentTranscriptLookup {
-  const prefix = prefixOf(request.agentId);
+  const prefix = runIdPrefixOf(request.agentId);
   if (prefix === undefined) {
     return {
       kind: SubagentTranscriptLookupKind.Unavailable,
       reason: `the agent id ${request.agentId} is too short to name a child session file`,
     };
   }
-  const matches = request.agentIds.filter((id) => prefixOf(id) === prefix);
+  const matches = request.agentIds.filter((id) => runIdPrefixOf(id) === prefix);
   if (matches.length !== 1 || matches[0] !== request.agentId) {
     return ambiguous();
   }

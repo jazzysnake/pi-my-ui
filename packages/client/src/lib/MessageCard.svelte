@@ -17,12 +17,13 @@
 
   const copyText = $derived(entryText(entry));
   const raised = $derived(entry.role === MessageRole.User);
-  /**
-   * The control's box, reserved by whatever the card draws first. A copyable card also keeps enough
-   * height for the 44 px box and its 2 px inset on both edges, so a one-line message cannot push the
-   * control past the border.
-   */
+  /** The control's column, reserved by whatever the card draws first. */
   const COPY_COLUMN = "44px";
+  /**
+   * A copyable card keeps room for the control's 44 px box and its 2 px inset on both edges, so a
+   * one-line message cannot push the control past the border.
+   */
+  const COPY_MIN_HEIGHT = "min-h-12";
 </script>
 
 {#snippet blockBody(block: ContentBlock)}
@@ -55,7 +56,7 @@
 <article
   class={`relative rounded border px-2.5 pt-1.5 pb-2.5 ${
     raised ? "border-hairline-strong bg-panel-raised" : "border-hairline bg-panel"
-  } ${copyText === "" ? "" : "min-h-12"}`}
+  } ${copyText === "" ? "" : COPY_MIN_HEIGHT}`}
   data-testid="message-card"
   data-surface={raised ? "raised" : "panel"}
   data-role={entry.role}

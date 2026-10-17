@@ -116,11 +116,11 @@ replay. You never act on a reconnect.
 
 From top to bottom:
 
-- **Navigation bar** — the `☰` Sessions toggle, the wordmark `pi-my-ui`, then the agent pill, the
-  connection dot and the **Files** control, which closes the row.
-- **Session bar** — the live marker (**Streaming**) while the agent is producing output, and the
-  **context-usage readout** on the right. After a compaction the readout reads **Recalculating…**
-  until pi has a new figure.
+- **Navigation bar** — the `☰` Sessions toggle, the wordmark `pi-my-ui`, the connection dot and the
+  **Files** control, which closes the row.
+- **Session bar** — the **agent pill** at the leading edge (**main**, or the focused **@handle**, with
+  **+N** while other agents are active), and the **context-usage readout** on the right. After a
+  compaction the readout reads **Recalculating…** until pi has a new figure.
 - **Transcript** — the conversation: your messages, the assistant's streaming replies, tool-call
   cards, collapsed reasoning, bash cards, notifications and compaction boundaries. This is the one
   scrolling area.

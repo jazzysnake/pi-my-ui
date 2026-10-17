@@ -41,15 +41,6 @@ function exitDetail(exit: PiChildExit): string {
   return exit.exitCode === null ? "no exit code" : `exit code ${String(exit.exitCode)}`;
 }
 
-/**
- * Whether the Session's run is producing output right now, which is what the shell's live marker
- * means. Only `streaming` qualifies: a compaction or a retry is a wait that says so in its own row,
- * so pulsing an "output" marker through one would claim progress that is not happening.
- */
-export function isOutputInFlight(runState: RunState): boolean {
-  return runState.kind === RunStateKind.Streaming;
-}
-
 export function runStateDisplay(runState: RunState): RunStateDisplay | null {
   switch (runState.kind) {
     case RunStateKind.Idle:

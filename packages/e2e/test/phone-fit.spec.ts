@@ -73,8 +73,8 @@ async function sendMessage(page: Page, text: string): Promise<void> {
 test("the shell is drawn in the console theme: palette, monospace type and composer geometry", async ({
   page,
 }) => {
-  // The subagents seed carries every header element at once — the agent pill and a context readout
-  // beside the navigation controls — which is the widest the top of the screen ever gets.
+  // The subagents seed carries the session bar's widest content — the agent pill and the context
+  // readout on one row — which is the widest the top of the screen ever gets.
   const harness = await startHarness(
     [
       {
@@ -149,26 +149,23 @@ test("reduced motion stops the pulse and loses no text", async ({ page }) => {
     await expect(toolStatus).toBeVisible();
     await expect(toolStatus).toHaveText("Running");
 
-    // The shell's own live marker for the run, which is the second surface that pulses.
-    const marker = page.getByTestId("run-activity");
-    await expect(marker).toBeVisible();
-    await expect(marker.getByTestId("run-activity-label")).toHaveText("Streaming");
-    const markerDot = marker.locator("span").first();
+    // A live run is announced without a pulse: the transcript grows, and the send control becomes
+    // the stop control, with the run's state in its own name.
+    await expectComposerSend(page, "Stop");
 
     const animationName = (locator: ReturnType<Page["locator"]>): Promise<string> =>
       locator.evaluate((element) => getComputedStyle(element).animationName);
 
-    // The pulses are really there, so the assertions below are not vacuous.
+    // The pulse is really there, so the assertion below is not vacuous.
     expect(await animationName(toolStatus)).toBe("pulse");
-    expect(await animationName(markerDot)).toBe("pulse");
 
     await page.emulateMedia({ reducedMotion: "reduce" });
     expect(await animationName(toolStatus)).toBe("none");
-    expect(await animationName(markerDot)).toBe("none");
 
-    // Nothing is lost when the animation goes: both surfaces still say the same fact in text.
+    // Nothing is lost when the animation goes: the status still says the same fact in text, and a
+    // tap on the composer's control still does what it says.
     await expect(toolStatus).toHaveText("Running");
-    await expect(marker.getByTestId("run-activity-label")).toHaveText("Streaming");
+    await expectComposerSend(page, "Stop");
     await page.getByTestId("composer-send").click();
     await expectComposerSend(page, "Send");
   } finally {

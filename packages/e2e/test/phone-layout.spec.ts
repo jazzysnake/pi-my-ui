@@ -272,8 +272,8 @@ function headerControl(controls: readonly HeaderControl[], testId: string): Head
 }
 
 test("the top bar holds its controls inside the narrowest phone", async ({ page }) => {
-  // The subagents seed carries every header element at once — the agent pill and a context readout
-  // beside the navigation controls — which is the widest the top of the screen ever gets.
+  // The subagents seed carries a subagent, so the pill would be visible if it were still in the
+  // header; it now lives in the session bar below.
   const harness = await startHarness(
     [
       {
@@ -323,6 +323,68 @@ test("the top bar holds its controls inside the narrowest phone", async ({ page 
     expect(files.right, "Files must be the rightmost control in the top bar").toBe(
       Math.max(...header.controls.map((control) => control.right)),
     );
+  } finally {
+    await disposeHarness(harness);
+  }
+});
+
+test("the session bar leads with the agent pill inside the narrowest phone", async ({ page }) => {
+  // This seed puts the pill and the context readout on the same row, which is the widest the session
+  // bar ever gets.
+  const harness = await startHarness(
+    [
+      {
+        expect: { role: "user", text: "a prompt this recording never saw" },
+        reply: { content: [{ type: "text", text: "unused" }], stopReason: "stop" },
+      },
+    ],
+    "subagents",
+  );
+  try {
+    await openHarness(page, harness, "Seed text block 9.");
+    await expect(page.getByTestId("agent-pill")).toBeVisible();
+
+    await page.setViewportSize({ width: PHONE_WIDTHS_PX[0], height: PHONE_LONG_EDGE_PX });
+    const bar = await page.evaluate(() => {
+      const sessionBar = document.querySelector('[data-testid="session-bar"]');
+      const pill = document.querySelector('[data-testid="agent-pill"]');
+      const meter = document.querySelector('[data-testid="context-usage"]');
+      const header = document.querySelector('[data-testid="top-bar"]');
+      if (sessionBar === null || pill === null || meter === null) {
+        return null;
+      }
+      const pillBox = pill.getBoundingClientRect();
+      const meterBox = meter.getBoundingClientRect();
+      const barBox = sessionBar.getBoundingClientRect();
+      return {
+        leads: sessionBar.firstElementChild === pill,
+        inHeader: header?.contains(pill) ?? false,
+        marker: document.querySelector('[data-testid="run-activity"]') !== null,
+        pillWidth: pillBox.width,
+        pillHeight: pillBox.height,
+        pillRight: pillBox.right,
+        meterLeft: meterBox.left,
+        meterRight: meterBox.right,
+        barRight: barBox.right,
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+      };
+    });
+    if (bar === null) {
+      throw new Error("the session bar is missing its agent pill or its context readout");
+    }
+
+    expect(bar.inHeader, "the pill must not be in the top bar").toBe(false);
+    expect(bar.leads, "the pill must lead the session bar").toBe(true);
+    expect(bar.marker, "no run-activity marker may remain in the session bar").toBe(false);
+
+    // The pill caps its own width and truncates its label inside that cap, so the readout keeps its
+    // place on the right instead of being pushed past the padding.
+    expect(bar.pillWidth).toBeLessThanOrEqual(160);
+    expect(bar.pillHeight, "the pill must stay one line tall").toBeLessThanOrEqual(45);
+    expect(bar.pillRight).toBeLessThanOrEqual(bar.meterLeft);
+    expect(bar.meterRight).toBeLessThanOrEqual(bar.barRight);
+    expect(bar.scrollWidth).toBeLessThanOrEqual(bar.clientWidth);
   } finally {
     await disposeHarness(harness);
   }

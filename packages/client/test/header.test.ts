@@ -1,7 +1,8 @@
+import { flushSync } from "svelte";
 import { describe, expect, it } from "vitest";
 
 import { ClientStore } from "../src/lib/store/client-store.svelte.js";
-import { mountShell } from "./composer-harness.js";
+import { mountShell, snapshotOf } from "./composer-harness.js";
 
 /**
  * The header's end group: the connection status leads and Files closes the row, because Files is the
@@ -24,5 +25,45 @@ describe("the header's end group", () => {
 
     const controls = [...bar.querySelectorAll('button, [data-testid="connection-status"]')];
     expect(controls.at(-1), "Files must be the header's last control").toBe(files);
+  });
+
+  it("holds navigation controls only while a subagent runs", () => {
+    const store = new ClientStore();
+    const { target } = mountShell(store);
+    const snapshot = snapshotOf([]);
+    flushSync(() => {
+      store.receive({
+        ...snapshot,
+        projection: {
+          ...snapshot.projection,
+          runState: { kind: "streaming" },
+          subagents: [
+            {
+              id: "a1",
+              handle: "explore",
+              type: "general-purpose",
+              status: "running",
+              runKind: "agent",
+            },
+          ],
+        },
+      });
+    });
+
+    const bar = target.querySelector('[data-testid="top-bar"]');
+    if (bar === null) {
+      throw new Error("the shell has no header");
+    }
+
+    // The pill is session state and now lives in the session bar; the header keeps the controls a
+    // thumb reaches for and nothing that changes with the run.
+    expect(bar.querySelector('[data-testid="agent-pill"]')).toBeNull();
+    expect([...bar.querySelectorAll("button")].map((control) => control.dataset["testid"])).toEqual(
+      ["sessions-toggle", "files-toggle"],
+    );
+
+    // The run is announced by the composer's stop control and the transcript's growth, so the
+    // session bar carries no second marker for it.
+    expect(target.querySelector('[data-testid="run-activity"]')).toBeNull();
   });
 });

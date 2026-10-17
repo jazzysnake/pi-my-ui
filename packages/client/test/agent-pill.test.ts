@@ -136,6 +136,21 @@ describe("the agent pill", () => {
     expect(pill.read()).toEqual({ kind: "main", label: "main +2" });
   });
 
+  it("sits at the session bar's leading edge, not in the navigation bar", () => {
+    const pill = mountPill();
+    pill.store.receive(snapshotOf([agent("a1", "explore", SubagentStatus.Running)]));
+    flushSync();
+
+    const element = pill.target.querySelector<HTMLElement>('[data-testid="agent-pill"]');
+    const bar = element?.closest<HTMLElement>('[data-testid="session-bar"]');
+    if (element === null || bar == null) {
+      throw new Error("the pill is not inside the session bar");
+    }
+
+    expect(bar.firstElementChild, "the pill must lead the session bar").toBe(element);
+    expect(element.closest('[data-testid="top-bar"]')).toBeNull();
+  });
+
   it("drops the count once the agents settle", () => {
     const pill = mountPill();
     pill.store.receive(snapshotOf([agent("a1", "explore", SubagentStatus.Running)]));

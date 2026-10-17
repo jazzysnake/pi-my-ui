@@ -37,6 +37,12 @@
   --text-body: 12.5px;
   --text-body--line-height: 1.5;
   --text-meta: 11px;
+
+  /*
+   * The one glyph size a control consumes. An icon that sits inline with text is sized to its row
+   * instead, so this token stays the control's own measurement rather than a global icon scale.
+   */
+  --text-control-glyph: 20px;
 }
 
 /* The page uses the theme tokens; a component inherits them rather than re-declaring the ramp. */

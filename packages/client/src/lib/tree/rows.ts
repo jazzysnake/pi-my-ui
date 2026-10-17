@@ -16,6 +16,7 @@
 import { MessageRole, type SessionTree, type TreeNode } from "@pi-my-ui/protocol";
 
 import { fuzzyScore } from "../commands/filter.js";
+import type { IconName } from "../icons/index.js";
 
 /** One rendered tree row: the node, its indent depth, and the state the row paints. */
 export interface TreeRow {
@@ -190,6 +191,46 @@ export function searchTree(tree: SessionTree, query: string): readonly TreeSearc
     (left, right) => right.match.score - left.match.score || left.position - right.position,
   );
   return scored.map((entry) => entry.match);
+}
+
+/** Whether a row offers a fork: pi forks a Session from a user message, and from nothing else. */
+export function isForkable(node: TreeNode): boolean {
+  return node.entry.role === MessageRole.User;
+}
+
+/**
+ * The glyph that leads a row: one icon per kind, from the client's one pack.
+ *
+ * This is a presentational choice, not a wire value — pi's entries carry roles and types, not icons —
+ * so it lives beside the row model and the modal renders it rather than naming a glyph inline. A
+ * non-message entry is drawn by the kind of entry the transcript would show for it, and a `dot` when
+ * it has no row of its own (a model change, a label).
+ */
+export function entryGlyph(node: TreeNode): IconName {
+  switch (node.entry.role) {
+    case MessageRole.User:
+      return "user";
+    case MessageRole.Assistant:
+      return "bot";
+    case MessageRole.ToolResult:
+      return "hammer";
+    case MessageRole.Bash:
+      return "terminal";
+    // pi's `custom` role is an extension's own message, which the previous UI drew as a pencil.
+    case MessageRole.Notification:
+      return "pencil";
+    case null:
+      switch (node.entry.entryType) {
+        case "compaction":
+          return "layers";
+        case "branch_summary":
+          return "git-branch";
+        default:
+          return "dot";
+      }
+    default:
+      return "dot";
+  }
 }
 
 /** A short label for what a row is: its transcript role, or pi's entry type when it has none. */

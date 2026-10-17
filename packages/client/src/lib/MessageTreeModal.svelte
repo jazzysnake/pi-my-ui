@@ -11,10 +11,13 @@
 
   import type { SessionTree, TreeNode } from "@pi-my-ui/protocol";
 
+  import Icon from "./Icon.svelte";
   import {
     defaultExpandedIds,
+    entryGlyph,
     entryKindLabel,
     flattenTree,
+    isForkable,
     rowIndent,
     searchTree,
     toggleExpanded,
@@ -28,6 +31,7 @@
     moveError,
     movingEntryId,
     onSelect,
+    onFork,
     onClose,
   }: {
     /** The server's tree, or `null` while the request is in flight. */
@@ -40,6 +44,8 @@
     /** The entry whose move is in flight, so its row can say it is waiting. */
     movingEntryId: string | null;
     onSelect: (entry: TreeNode) => void;
+    /** Fork the whole Session from a user message, leaving this one as it is. */
+    onFork: (entry: TreeNode) => void;
     onClose: () => void;
   } = $props();
 
@@ -100,7 +106,7 @@
       data-testid="message-tree-close"
       onclick={onClose}
     >
-      ×
+      <Icon name="x" />
     </button>
   </div>
 
@@ -151,6 +157,7 @@
                   void jumpTo(match);
                 }}
               >
+                <Icon name={entryGlyph(match.node)} class="size-4 shrink-0 text-accent" />
                 <span class="shrink-0 text-meta tracking-wider text-faint uppercase">
                   {entryKindLabel(match.node)}
                 </span>
@@ -189,8 +196,11 @@
                   toggle(row);
                 }}
               >
-                <span class="flex items-center gap-1">
-                  <span aria-hidden="true">{row.expanded ? "▾" : "▸"}</span>
+                <span class="flex items-center gap-1 text-dim">
+                  <Icon
+                    name={row.expanded ? "chevron-down" : "chevron-right"}
+                    class="size-4 shrink-0"
+                  />
                   {#if !row.expanded && row.childCount > 1}<span data-testid="message-tree-count"
                       >{String(row.childCount)}</span
                     >{/if}
@@ -211,6 +221,10 @@
                 onSelect(row.node);
               }}
             >
+              <Icon
+                name={entryGlyph(row.node)}
+                class="size-4 shrink-0 {row.onActivePath ? 'text-accent' : 'text-dim'}"
+              />
               <span
                 class="shrink-0 text-meta tracking-wider uppercase"
                 class:text-ink={row.onActivePath}
@@ -231,6 +245,23 @@
                 >
               {/if}
             </button>
+            {#if isForkable(row.node)}
+              <!--
+                A user message's second action: fork the whole Session from here, distinct from the
+                select button, which moves the Leaf within this Session.
+              -->
+              <button
+                type="button"
+                class="grid min-h-11 min-w-11 shrink-0 place-items-center border-l border-hairline text-dim"
+                aria-label="Fork from here"
+                data-testid="message-tree-fork"
+                onclick={() => {
+                  onFork(row.node);
+                }}
+              >
+                <Icon name="git-fork" class="size-4" />
+              </button>
+            {/if}
           </li>
         {/each}
       </ul>

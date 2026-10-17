@@ -1,6 +1,8 @@
 <script lang="ts">
   import { StreamingBehavior } from "@pi-my-ui/protocol";
 
+  import Icon from "../Icon.svelte";
+
   import type { SteerTarget } from "../subagents/steering.js";
 
   /**
@@ -63,13 +65,13 @@
   {/if}
   <button
     type="button"
-    class="ml-auto grid size-11 shrink-0 place-items-center rounded-full border border-hairline-strong text-body"
+    class="ml-auto grid size-11 shrink-0 place-items-center rounded-full border border-hairline-strong text-success disabled:opacity-40"
     aria-label="Send while running"
     disabled={!canSend}
     data-testid="composer-send-while-running"
     onclick={onSend}
   >
-    Send
+    <Icon name="arrow-up" />
   </button>
 </div>
 {#if !steering}

@@ -169,7 +169,11 @@ test("reduced motion stops the pulse and loses no text", async ({ page }) => {
     await expect(toolStatus).toHaveText("Running");
     await expect(marker.getByTestId("run-activity-label")).toHaveText("Streaming");
     await page.getByTestId("composer-send").click();
-    await expect(page.getByTestId("composer-send")).toHaveText("Send");
+    await expect(page.getByTestId("composer-send")).toHaveAttribute("aria-label", "Send");
+    await expect(page.getByTestId("composer-send").locator("svg")).toHaveAttribute(
+      "data-icon",
+      "arrow-up",
+    );
   } finally {
     await disposeHarness(harness);
   }

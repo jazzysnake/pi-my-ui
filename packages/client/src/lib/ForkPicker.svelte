@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { ForkMessage } from "@pi-my-ui/protocol";
 
+  import Icon from "./Icon.svelte";
+
   let {
     messages,
     onChoose,
@@ -32,7 +34,7 @@
       data-testid="fork-picker-close"
       onclick={onClose}
     >
-      ×
+      <Icon name="x" />
     </button>
   </div>
 

@@ -9,6 +9,7 @@
 
   import { RELATIVE_TIME_REFRESH_MS, formatRelativeTime } from "./sessions/relative-time.js";
   import { sessionDisplayName } from "./store/sessions.svelte.js";
+  import Icon from "./Icon.svelte";
 
   let {
     rows,
@@ -51,8 +52,10 @@
         class="ml-auto flex h-11 w-11 items-center justify-center rounded text-body text-dim"
         aria-label="New session"
         data-testid="new-session-action"
-        onclick={() => onCreateSession()}>+</button
+        onclick={() => onCreateSession()}
       >
+        <Icon name="plus" />
+      </button>
     </div>
 
     <nav class="min-h-0 flex-1 overflow-y-auto" aria-label="Session list">

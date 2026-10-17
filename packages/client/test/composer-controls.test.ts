@@ -50,7 +50,8 @@ describe("the composer's control row", () => {
     });
 
     const send = target.querySelector<HTMLButtonElement>('[data-testid="composer-send"]');
-    expect(send?.textContent?.trim()).toBe("Stop");
+    expect(send?.getAttribute("aria-label")).toBe("Stop");
+    expect(send?.querySelector("svg")?.getAttribute("data-icon")).toBe("square");
     expect(target.querySelector('[role="group"][aria-label="While running"]')).not.toBeNull();
     expect(target.querySelector('[data-testid="streaming-choice-hint"]')?.textContent).toContain(
       "Follow up: waits until this run finishes",

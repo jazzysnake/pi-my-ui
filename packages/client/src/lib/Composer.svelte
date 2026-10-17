@@ -10,6 +10,7 @@
   } from "@pi-my-ui/protocol";
 
   import BashModeIndicator from "./bash/BashModeIndicator.svelte";
+  import Icon from "./Icon.svelte";
   import * as bash from "./bash/mode.js";
   import CommandPalette from "./CommandPalette.svelte";
   import RunningControls from "./composer/RunningControls.svelte";
@@ -351,8 +352,8 @@
             }}
           >
             <span
-              class="grid size-6 place-items-center rounded-full border border-hairline-strong bg-panel"
-              aria-hidden="true">×</span
+              class="grid size-6 place-items-center rounded-full border border-hairline-strong bg-panel text-danger"
+              aria-hidden="true"><Icon name="x" class="size-4" /></span
             >
           </button>
         </li>
@@ -397,45 +398,46 @@
       onkeydown={handleKeydown}></textarea>
     <button
       type="button"
-      class="grid size-11 shrink-0 place-items-center rounded border border-hairline-strong text-body"
+      class="grid size-11 shrink-0 place-items-center rounded border border-hairline-strong text-accent"
       aria-label="Attach image"
       data-testid="composer-attach"
       onclick={() => {
         fileInput?.click();
       }}
     >
-      Attach
+      <Icon name="paperclip" />
     </button>
     <button
       type="button"
-      class="grid size-11 shrink-0 place-items-center rounded-[14px] border border-hairline-strong text-body"
+      class="grid size-11 shrink-0 place-items-center rounded-[14px] border border-hairline-strong text-accent"
       aria-label="Branch"
       data-testid="composer-branch"
       onclick={onBranch}
     >
-      Branch
+      <Icon name="git-branch" />
     </button>
     {#if running}
       <button
         type="button"
-        class="grid size-11 shrink-0 place-items-center rounded-full border border-hairline-strong text-body"
+        class="grid size-11 shrink-0 place-items-center rounded-full border border-hairline-strong text-danger"
         aria-label="Stop"
         data-testid="composer-send"
         onclick={onAbort}
       >
-        Stop
+        <Icon name="square" />
       </button>
     {:else}
       <button
         type="button"
-        class="grid size-11 shrink-0 place-items-center rounded-full bg-success text-body font-medium text-canvas disabled:opacity-40"
+        class="grid size-11 shrink-0 place-items-center rounded-full bg-success text-canvas disabled:opacity-40"
+        aria-label="Send"
         disabled={!canSend}
         data-testid="composer-send"
         onclick={() => {
           submit();
         }}
       >
-        Send
+        <Icon name="arrow-up" />
       </button>
     {/if}
   </div>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { AgentListRowKind, buildAgentListRows, type AgentListRow } from "./subagents/rows.js";
   import type { ClientStore } from "./store/client-store.svelte.js";
+  import Icon from "./Icon.svelte";
 
   let {
     store,
@@ -58,7 +59,7 @@
         data-testid="agent-list-close"
         onclick={onClose}
       >
-        ×
+        <Icon name="x" />
       </button>
     </div>
     <ul aria-label="Agents and workflow runs">

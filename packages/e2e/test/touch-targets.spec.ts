@@ -104,7 +104,11 @@ test("every control the composer's own states put on screen meets the minimum", 
     await expectEveryControlMeetsTouchTarget(page, "a reasoning block expanded");
 
     await page.getByTestId("composer-send").click();
-    await expect(page.getByTestId("composer-send")).toHaveText("Send");
+    await expect(page.getByTestId("composer-send")).toHaveAttribute("aria-label", "Send");
+    await expect(page.getByTestId("composer-send").locator("svg")).toHaveAttribute(
+      "data-icon",
+      "arrow-up",
+    );
 
     await page.getByTestId("model-picker-toggle").click();
     await expect(page.getByTestId("model-option").first()).toBeVisible();

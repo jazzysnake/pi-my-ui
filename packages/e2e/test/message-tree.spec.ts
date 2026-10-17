@@ -128,6 +128,31 @@ test("both entry points open one modal that collapses alternatives and searches 
     await expect(row(page, KEPT_BEFORE_EDIT)).toHaveAttribute("data-active", "true");
     await expect(row(page, "Seed text block 2.")).toHaveAttribute("data-active", "false");
 
+    // Every row leads with the glyph for its kind, drawn at the row's own size (16 px, not the
+    // control glyph), and a user row carries the fork control that the previous UI offered.
+    const glyphs = await modal(page)
+      .locator('[data-testid="message-tree-select"] svg')
+      .evaluateAll((icons) =>
+        icons.map((icon) => {
+          const box = icon.getBoundingClientRect();
+          return { icon: icon.getAttribute("data-icon"), width: box.width, height: box.height };
+        }),
+      );
+    expect(new Set(glyphs.map((glyph) => glyph.icon)).size).toBeGreaterThan(1);
+    for (const glyph of glyphs) {
+      expect(glyph.icon).not.toBeNull();
+      expect(glyph.width).toBeCloseTo(16, 1);
+      expect(glyph.height).toBeCloseTo(16, 1);
+    }
+    await expect(
+      row(page, EDIT_TEXT).getByTestId("message-tree-fork").locator("svg"),
+    ).toHaveAttribute("data-icon", "git-fork");
+    await expect(row(page, KEPT_BEFORE_EDIT).getByTestId("message-tree-fork")).toHaveCount(0);
+    await expect(page.getByTestId("message-tree-close").locator("svg")).toHaveAttribute(
+      "data-icon",
+      "x",
+    );
+
     // The only branch point on the path is expanded, and collapsing it counts what it hides: every
     // alternative hangs off the active path collapsed.
     const forkToggle = row(page, SYSTEM_TEXT).getByTestId("message-tree-toggle");

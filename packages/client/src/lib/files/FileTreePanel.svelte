@@ -13,6 +13,7 @@
   import type { FilesSlice } from "../store/files.svelte.js";
   import FilePreview from "./FilePreview.svelte";
   import { ROOT_PATH, visibleRows } from "./rows.js";
+  import Icon from "../Icon.svelte";
 
   let {
     cwd,
@@ -76,7 +77,7 @@
         data-testid="file-tree-close"
         onclick={onClose}
       >
-        ✕
+        <Icon name="x" />
       </button>
     </div>
 
@@ -101,7 +102,10 @@
                   data-path={row.path}
                   onclick={() => toggle(row.path)}
                 >
-                  <span class="w-3 shrink-0 text-dim">{row.expanded ? "▾" : "▸"}</span>
+                  <Icon
+                    name={row.expanded ? "chevron-down" : "chevron-right"}
+                    class="size-4 shrink-0 text-dim"
+                  />
                   <span class="truncate text-body text-ink" data-testid="file-tree-name"
                     >{row.name}/</span
                   >

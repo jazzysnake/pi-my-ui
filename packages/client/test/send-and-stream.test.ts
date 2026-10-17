@@ -279,7 +279,7 @@ describe("the composer", () => {
     if (send === null) {
       throw new Error("the composer is missing");
     }
-    expect(send.textContent?.trim()).toBe("Stop");
+    expect(send.getAttribute("aria-label")).toBe("Stop");
     flushSync(() => {
       send.click();
     });

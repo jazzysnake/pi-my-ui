@@ -14,6 +14,7 @@
   import AgentPill from "./AgentPill.svelte";
   import ConnectionStatusIndicator from "./ConnectionStatusIndicator.svelte";
   import ContextUsageMeter from "./ContextUsageMeter.svelte";
+  import Icon from "./Icon.svelte";
   import { isOutputInFlight } from "./run-state.js";
 
   let {
@@ -44,17 +45,7 @@
     data-testid="sessions-toggle"
     onclick={onToggleSessions}
   >
-    <svg
-      viewBox="0 0 24 24"
-      class="size-5"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      aria-hidden="true"
-    >
-      <path d="M4 6h16M4 12h10M4 18h16" />
-    </svg>
+    <Icon name="menu" />
   </button>
   <span class="min-w-0 truncate text-body font-semibold tracking-wide uppercase">pi-my-ui</span>
   <div class="ml-auto flex min-w-0 shrink-0 items-center gap-1">
@@ -66,17 +57,7 @@
       data-testid="files-toggle"
       onclick={onToggleFiles}
     >
-      <svg
-        viewBox="0 0 24 24"
-        class="size-5"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        aria-hidden="true"
-      >
-        <path d="M4 6a2 2 0 0 1 2-2h3l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" />
-      </svg>
+      <Icon name="folder" />
     </button>
     <ConnectionStatusIndicator {status} />
   </div>

@@ -118,7 +118,11 @@ test("steer enters the run at its next step", async ({ page }) => {
   try {
     await openHarness(page, harness);
     await sendMessage(page, "start the long job");
-    await expect(page.getByTestId("composer-send")).toHaveText("Stop");
+    await expect(page.getByTestId("composer-send")).toHaveAttribute("aria-label", "Stop");
+    await expect(page.getByTestId("composer-send").locator("svg")).toHaveAttribute(
+      "data-icon",
+      "square",
+    );
 
     // Steer is the row's default, so the row's Send is the only gesture needed.
     await page.getByTestId("composer-input").fill("steer it now");
@@ -160,7 +164,11 @@ test("follow up waits until the run finishes", async ({ page }) => {
   try {
     await openHarness(page, harness);
     await sendMessage(page, "start the long job");
-    await expect(page.getByTestId("composer-send")).toHaveText("Stop");
+    await expect(page.getByTestId("composer-send")).toHaveAttribute("aria-label", "Stop");
+    await expect(page.getByTestId("composer-send").locator("svg")).toHaveAttribute(
+      "data-icon",
+      "square",
+    );
 
     await page.getByTestId("composer-input").fill("then say bye");
     await page.getByTestId("streaming-choice-follow-up").click();
@@ -253,14 +261,22 @@ test("Escape cancels the running turn", async ({ page }) => {
   try {
     await openHarness(page, harness);
     await sendMessage(page, "start the long job");
-    await expect(page.getByTestId("composer-send")).toHaveText("Stop");
+    await expect(page.getByTestId("composer-send")).toHaveAttribute("aria-label", "Stop");
+    await expect(page.getByTestId("composer-send").locator("svg")).toHaveAttribute(
+      "data-icon",
+      "square",
+    );
 
     const input = page.getByTestId("composer-input");
     await input.click();
     await input.press("Escape");
 
     await expect(page.getByTestId("run-state")).toHaveAttribute("data-run-state", "aborted");
-    await expect(page.getByTestId("composer-send")).toHaveText("Send");
+    await expect(page.getByTestId("composer-send")).toHaveAttribute("aria-label", "Send");
+    await expect(page.getByTestId("composer-send").locator("svg")).toHaveAttribute(
+      "data-icon",
+      "arrow-up",
+    );
   } finally {
     await disposeHarness(harness);
   }
@@ -277,6 +293,21 @@ test("send is the row's last control in the thumb corner at a full touch size", 
       .locator("textarea ~ button")
       .evaluateAll((buttons) => buttons.map((button) => button.getAttribute("data-testid")));
     expect(labels).toEqual(["composer-attach", "composer-branch", "composer-send"]);
+
+    const glyphs = await page
+      .getByTestId("composer")
+      .locator("textarea ~ button svg")
+      .evaluateAll((icons) =>
+        icons.map((icon) => {
+          const box = icon.getBoundingClientRect();
+          return { icon: icon.getAttribute("data-icon"), width: box.width, height: box.height };
+        }),
+      );
+    expect(glyphs).toHaveLength(3);
+    for (const glyph of glyphs) {
+      expect(glyph.width).toBeCloseTo(20, 1);
+      expect(glyph.height).toBeCloseTo(20, 1);
+    }
 
     const send = page.getByTestId("composer-send");
     const box = await send.boundingBox();

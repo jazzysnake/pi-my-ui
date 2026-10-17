@@ -12,6 +12,7 @@
   import Transcript from "./Transcript.svelte";
   import { BuiltinCommand } from "./commands/builtins.js";
   import FileTreePanel from "./files/FileTreePanel.svelte";
+  import Icon from "./Icon.svelte";
   import { ROOT_PATH } from "./files/rows.js";
   import type { ClientStore } from "./store/client-store.svelte.js";
   import { sessionDisplayName } from "./store/sessions.svelte.js";
@@ -334,7 +335,7 @@
             store.commands.dismissResults();
           }}
         >
-          ×
+          <Icon name="x" />
         </button>
       </div>
     </section>
@@ -382,6 +383,10 @@
       onSelect={(entry) => {
         store.tree.select(entry);
         onMoveLeaf(entry.entry.id);
+      }}
+      onFork={(entry) => {
+        store.tree.close();
+        onFork(entry.entry.id);
       }}
       onClose={() => {
         store.tree.close();

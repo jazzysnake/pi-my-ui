@@ -8,11 +8,11 @@ evidence screenshots as the design record.
 
 **Blocked by:** 01, 02, 03, 04 (the prototype is the reference until all its decisions are shipped).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] No prototype variant, fixture, switcher or dev-only prototype entry point remains in the client
+- [x] No prototype variant, fixture, switcher or dev-only prototype entry point remains in the client
       or the root scripts.
-- [ ] The approved look lives on only in the shipped transcript implementation; the spec and evidence
+- [x] The approved look lives on only in the shipped transcript implementation; the spec and evidence
       screenshots remain.
-- [ ] The client builds, typechecks, lints and tests without the prototype.
-- [ ] No production bundle contains prototype code.
+- [x] The client builds, typechecks, lints and tests without the prototype.
+- [x] No production bundle contains prototype code.

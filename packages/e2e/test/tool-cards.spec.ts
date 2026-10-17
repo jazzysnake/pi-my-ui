@@ -115,6 +115,51 @@ test("streams a scripted tool call from running to a success card", async ({ pag
   }
 });
 
+test("folds a long tool output and opens it in place", async ({ page }) => {
+  const harness = await startHarness([
+    {
+      expect: { role: "user", text: "count to fifty" },
+      reply: {
+        content: [
+          {
+            type: "toolCall",
+            id: "call_long_1",
+            name: "bash",
+            arguments: { command: "seq 1 50", timeout: 10 },
+          },
+        ],
+        stopReason: "toolUse",
+      },
+    },
+    {
+      expect: { role: "toolResult", toolName: "bash" },
+      reply: { content: [{ type: "text", text: "Counted to fifty." }], stopReason: "stop" },
+    },
+  ]);
+  try {
+    await openHarness(page, harness);
+    await sendMessage(page, "count to fifty");
+
+    const card = page.getByTestId("tool-card").filter({ hasText: "seq 1 50" });
+    await expect(card).toHaveAttribute("data-tool-status", "success");
+
+    // Six of the fifty lines are on screen; the rest is stated, not printed.
+    const output = card.getByTestId("tool-card-output");
+    await expect(output.getByRole("paragraph")).toHaveCount(6);
+    const fold = card.getByTestId("tool-card-output-fold");
+    await expect(fold).toHaveText("⤷ 44 more lines");
+
+    await fold.click();
+
+    await expect(output).toContainText("50");
+    // The opened body is one text node, not fifty paragraphs.
+    await expect(output.getByRole("paragraph")).toHaveCount(0);
+    await expect(fold).toHaveText("⤷ collapse");
+  } finally {
+    await disposeHarness(harness);
+  }
+});
+
 test("renders a failing scripted tool as an error card", async ({ page }) => {
   const harness = await startHarness([
     {

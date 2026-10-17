@@ -13,33 +13,37 @@
 
   import {
     clipLines,
+    clipText,
     detailPairs,
     ellipsizeMiddle,
     endingLabel,
     isListTool,
-    isShellTool,
+    kindOf,
     lineCount,
+    noticeSummary,
+    outputNoun,
     outputTail,
     payloadOf,
+    previewLines,
     readStart,
     readWindow,
     sizeLabel,
     targetOf,
+    type ClippedText,
     type EditPair,
+    type NoticeSummary,
   } from "./tools/call.js";
 
   let { block }: { block: ToolCallBlock } = $props();
 
-  /** Folded preview sizes, by what the tool returns. */
-  const SHELL_LINES = 6;
-  const READ_LINES = 6;
-  const LIST_LINES = 4;
+  /** A write's content or an edit's diff: enough to recognise it, not enough to take the screen. */
   const CONTENT_LINES = 3;
   const DIFF_LINES = 2;
   /** No rendered line carries more than this, so one minified line cannot fill the screen. */
   const LINE_CHARS = 240;
   /** A spilled output's path: middle-ellipsized while folded, whole once the body opens. */
   const PATH_CHARS = 46;
+  const UNBOUNDED = Number.POSITIVE_INFINITY;
 
   const LABELS: Readonly<Record<string, string>> = {
     [ToolCallStatus.Running]: "Running",
@@ -68,47 +72,118 @@
     readonly lines: readonly DiffLine[];
     readonly hiddenLines: number;
     readonly hiddenEdits: number;
+    readonly clamped: number;
   }
 
   let openInput = $state(false);
   let openOutput = $state(false);
 
-  const tail = $derived(outputTail(block.output ?? ""));
+  const kind = $derived(kindOf(block.name));
+  /** Paths and matches break anywhere; code keeps its word boundaries. */
+  const wrapClass = $derived(
+    isListTool(block.name) ? "break-all" : "whitespace-pre-wrap break-words",
+  );
+  const tail = $derived(outputTail(block.output ?? "", { shell: kind === "shell" }));
   const payload = $derived(payloadOf(block));
   const ending = $derived(endingLabel(tail.ending));
   const tone = $derived(TONES[block.status] ?? "text-dim");
   const rail = $derived(RAILS[block.status] ?? "border-l-hairline-strong");
   const running = $derived(block.status === ToolCallStatus.Running);
-  const shell = $derived(isShellTool(block.name));
-  const list = $derived(isListTool(block.name));
-  const read = $derived(block.name === "read");
-  const previewLines = $derived(shell ? SHELL_LINES : read ? READ_LINES : LIST_LINES);
+  const readStartLine = $derived(readStart(block));
 
-  const bodyClip = $derived(clipLines(tail.body, previewLines, LINE_CHARS));
-  const bodyShown = $derived(
-    openOutput ? clipLines(tail.body, Number.POSITIVE_INFINITY, LINE_CHARS).shown : bodyClip.shown,
+  /** Closed and open clips of the same region, so a fold's label never has to re-derive its view. */
+  const bodyClosed = $derived(clipLines(tail.body, previewLines(kind), LINE_CHARS));
+  const bodyShown = $derived.by(() =>
+    openOutput ? clipLines(tail.body, UNBOUNDED, UNBOUNDED).shown : bodyClosed.shown,
   );
-  /**
-   * The expanded body is one text node, not one element per line: pi caps a shell command at 2000
-   * lines, and 2000 paragraphs re-styled on a phone is jank for a view the reader asked to see whole.
-   */
+  const outputFold = $derived(foldLabel(bodyClosed, outputNoun(kind)));
   const bodyExpanded = $derived(
-    read
-      ? bodyShown
-          .map((line, index) => `${String(readStart(block) + index).padStart(4)} ${line}`)
-          .join("\n")
+    kind === "read"
+      ? bodyShown.map((line, index) => `${lineNumber(index)} ${line}`).join("\n")
       : bodyShown.join("\n"),
   );
-  const diff = $derived(payload?.kind === "edits" ? diffView(payload.pairs, openInput) : null);
-  /** The closed view is what names the fold, which has to stay reachable once it is open. */
-  const diffFold = $derived(payload?.kind === "edits" ? diffView(payload.pairs, false) : null);
-  const inputHidden = $derived(inputFoldLabel(payload, diffFold));
-  const notice = $derived(noticeText(tail.notice, openOutput || bodyClip.hidden === 0));
+  const notice = $derived(noticeSummary(tail.notices));
+  const noticeLine = $derived(noticeText(notice, openOutput || outputFold === ""));
+
+  const payloadLines = $derived(
+    payload?.kind === "text" && payload.label === "content" ? CONTENT_LINES : 0,
+  );
+  const payloadClosed = $derived(
+    payload?.kind === "text" ? clipLines(payload.text, payloadLines, LINE_CHARS) : null,
+  );
+  const payloadShown = $derived.by((): readonly string[] => {
+    if (payload?.kind !== "text" || payloadClosed === null) {
+      return [];
+    }
+    return openInput ? clipLines(payload.text, UNBOUNDED, UNBOUNDED).shown : payloadClosed.shown;
+  });
+
+  const diffClosed = $derived(payload?.kind === "edits" ? diffView(payload.pairs, false) : null);
+  const diffShown = $derived.by((): readonly DiffLine[] => {
+    if (payload?.kind !== "edits") {
+      return [];
+    }
+    return (openInput ? diffView(payload.pairs, true) : diffClosed)?.lines ?? [];
+  });
+  const inputFold = $derived(
+    diffClosed === null
+      ? payloadClosed === null
+        ? ""
+        : foldLabel(payloadClosed, ["line", "lines"])
+      : diffFoldLabel(diffClosed),
+  );
+
+  function diffView(pairs: readonly EditPair[], open: boolean): DiffView {
+    const lineLimit = open ? UNBOUNDED : DIFF_LINES;
+    const charLimit = open ? UNBOUNDED : LINE_CHARS;
+    const lines: DiffLine[] = [];
+    let hiddenLines = 0;
+    let clamped = 0;
+    for (const pair of open ? pairs : pairs.slice(0, 1)) {
+      const removed = clipLines(pair.oldText, lineLimit, charLimit);
+      const added = clipLines(pair.newText, lineLimit, charLimit);
+      hiddenLines += removed.hidden + added.hidden;
+      clamped += removed.clamped + added.clamped;
+      for (const text of removed.shown) {
+        lines.push({ tone: "removed", text });
+      }
+      for (const text of added.shown) {
+        lines.push({ tone: "added", text });
+      }
+    }
+    return { lines, hiddenLines, hiddenEdits: open ? 0 : Math.max(0, pairs.length - 1), clamped };
+  }
+
+  /** "6 more lines · 2 lines cut short · 1 more edit", or nothing when the region is whole. */
+  function foldLabel(clip: ClippedText, noun: readonly [string, string]): string {
+    const parts: string[] = [];
+    if (clip.hidden > 0) {
+      parts.push(`${String(clip.hidden)} more ${clip.hidden === 1 ? noun[0] : noun[1]}`);
+    }
+    if (clip.clamped > 0) {
+      parts.push(`${String(clip.clamped)} ${clip.clamped === 1 ? "line" : "lines"} cut short`);
+    }
+    return parts.join(" · ");
+  }
+
+  function diffFoldLabel(view: DiffView): string {
+    const parts: string[] = [];
+    if (view.hiddenLines > 0) {
+      parts.push(`${String(view.hiddenLines)} more ${view.hiddenLines === 1 ? "line" : "lines"}`);
+    }
+    if (view.clamped > 0) {
+      parts.push(`${String(view.clamped)} ${view.clamped === 1 ? "line" : "lines"} cut short`);
+    }
+    if (view.hiddenEdits > 0) {
+      parts.push(`${String(view.hiddenEdits)} more ${view.hiddenEdits === 1 ? "edit" : "edits"}`);
+    }
+    return parts.join(" · ");
+  }
 
   /** The whole input on the prompt line: target, window, then every scalar argument. */
   function inputLine(call: ToolCallBlock): string {
     const parts: string[] = [];
-    const target = targetOf(call);
+    const target = clipText(targetOf(call), LINE_CHARS);
     if (target !== "") {
       parts.push(target);
     }
@@ -128,70 +203,18 @@
       );
     }
     if (parts.length === 0) {
-      return call.status === ToolCallStatus.Running ? "…" : "—";
+      return running ? "…" : "";
     }
     return parts.join(" · ");
   }
 
-  function diffView(pairs: readonly EditPair[], open: boolean): DiffView {
-    const limit = open ? Number.POSITIVE_INFINITY : DIFF_LINES;
-    const lines: DiffLine[] = [];
-    let hiddenLines = 0;
-    for (const pair of open ? pairs : pairs.slice(0, 1)) {
-      const removed = clipLines(pair.oldText, limit, LINE_CHARS);
-      const added = clipLines(pair.newText, limit, LINE_CHARS);
-      hiddenLines += removed.hidden + added.hidden;
-      for (const text of removed.shown) {
-        lines.push({ tone: "removed", text });
-      }
-      for (const text of added.shown) {
-        lines.push({ tone: "added", text });
-      }
-    }
-    return {
-      lines,
-      hiddenLines,
-      hiddenEdits: open ? 0 : Math.max(0, pairs.length - 1),
-    };
+  /** A read's preview numbers itself from the line pi started reading at. */
+  function lineNumber(index: number): string {
+    return String(readStartLine + index).padStart(4);
   }
 
-  /** "6 more lines · 1 more edit", or nothing when the input is already whole. */
-  function inputFoldLabel(current: ReturnType<typeof payloadOf>, fold: DiffView | null): string {
-    const parts: string[] = [];
-    if (fold !== null) {
-      if (fold.hiddenLines > 0) {
-        parts.push(more(fold.hiddenLines, "line", "lines"));
-      }
-      if (fold.hiddenEdits > 0) {
-        parts.push(more(fold.hiddenEdits, "edit", "edits"));
-      }
-    } else if (current?.kind === "text") {
-      const limit = current.label === "content" ? CONTENT_LINES : 0;
-      const hidden = clipLines(current.text, limit, LINE_CHARS).hidden;
-      if (hidden > 0) {
-        parts.push(more(hidden, "line", "lines"));
-      }
-    }
-    return parts.join(" · ");
-  }
-
-  function more(count: number, one: string, many: string): string {
-    return `${String(count)} more ${count === 1 ? one : many}`;
-  }
-
-  /** The output's own noun, so a list of paths is not counted in "lines". */
-  function outputNoun(): readonly [string, string] {
-    if (block.name === "grep") {
-      return ["match", "matches"];
-    }
-    return isListTool(block.name) ? ["entry", "entries"] : ["line", "lines"];
-  }
-
-  function noticeText(
-    current: ReturnType<typeof outputTail>["notice"],
-    showPathInFull: boolean,
-  ): string {
-    if (current === null) {
+  function noticeText(current: NoticeSummary, showPathInFull: boolean): string {
+    if (current.text === "") {
       return "";
     }
     if (current.path === null) {
@@ -224,14 +247,14 @@
   </div>
 
   <div class="mt-0.5">
-    {#if payload?.kind === "edits" && diff !== null}
+    {#if payload?.kind === "edits"}
       <!--
         The code stays ink and only the tint and the marker carry the hue: an added line is not a
         success and a removed line is not a failure, and 11px monospace in a saturated accent is
         harder to read than the same words in the body colour.
       -->
       <div data-testid="tool-card-diff">
-        {#each diff.lines as line, index (index)}
+        {#each diffShown as line, index (index)}
           <p
             class={`rounded-sm px-1 whitespace-pre-wrap break-words ${
               line.tone === "removed" ? "bg-danger/10" : "bg-success/10"
@@ -244,24 +267,19 @@
         {/each}
       </div>
     {:else if payload?.kind === "text"}
-      {@const clip = clipLines(
-        payload.text,
-        openInput ? Number.POSITIVE_INFINITY : payload.label === "content" ? CONTENT_LINES : 0,
-        LINE_CHARS,
-      )}
       <p class="text-faint" data-testid="tool-card-payload-label">
         {payload.label} · {lineCount(payload.text)} lines · {sizeLabel(payload.text)}
       </p>
       {#if payload.label === "content"}
-        {#each clip.shown as line, index (index)}
+        {#each payloadShown as line, index (index)}
           <p class="text-dim whitespace-pre-wrap break-words">│ {line}</p>
         {/each}
       {:else}
-        <pre class="text-dim whitespace-pre-wrap break-words">{clip.shown.join("\n")}</pre>
+        <pre class="text-dim whitespace-pre-wrap break-words">{payloadShown.join("\n")}</pre>
       {/if}
     {/if}
 
-    {#if inputHidden !== ""}
+    {#if inputFold !== ""}
       <button
         type="button"
         class="flex min-h-11 w-full items-center text-left text-dim"
@@ -270,28 +288,28 @@
         }}
         data-testid="tool-card-input-fold"
       >
-        {openInput ? "⤷ collapse" : `⤷ ${inputHidden}`}
+        {openInput ? "⤷ collapse" : `⤷ ${inputFold}`}
       </button>
     {/if}
 
     {#if tail.body !== ""}
       <div class="text-dim" data-testid="tool-card-output">
         {#if openOutput}
-          <pre class={list ? "break-all" : "whitespace-pre-wrap break-words"}>{bodyExpanded}</pre>
+          <pre class={wrapClass}>{bodyExpanded}</pre>
         {:else}
           {#each bodyShown as line, index (index)}
-            {#if read}
-              <p class="whitespace-pre-wrap break-words">
-                <span class="text-faint">{String(readStart(block) + index).padStart(4)}</span>
+            {#if kind === "read"}
+              <p class={wrapClass}>
+                <span class="text-faint">{lineNumber(index)}</span>
                 {line}
               </p>
             {:else}
-              <p class={list ? "break-all" : "whitespace-pre-wrap break-words"}>{line}</p>
+              <p class={wrapClass}>{line}</p>
             {/if}
           {/each}
         {/if}
       </div>
-      {#if bodyClip.hidden > 0}
+      {#if outputFold !== ""}
         <button
           type="button"
           class="flex min-h-11 w-full items-center text-left text-dim"
@@ -300,15 +318,15 @@
           }}
           data-testid="tool-card-output-fold"
         >
-          {openOutput ? "⤷ collapse" : `⤷ ${more(bodyClip.hidden, ...outputNoun())}`}
+          {openOutput ? "⤷ collapse" : `⤷ ${outputFold}`}
         </button>
       {/if}
     {:else if payload === null && !running}
       <p class="text-faint" data-testid="tool-card-empty">(no output)</p>
     {/if}
 
-    {#if notice !== ""}
-      <p class="text-warning" data-testid="tool-card-notice">{notice}</p>
+    {#if noticeLine !== ""}
+      <p class="text-warning" data-testid="tool-card-notice">{noticeLine}</p>
     {/if}
   </div>
 </div>

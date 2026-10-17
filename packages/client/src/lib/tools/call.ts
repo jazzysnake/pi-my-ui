@@ -12,18 +12,61 @@
 
 import type { ToolCallBlock } from "@pi-my-ui/protocol";
 
-/** pi's two shell tools are one shape, so every card must treat them as one. */
-const SHELL_TOOL_NAMES: readonly string[] = ["bash", "powershell"];
+/** Which family a tool belongs to; every per-tool decision in a card reads this once. */
+export type ToolKind = "shell" | "read" | "grep" | "find" | "ls" | "other";
 
-/** The tools whose output is one path per line, so a path may break anywhere. */
-const LIST_TOOL_NAMES: readonly string[] = ["grep", "find", "ls"];
+/** pi's two shell tools are one shape, so every card must treat them as one. */
+export function kindOf(name: string): ToolKind {
+  switch (name) {
+    case "bash":
+    case "powershell":
+      return "shell";
+    case "read":
+      return "read";
+    case "grep":
+      return "grep";
+    case "find":
+      return "find";
+    case "ls":
+      return "ls";
+    default:
+      return "other";
+  }
+}
 
 export function isShellTool(name: string): boolean {
-  return SHELL_TOOL_NAMES.includes(name);
+  return kindOf(name) === "shell";
 }
 
 export function isListTool(name: string): boolean {
-  return LIST_TOOL_NAMES.includes(name);
+  const kind = kindOf(name);
+  return kind === "grep" || kind === "find" || kind === "ls";
+}
+
+/**
+ * What a folded preview shows. A command's output or a file's contents needs enough lines to
+ * recognise the shape of what came back; a list of paths is scannable at four, and the space it
+ * saves is what keeps a turn's later calls on screen.
+ */
+const PREVIEW_LINES: Readonly<Record<ToolKind, number>> = {
+  shell: 6,
+  read: 6,
+  grep: 4,
+  find: 4,
+  ls: 4,
+  other: 4,
+};
+
+export function previewLines(kind: ToolKind): number {
+  return PREVIEW_LINES[kind];
+}
+
+/** What a folded output's leftovers are counted in, per tool. */
+export function outputNoun(kind: ToolKind): readonly [string, string] {
+  if (kind === "grep") {
+    return ["match", "matches"];
+  }
+  return kind === "find" || kind === "ls" ? ["entry", "entries"] : ["line", "lines"];
 }
 
 function stringArg(block: ToolCallBlock, key: string): string | undefined {
@@ -36,12 +79,13 @@ function numberArg(block: ToolCallBlock, key: string): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-/** The argument that identifies the call; everything else on the input line is a detail. */
+/** The argument that identifies the call; everything else on the prompt line is a detail. */
 function targetKey(block: ToolCallBlock): string | undefined {
-  if (isShellTool(block.name)) {
+  const kind = kindOf(block.name);
+  if (kind === "shell") {
     return "command";
   }
-  if (block.name === "grep" || block.name === "find") {
+  if (kind === "grep" || kind === "find") {
     return "pattern";
   }
   for (const key of ["path", "pattern", "description"]) {
@@ -221,37 +265,60 @@ function parseEnding(paragraph: string): OutputEnding | null {
 }
 
 export interface OutputTail {
-  /** The output itself, without the trailing notice and ending. */
+  /** The output itself, without the trailing notices and ending. */
   readonly body: string;
-  readonly notice: OutputNotice | null;
+  readonly notices: readonly OutputNotice[];
   readonly ending: OutputEnding | null;
 }
 
-/** Split pi's trailing notice and command ending off the output. */
-export function outputTail(output: string): OutputTail {
+/**
+ * Split pi's trailing notices and command ending off the output. Endings are a shell-only shape: the
+ * same sentence can be a log line a `read` legitimately returned, and lifting it there would both
+ * hide the line and label the card with a failure that never happened.
+ */
+export function outputTail(output: string, options: { readonly shell: boolean }): OutputTail {
   if (output === "") {
-    return { body: "", notice: null, ending: null };
+    return { body: "", notices: [], ending: null };
   }
   const paragraphs = output.split("\n\n");
   let ending: OutputEnding | null = null;
-  let notice: OutputNotice | null = null;
-  const last = paragraphs[paragraphs.length - 1];
-  if (last !== undefined) {
-    const parsed = parseEnding(last.trim());
-    if (parsed !== null) {
-      ending = parsed;
-      paragraphs.pop();
+  if (options.shell) {
+    const last = paragraphs[paragraphs.length - 1];
+    if (last !== undefined) {
+      const parsed = parseEnding(last.trim());
+      if (parsed !== null) {
+        ending = parsed;
+        paragraphs.pop();
+      }
     }
   }
-  const beforeEnding = paragraphs[paragraphs.length - 1];
-  if (beforeEnding !== undefined) {
-    const parsed = parseNotice(beforeEnding.trim());
-    if (parsed !== null) {
-      notice = parsed;
-      paragraphs.pop();
+  // pi joins several limits into one bracket, but popping one paragraph per shape costs nothing and
+  // stops a second notice from ending up as the body's last line, where a fold would hide it.
+  const notices: OutputNotice[] = [];
+  for (;;) {
+    const last = paragraphs[paragraphs.length - 1];
+    if (last === undefined) {
+      break;
     }
+    const parsed = parseNotice(last.trim());
+    if (parsed === null) {
+      break;
+    }
+    notices.unshift(parsed);
+    paragraphs.pop();
   }
-  return { body: paragraphs.join("\n\n"), notice, ending };
+  return { body: paragraphs.join("\n\n"), notices, ending };
+}
+
+/** The notices as the one line a card has for them, with the spill file they name. */
+export interface NoticeSummary {
+  readonly text: string;
+  readonly path: string | null;
+}
+
+export function noticeSummary(notices: readonly OutputNotice[]): NoticeSummary {
+  const path = notices.find((notice) => notice.path !== null)?.path ?? null;
+  return { text: notices.map((notice) => notice.text).join(" · "), path };
 }
 
 /** The word that finishes a shell card's status: `exit 3`, `aborted`, `timed out`. */
@@ -273,8 +340,10 @@ export function endingLabel(ending: OutputEnding | null): string {
 
 export interface ClippedText {
   readonly shown: readonly string[];
-  /** What the fold is holding back, counted the way the card words it. */
+  /** Lines the fold is holding back. */
   readonly hidden: number;
+  /** Of the lines shown, how many were cut short; a line count alone cannot express this. */
+  readonly clamped: number;
 }
 
 /**
@@ -284,18 +353,20 @@ export interface ClippedText {
  */
 export function clipLines(text: string, maxLines: number, maxChars: number): ClippedText {
   if (text === "") {
-    return { shown: [], hidden: 0 };
+    return { shown: [], hidden: 0, clamped: 0 };
   }
-  const lines = text.split("\n");
-  const shown = lines.slice(0, maxLines === Number.POSITIVE_INFINITY ? undefined : maxLines);
-  return {
-    shown: shown.map((line) => clampLine(line, maxChars)),
-    hidden: lines.length - shown.length,
-  };
-}
-
-export function clampLine(line: string, maxChars: number): string {
-  return line.length <= maxChars ? line : `${line.slice(0, maxChars - 1)}…`;
+  const lines = splitLines(text);
+  const taken =
+    maxLines === Number.POSITIVE_INFINITY ? lines : lines.slice(0, Math.max(0, maxLines));
+  let clamped = 0;
+  const shown = taken.map((line) => {
+    if (line.length <= maxChars) {
+      return line;
+    }
+    clamped += 1;
+    return `${line.slice(0, maxChars - 1)}…`;
+  });
+  return { shown, hidden: lines.length - shown.length, clamped };
 }
 
 /** Keep both ends of a long value, which for a path is the directory and the file name. */
@@ -308,14 +379,25 @@ export function ellipsizeMiddle(text: string, maxChars: number): string {
   return `${text.slice(0, head)}…${tail === 0 ? "" : text.slice(text.length - tail)}`;
 }
 
-/** One line, whitespace flattened, cut at `maxChars`. */
+/**
+ * One line, cut at `maxChars`. Values on the prompt line are flattened because an argument can carry
+ * newlines (a heredoc, a patch) and a row of a prompt line cannot say where they were.
+ */
 export function clipText(text: string, maxChars: number): string {
   const flat = text.replace(/\s+/gu, " ").trim();
   return flat.length <= maxChars ? flat : `${flat.slice(0, maxChars - 1)}…`;
 }
 
+/**
+ * The lines a reader counts. A command's output ends with a newline, and the empty string after it is
+ * not a line anyone sees, so it must not inflate a fold's count.
+ */
+function splitLines(text: string): string[] {
+  return (text.endsWith("\n") ? text.slice(0, -1) : text).split("\n");
+}
+
 export function lineCount(text: string): number {
-  return text === "" ? 0 : text.split("\n").length;
+  return text === "" ? 0 : splitLines(text).length;
 }
 
 /** A size a phone reader can compare at a glance. */

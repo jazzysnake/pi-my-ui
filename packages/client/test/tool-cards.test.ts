@@ -36,7 +36,7 @@ function toolEntry(
   id: string,
   name: string,
   status: ToolCallStatus,
-  arguments_: Readonly<Record<string, unknown>>,
+  args: Readonly<Record<string, unknown>>,
   output?: string,
 ): ProjectedEntry {
   return {
@@ -50,16 +50,12 @@ function toolEntry(
         type: "toolCall",
         id: `${id}-call`,
         name,
-        arguments: arguments_,
+        arguments: args,
         status,
         ...(output === undefined ? {} : { output }),
       },
     ],
   };
-}
-
-function toolCallEntry(id: string, status: ToolCallStatus, output?: string): ProjectedEntry {
-  return toolEntry(id, "bash", status, { command: "ls" }, output);
 }
 
 function reasoningEntry(id: string, text: string): ProjectedEntry {
@@ -133,7 +129,7 @@ function lines(count: number, prefix = "line"): string {
 
 describe("tool call cards", () => {
   it("shows a running tool call as a row", () => {
-    const target = render(toolCallEntry("entry-1", "running"));
+    const target = render(toolEntry("entry-1", "bash", "running", { command: "ls" }));
 
     const row = card(target);
     expect(row.getAttribute("data-tool-status")).toBe("running");
@@ -143,14 +139,16 @@ describe("tool call cards", () => {
   });
 
   it("shows a completed tool call with its output", () => {
-    const target = render(toolCallEntry("entry-1", "success", "listing.txt"));
+    const target = render(
+      toolEntry("entry-1", "bash", "success", { command: "ls" }, "listing.txt"),
+    );
 
     expect(card(target).getAttribute("data-tool-status")).toBe("success");
     expect(part(target, "tool-card-output").textContent).toContain("listing.txt");
   });
 
   it("shows a failed tool call as an error", () => {
-    const target = render(toolCallEntry("entry-1", "error", "exit 1"));
+    const target = render(toolEntry("entry-1", "bash", "error", { command: "ls" }, "exit 1"));
 
     expect(card(target).getAttribute("data-tool-status")).toBe("error");
     expect(part(target, "tool-card-status").textContent).toBe("Failed");
@@ -185,6 +183,25 @@ describe("a tool card's folded output", () => {
     expect(part(target, "tool-card-output-fold").textContent).toBe("⤷ collapse");
   });
 
+  it("opens a long output as one text node rather than a paragraph per line", () => {
+    const target = render(toolEntry("e1", "bash", "success", { command: "seq 200" }, lines(200)));
+
+    click(part(target, "tool-card-output-fold"));
+
+    const output = part(target, "tool-card-output");
+    expect(output.querySelectorAll("p")).toHaveLength(0);
+    expect(output.querySelectorAll("pre")).toHaveLength(1);
+    expect(output.textContent).toContain("line 200");
+  });
+
+  it("does not count the empty line a trailing newline leaves behind", () => {
+    const target = render(
+      toolEntry("e1", "bash", "success", { command: "seq 8" }, lines(8) + "\n"),
+    );
+
+    expect(part(target, "tool-card-output-fold").textContent).toBe("⤷ 2 more lines");
+  });
+
   it("counts a list tool's leftovers in its own noun", () => {
     const target = render(
       toolEntry("e1", "grep", "success", { pattern: "step" }, lines(10, "src/a.ts:1:match")),
@@ -193,14 +210,18 @@ describe("a tool card's folded output", () => {
     expect(part(target, "tool-card-output-fold").textContent).toBe("⤷ 6 more matches");
   });
 
-  it("bounds one enormous line so a minified file cannot fill the screen", () => {
-    const target = render(
-      toolEntry("e1", "read", "success", { path: "bundle.min.js" }, "x".repeat(5000)),
-    );
+  it("bounds one enormous line, and opens it whole", () => {
+    const long = "x".repeat(5000);
+    const target = render(toolEntry("e1", "read", "success", { path: "bundle.min.js" }, long));
 
-    const text = part(target, "tool-card-output").textContent ?? "";
-    expect(text.length).toBeLessThan(400);
-    expect(text).toContain("…");
+    const folded = part(target, "tool-card-output").textContent ?? "";
+    expect(folded.length).toBeLessThan(400);
+    expect(folded).toContain("…");
+    expect(part(target, "tool-card-output-fold").textContent).toBe("⤷ 1 line cut short");
+
+    click(part(target, "tool-card-output-fold"));
+
+    expect(part(target, "tool-card-output").textContent).toBe(`   1 ${long}`);
   });
 
   it("numbers a read preview from the line it asked for", () => {
@@ -236,6 +257,12 @@ describe("a tool card's folded output", () => {
     expect(part(target, "tool-card-status").textContent).toBe("Running");
   });
 
+  it("states that a call is still filling in its arguments instead of showing a blank line", () => {
+    const target = render(toolEntry("e1", "bash", "running", {}));
+
+    expect(part(target, "tool-card-input").textContent?.trim()).toBe("…");
+  });
+
   it("keeps pi's truncation notice visible while the body is folded, then shows the spill path whole", () => {
     const spill = "/var/folders/9k/8f2a91b0c3d4e5f6/T/pi-output-1a2b3c4d.log";
     const output = `${lines(20)}\n\n[Showing lines 1-2000 of 8412. Full output: ${spill}]`;
@@ -251,6 +278,20 @@ describe("a tool card's folded output", () => {
     click(part(target, "tool-card-output-fold"));
 
     expect(part(target, "tool-card-notice").textContent).toContain(spill);
+  });
+
+  it("keeps every trailing notice, not just the last one", () => {
+    const output = [
+      "src/a.ts:1:match",
+      "[100 matches limit reached. Use limit=200 for more, or refine pattern]",
+      "[50.0 KB limit reached]",
+    ].join("\n\n");
+    const target = render(toolEntry("e1", "grep", "success", { pattern: "match" }, output));
+
+    const notice = part(target, "tool-card-notice").textContent ?? "";
+    expect(notice).toContain("100 matches limit reached");
+    expect(notice).toContain("50.0 KB limit reached");
+    expect(part(target, "tool-card-output").textContent).not.toContain("limit reached");
   });
 
   it("lifts the command's ending into the status instead of the body", () => {
@@ -277,6 +318,16 @@ describe("a tool card's folded output", () => {
 
     expect(part(target, "tool-card-ending", 0).textContent).toBe("· aborted");
     expect(part(target, "tool-card-ending", 1).textContent).toBe("· timed out");
+  });
+
+  it("leaves a non-shell output that merely looks like a command ending alone", () => {
+    const target = render(
+      toolEntry("e1", "read", "success", { path: "run.log" }, "log line\n\nCommand aborted"),
+    );
+
+    expect(target.querySelector('[data-testid="tool-card-ending"]')).toBeNull();
+    expect(part(target, "tool-card-status").textContent).toBe("Done");
+    expect(part(target, "tool-card-output").textContent).toContain("Command aborted");
   });
 
   it("leaves a command's own bracketed line alone", () => {
@@ -368,10 +419,7 @@ describe("a tool card's folded input", () => {
         "e1",
         "mcp__docs__search",
         "success",
-        {
-          query: "tool cards",
-          filters: { lang: "en", tags: ["a", "b"] },
-        },
+        { query: "tool cards", filters: { lang: "en", tags: ["a", "b"] } },
         "found it",
       ),
     );
@@ -379,6 +427,15 @@ describe("a tool card's folded input", () => {
     expect(part(target, "tool-card-input").textContent).toContain(
       'filters={"lang":"en","tags":["a","b"]}',
     );
+  });
+
+  it("clips a pathologically long command instead of printing it whole", () => {
+    const command = `bash -c "${"x".repeat(2000)}"`;
+    const target = render(toolEntry("e1", "bash", "success", { command }, "done"));
+
+    const input = part(target, "tool-card-input").textContent ?? "";
+    expect(input.length).toBeLessThan(400);
+    expect(input).toContain("…");
   });
 });
 

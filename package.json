@@ -18,6 +18,7 @@
   ],
   "scripts": {
     "verify": "node scripts/verify.mjs",
+    "prototype:rows": "npm run dev --workspace @pi-my-ui/client -- --port 5199 --strictPort --open '/?prototype=rows'",
     "build:protocol": "npm run build --workspace @pi-my-ui/protocol",
     "typecheck": "npm run build:protocol && npm run typecheck --workspaces --if-present",
     "lint": "eslint . && node scripts/hygiene-check.mjs && node scripts/fixture-check.mjs",

@@ -10,7 +10,9 @@
  *
  * Off the active path a one-child node is something else: it is an alternative like any other, so its
  * child is hidden until the user opens it. Without a control on that row the rest of an abandoned
- * branch would be reachable only by searching for it, which is why `expandable` covers it.
+ * branch would be reachable only by searching for it, which is why `expandable` covers it. Opening one
+ * such row opens the whole run beneath it, because walking back along an abandoned branch is how the
+ * user moves the Leaf between branches and one tap per message makes that walk unusable.
  */
 
 import { MessageRole, type SessionTree, type TreeNode } from "@pi-my-ui/protocol";
@@ -23,8 +25,12 @@ export interface TreeRow {
   readonly node: TreeNode;
   /** Nesting depth from a root; the row indents by it, and it grows only past a branch point. */
   readonly depth: number;
-  /** How many direct children the node has, which is what a collapsed row counts. */
-  readonly childCount: number;
+  /**
+   * How many hidden rows one tap on this row adds; zero once it is expanded, because its control then
+   * only closes it. The count the row paints and the label its control announces both read this one
+   * value, so a control cannot promise one message and reveal seven.
+   */
+  readonly reveals: number;
   /** Whether the node's children are shown. A node with no children is never expanded. */
   readonly expanded: boolean;
   /**
@@ -101,28 +107,66 @@ export function defaultExpandedIds(tree: SessionTree): ReadonlySet<string> {
 
 /**
  * Flatten the tree into rows, emitting a node's children only when its subtree is shown: it is an
- * expanded node, or a continuation on the active path. A collapsed row is still emitted with its
- * child count, so a branch is visible as a place to open rather than disappearing.
+ * expanded node, or a continuation on the active path. A collapsed row is still emitted with what a
+ * tap would reveal, so a branch is visible as a place to open rather than disappearing.
  */
 export function flattenTree(tree: SessionTree, expanded: ReadonlySet<string>): readonly TreeRow[] {
   const onActivePath = activePathIds(tree);
+  const measured = new Map<string, SubtreeRows>();
+
+  function showsChildren(node: TreeNode): boolean {
+    const childCount = node.children.length;
+    return (
+      childCount > 0 &&
+      (expanded.has(node.entry.id) || (childCount === 1 && onActivePath.has(node.entry.id)))
+    );
+  }
+
+  /**
+   * One post-order pass: the rows a subtree shows as it stands, and the rows it would show with its
+   * run opened. The difference is what a collapsed row's control adds, measured against the very net
+   * the rows are emitted from, so a control cannot state one number and emit another. Only a
+   * continuation is counted as opened; a fork inside the run is revealed but left closed.
+   */
+  function measure(node: TreeNode): SubtreeRows {
+    const known = measured.get(node.entry.id);
+    if (known !== undefined) {
+      return known;
+    }
+    const shows = showsChildren(node);
+    const opensContinuation = node.children.length === 1;
+    let shown = 1;
+    let opened = 1;
+    for (const child of node.children) {
+      const childRows = measure(child);
+      if (shows) {
+        shown += childRows.shown;
+      }
+      opened +=
+        opensContinuation && child.children.length === 1 ? childRows.opened : childRows.shown;
+    }
+    const rows = { shown, opened };
+    measured.set(node.entry.id, rows);
+    return rows;
+  }
+
   const rows: TreeRow[] = [];
   function visit(nodes: readonly TreeNode[], depth: number): void {
     for (const node of nodes) {
       const childCount = node.children.length;
       const onPath = onActivePath.has(node.entry.id);
-      const showsChildren =
-        childCount > 0 && (expanded.has(node.entry.id) || (childCount === 1 && onPath));
+      const shows = showsChildren(node);
+      const { shown, opened } = measure(node);
       rows.push({
         node,
         depth,
-        childCount,
-        expanded: showsChildren,
+        reveals: shows ? 0 : opened - shown,
+        expanded: shows,
         expandable: childCount > 1 || (childCount === 1 && !onPath),
         onActivePath: onPath,
         isLeaf: tree.leafId !== null && node.entry.id === tree.leafId,
       });
-      if (showsChildren) {
+      if (shows) {
         visit(node.children, childCount > 1 ? depth + 1 : depth);
       }
     }
@@ -131,14 +175,51 @@ export function flattenTree(tree: SessionTree, expanded: ReadonlySet<string>): r
   return rows;
 }
 
-/** A new set with one node's expansion toggled; the caller's set is never mutated. */
-export function toggleExpanded(
-  expanded: ReadonlySet<string>,
-  entryId: string,
-): ReadonlySet<string> {
+/** Rows one subtree contributes as it stands, and rows it would contribute with its run opened. */
+interface SubtreeRows {
+  readonly shown: number;
+  readonly opened: number;
+}
+
+/**
+ * The ids one tap on `node` opens: the node itself and each continuation below it, stopping at the
+ * first fork or at the end of the branch.
+ *
+ * A run off the active path is one thing the user walked back along, so opening it head-first must
+ * not cost one tap per message in it. A fork is a choice rather than a continuation, so it is
+ * revealed closed and counted instead of being opened on the user's behalf.
+ */
+export function revealIds(node: TreeNode): readonly string[] {
+  if (node.children.length === 0) {
+    return [];
+  }
+  const ids = [node.entry.id];
+  let current = node;
+  while (current.children.length === 1) {
+    const continuation = current.children[0];
+    if (continuation === undefined || continuation.children.length !== 1) {
+      break;
+    }
+    ids.push(continuation.entry.id);
+    current = continuation;
+  }
+  return ids;
+}
+
+/**
+ * A new set with one row's run opened or closed; the caller's set is never mutated. Closing removes
+ * the whole run rather than the row alone, so opening a branch higher up later cannot resurrect rows
+ * the user closed inside it.
+ */
+export function toggleExpanded(expanded: ReadonlySet<string>, node: TreeNode): ReadonlySet<string> {
   const next = new Set(expanded);
-  if (!next.delete(entryId)) {
-    next.add(entryId);
+  const open = !next.has(node.entry.id);
+  for (const id of revealIds(node)) {
+    if (open) {
+      next.add(id);
+    } else {
+      next.delete(id);
+    }
   }
   return next;
 }

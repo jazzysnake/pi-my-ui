@@ -69,6 +69,48 @@ const TREE: SessionTree = {
   ],
 };
 
+/**
+ * The tree the owner is looking at after moving the Leaf back: a short new branch is the active path,
+ * and the run of messages they left hangs off the new Leaf with nothing to choose inside it.
+ */
+const MOVED_BACK_TREE: SessionTree = {
+  leafId: "n2",
+  roots: [
+    node("r1", null, "Seed system prompt", [
+      node("u1", MessageRole.User, "First message", [
+        node("a1", MessageRole.Assistant, "First reply", [
+          node("u2", MessageRole.User, "Follow-up question", [
+            node("a2", MessageRole.Assistant, "Answer to the follow-up"),
+          ]),
+        ]),
+      ]),
+      node("n1", MessageRole.User, "Edited first message", [
+        node("n2", MessageRole.Assistant, "Reply to the edit"),
+      ]),
+    ]),
+  ],
+};
+
+/** The same move, except the run that was left ends at a fork: an alternative, not a continuation. */
+const FORKED_RUN_TREE: SessionTree = {
+  leafId: "n2",
+  roots: [
+    node("r1", null, "Seed system prompt", [
+      node("u1", MessageRole.User, "First message", [
+        node("a1", MessageRole.Assistant, "First reply", [
+          node("f1", MessageRole.Assistant, "Answer, with a retry", [
+            node("f2", MessageRole.Assistant, "The retry you kept"),
+            node("f3", MessageRole.Assistant, "The retry you abandoned"),
+          ]),
+        ]),
+      ]),
+      node("n1", MessageRole.User, "Edited first message", [
+        node("n2", MessageRole.Assistant, "Reply to the edit"),
+      ]),
+    ]),
+  ],
+};
+
 /** A Session nobody branched: one continuation after another, so there is nothing to collapse. */
 const LINEAR_TREE: SessionTree = {
   leafId: "m4",
@@ -117,6 +159,31 @@ function rowIds(target: HTMLElement): string[] {
   return [...target.querySelectorAll<HTMLElement>('[data-testid="message-tree-row"]')].map(
     (element) => element.dataset["entryId"] ?? "",
   );
+}
+
+/** Mount the modal on a given tree, the way opening `/tree` over a live Session does. */
+function openTree(target: HTMLElement, store: ClientStore, tree: SessionTree): void {
+  flushSync(() => {
+    store.receive(snapshotOf(ENTRIES));
+  });
+  flushSync(() => {
+    target.querySelector<HTMLButtonElement>('[data-testid="composer-branch"]')?.click();
+  });
+  flushSync(() => {
+    store.receive(treeOf(tree));
+  });
+}
+
+function toggleOf(target: HTMLElement, entryId: string): HTMLElement | null {
+  return (
+    row(target, entryId)?.querySelector<HTMLElement>('[data-testid="message-tree-toggle"]') ?? null
+  );
+}
+
+/** How many hidden rows a toggle tells the user it will reveal, read from its own label. */
+function announcedRows(toggle: HTMLElement | null): number | null {
+  const stated = /\d+/.exec(toggle?.getAttribute("aria-label") ?? "");
+  return stated === null ? null : Number(stated[0]);
 }
 
 describe("the message tree modal", () => {
@@ -242,17 +309,9 @@ describe("the message tree modal", () => {
     flushSync(() => {
       reveal?.click();
     });
+    // One tap opens the whole run you left, through to the leaf you came from.
     expect(row(target, "a1")).not.toBeNull();
     expect(reveal?.getAttribute("aria-expanded")).toBe("true");
-
-    // The revealed continuation is off the active path too, so its own child takes one more tap:
-    // an abandoned chain is browsable one step at a time rather than searchable only.
-    const deeper = row(target, "a1")?.querySelector<HTMLButtonElement>(
-      '[data-testid="message-tree-toggle"]',
-    );
-    flushSync(() => {
-      deeper?.click();
-    });
     expect(row(target, "a2")).not.toBeNull();
 
     // Tapping again closes the branch without destroying anything.
@@ -260,7 +319,52 @@ describe("the message tree modal", () => {
       reveal?.click();
     });
     expect(row(target, "a1")).toBeNull();
+    expect(row(target, "a2")).toBeNull();
     expect(row(target, "u1")).not.toBeNull();
+  });
+
+  it("opens the branch you came from in one tap after moving the Leaf back", () => {
+    const store = new ClientStore();
+    const { target } = mountShell(store);
+    openTree(target, store, MOVED_BACK_TREE);
+
+    // Before the tap the run you left is still collapsed: one row for its head, nothing more.
+    expect(rowIds(target)).toEqual(["r1", "u1", "n1", "n2"]);
+    const reveal = toggleOf(target, "u1");
+    expect(reveal?.getAttribute("aria-expanded")).toBe("false");
+    const announced = announcedRows(reveal);
+    const shown = rowIds(target).length;
+    expect(announced).toBe(3);
+
+    flushSync(() => {
+      reveal?.click();
+    });
+
+    // The whole run appears at once: tapping every message in between is the bug, not the design.
+    expect(rowIds(target)).toEqual(["r1", "u1", "a1", "u2", "a2", "n1", "n2"]);
+    expect(rowIds(target).length - shown).toBe(announced);
+  });
+
+  it("stops a run at the fork inside it, leaving the alternatives collapsed and counted", () => {
+    const store = new ClientStore();
+    const { target } = mountShell(store);
+    openTree(target, store, FORKED_RUN_TREE);
+
+    const reveal = toggleOf(target, "u1");
+    const announced = announcedRows(reveal);
+    const shown = rowIds(target).length;
+
+    flushSync(() => {
+      reveal?.click();
+    });
+
+    // The run opens down to the fork, and the fork's alternatives are still something to open: one
+    // tap on the head is not a licence to open every choice the run passed through.
+    expect(rowIds(target)).toEqual(["r1", "u1", "a1", "f1", "n1", "n2"]);
+    expect(rowIds(target).length - shown).toBe(announced);
+    const fork = toggleOf(target, "f1");
+    expect(fork?.getAttribute("aria-expanded")).toBe("false");
+    expect(announcedRows(fork)).toBe(2);
   });
 
   it("gives a linear Session no toggles at all", () => {

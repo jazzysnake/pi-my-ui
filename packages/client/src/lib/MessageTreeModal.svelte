@@ -69,7 +69,7 @@
   const searching = $derived(query.trim() !== "");
 
   function toggle(row: { readonly node: TreeNode }): void {
-    expanded = toggleExpanded(expanded, row.node.entry.id);
+    expanded = toggleExpanded(expanded, row.node);
   }
 
   /** Reveal a picked result: expand its ancestors, clear the query, then scroll it into view. */
@@ -190,7 +190,7 @@
                 aria-expanded={row.expanded}
                 aria-label={row.expanded
                   ? "Collapse branch"
-                  : `Expand ${String(row.childCount)} ${row.childCount === 1 ? "reply" : "replies"}`}
+                  : `Expand ${String(row.reveals)} ${row.reveals === 1 ? "message" : "messages"}`}
                 data-testid="message-tree-toggle"
                 onclick={() => {
                   toggle(row);
@@ -201,8 +201,8 @@
                     name={row.expanded ? "chevron-down" : "chevron-right"}
                     class="size-4 shrink-0"
                   />
-                  {#if !row.expanded && row.childCount > 1}<span data-testid="message-tree-count"
-                      >{String(row.childCount)}</span
+                  {#if !row.expanded && row.reveals > 1}<span data-testid="message-tree-count"
+                      >{String(row.reveals)}</span
                     >{/if}
                 </span>
               </button>

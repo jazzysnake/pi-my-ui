@@ -82,6 +82,12 @@ function select(page: Page, text: string): Promise<void> {
   return row(page, text).getByTestId("message-tree-select").click();
 }
 
+/** How many hidden rows a toggle tells the user it will reveal, read from its own label. */
+function announcedRows(label: string | null): number | null {
+  const stated = /\d+/.exec(label ?? "");
+  return stated === null ? null : Number(stated[0]);
+}
+
 function flatten(nodes: readonly TreeNode[], found: TreeNode[] = []): TreeNode[] {
   for (const node of nodes) {
     found.push(node);
@@ -168,17 +174,24 @@ test("both entry points open one modal that collapses alternatives and searches 
       "x",
     );
 
-    // The only branch point on the path is expanded, and collapsing it counts what it hides: every
-    // alternative hangs off the active path collapsed.
+    // The only branch point on the path is expanded, and collapsing it counts what a tap will
+    // reveal: every alternative hangs off the active path collapsed.
     const forkToggle = row(page, SYSTEM_TEXT).getByTestId("message-tree-toggle");
     await expect(forkToggle).toHaveAttribute("aria-expanded", "true");
     await expect(row(page, "Seed text block 2.")).toBeVisible();
+    const expandedRows = await page.getByTestId("message-tree-row").count();
     await forkToggle.click();
     await expect(forkToggle).toHaveAttribute("aria-expanded", "false");
-    await expect(forkToggle).toContainText("2");
     await expect(row(page, "Seed text block 2.")).toHaveCount(0);
+    // Collapsing hides everything below the row, not just its two branches, and the count it states
+    // is exactly what a tap gives back.
+    const collapsedRows = await page.getByTestId("message-tree-row").count();
+    expect(announcedRows(await forkToggle.getAttribute("aria-label"))).toBe(
+      expandedRows - collapsedRows,
+    );
     await forkToggle.click();
     await expect(row(page, "Seed text block 2.")).toBeVisible();
+    await expect(page.getByTestId("message-tree-row")).toHaveCount(expandedRows);
 
     // Search reaches the abandoned branch, which the collapsed default hides.
     await expect(row(page, ABANDONED_MODEL)).toHaveCount(0);
@@ -241,7 +254,7 @@ test("selecting a message moves the Leaf, follows it in the transcript and keeps
   }
 });
 
-test("an abandoned branch head with a single child opens by tapping", async ({ page }) => {
+test("one tap opens a whole abandoned branch, not one message of it", async ({ page }) => {
   const harness = await startHarness();
   try {
     await openHarness(page, harness, harness.seeded.id);
@@ -262,20 +275,59 @@ test("an abandoned branch head with a single child opens by tapping", async ({ p
     await expect(reveal).toHaveAttribute("aria-expanded", "false");
     await expect(offPathRows).toHaveCount(1);
     await expect(row(page, ABANDONED_MODEL)).toHaveCount(0);
+    const announced = announcedRows(await reveal.getAttribute("aria-label"));
 
-    // The head has a single child, which is still something to browse: tapping opens the next step
-    // of the abandoned branch instead of leaving a dead end.
+    // One tap opens the run of the abandoned branch through to the entry it ends at. Walking back
+    // along a branch the Session left is how the Leaf moves between branches, so one tap per
+    // message in it is the bug, not the design.
     await reveal.click();
     await expect(reveal).toHaveAttribute("aria-expanded", "true");
-    await expect(offPathRows).toHaveCount(2);
-    await offPathRows.nth(1).getByTestId("message-tree-toggle").click();
     await expect(row(page, ABANDONED_MODEL)).toBeVisible();
+    expect(await offPathRows.count()).toBe(1 + (announced ?? 0));
 
-    // Collapsing the head closes the branch again: browsing destroyed nothing either way.
+    // Collapsing the head closes the run again: browsing destroyed nothing either way.
     await reveal.click();
     await expect(offPathRows).toHaveCount(1);
     await expect(row(page, ABANDONED_MODEL)).toHaveCount(0);
     await expect(head).toBeVisible();
+  } finally {
+    await disposeHarness(harness);
+  }
+});
+
+test("one tap on the row past a new Leaf reveals the branch behind it in full", async ({
+  page,
+}) => {
+  const harness = await startHarness();
+  try {
+    await openHarness(page, harness, harness.seeded.id);
+    await expect(page.getByTestId("transcript")).toContainText(LEAF_TEXT, {
+      timeout: PI_START_TIMEOUT_MS,
+    });
+
+    // Move the Leaf back the way the owner does: open the tree and take an earlier message.
+    await page.getByTestId("composer-branch").click();
+    await expect(modal(page)).toBeVisible();
+    await select(page, EDIT_TEXT);
+    await expect(modal(page)).toHaveCount(0);
+
+    // Reopening shows only the active path: the branch that was left hangs off the new Leaf
+    // collapsed, so the Leaf it came from is not on screen.
+    await page.getByTestId("composer-branch").click();
+    await expect(modal(page)).toBeVisible();
+    const head = row(page, EDIT_TEXT);
+    await expect(head).toHaveAttribute("data-active", "false");
+    await expect(row(page, LEAF_TEXT)).toHaveCount(0);
+    const reveal = head.getByTestId("message-tree-toggle");
+    await expect(reveal).toHaveAttribute("aria-expanded", "false");
+    const announced = announcedRows(await reveal.getAttribute("aria-label"));
+    const shown = await page.getByTestId("message-tree-row").count();
+
+    // One tap walks the whole run back to the Leaf the Session came from, and reveals exactly as
+    // many rows as the control said it would.
+    await reveal.click();
+    await expect(row(page, LEAF_TEXT)).toBeVisible();
+    expect((await page.getByTestId("message-tree-row").count()) - shown).toBe(announced);
   } finally {
     await disposeHarness(harness);
   }

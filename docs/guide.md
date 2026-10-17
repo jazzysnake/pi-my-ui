@@ -239,8 +239,10 @@ terminal interface and are **refused** here rather than silently sent to the mod
 Open it by typing `/tree` or by tapping the composer's **Branch** control. Both open the same modal.
 
 - On open, only the branch points on the active path are expanded. **Alternative branches are
-  collapsed**, each showing how many messages it holds. A branch head with a single child off the
-  active path is also reachable by tapping it.
+  collapsed**, each stating how many messages a tap will reveal. **One tap opens the whole run of a
+  collapsed branch**: its head and the single continuations below it, down to the next fork or to the
+  Leaf the Session came from. Forks inside that run and alternatives hanging off it stay collapsed,
+  counted, and one tap away themselves.
 - **Search** filters to matching messages; picking a result expands its ancestors, clears the search
   and highlights the message.
 - **Selecting a message makes it the active point of the conversation** (the Leaf moves, the

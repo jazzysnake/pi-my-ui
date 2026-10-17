@@ -51,7 +51,9 @@ const TREE: SessionTree = {
       },
       children: [
         node("u1", MessageRole.User, "Abandoned approach: render every branch", [
-          node("a1", MessageRole.Assistant, "Abandoned reply"),
+          node("a1", MessageRole.Assistant, "Abandoned reply", [
+            node("a2", MessageRole.Assistant, "Abandoned follow-up"),
+          ]),
         ]),
         node("u4", MessageRole.User, "Kept approach: collapse branches", [
           node("a4", MessageRole.Assistant, "Kept reply", [
@@ -64,6 +66,20 @@ const TREE: SessionTree = {
         ]),
       ],
     },
+  ],
+};
+
+/** A Session nobody branched: one continuation after another, so there is nothing to collapse. */
+const LINEAR_TREE: SessionTree = {
+  leafId: "m4",
+  roots: [
+    node("m1", MessageRole.User, "Linear first message", [
+      node("m2", MessageRole.Assistant, "Linear first reply", [
+        node("m3", MessageRole.User, "Linear second message", [
+          node("m4", MessageRole.Assistant, "Linear second reply"),
+        ]),
+      ]),
+    ]),
   ],
 };
 
@@ -197,8 +213,78 @@ describe("the message tree modal", () => {
       row(target, "t1")?.querySelector('[data-testid="message-tree-toggle"]')?.textContent,
     ).not.toContain("2");
 
-    // A one-child continuation is not a branch point, so it carries no toggle.
-    expect(row(target, "u1")?.querySelector('[data-testid="message-tree-toggle"]')).toBeNull();
+    // The abandoned head is a continuation, not a branch point, but it lies off the active path so
+    // its subtree is hidden by default and it needs a way in.
+    expect(row(target, "u1")?.querySelector('[data-testid="message-tree-toggle"]')).not.toBeNull();
+  });
+
+  it("reveals an abandoned branch head whose only child is off the active path", () => {
+    const store = new ClientStore();
+    const { target } = mountShell(store);
+    flushSync(() => {
+      store.receive(snapshotOf(ENTRIES));
+    });
+    flushSync(() => {
+      target.querySelector<HTMLButtonElement>('[data-testid="composer-branch"]')?.click();
+    });
+    flushSync(() => {
+      store.receive(treeOf(TREE));
+    });
+
+    // Collapsed by default: the abandoned branch is a row you can open, not one that opened itself.
+    expect(row(target, "u1")).not.toBeNull();
+    expect(row(target, "a1")).toBeNull();
+    const reveal = row(target, "u1")?.querySelector<HTMLButtonElement>(
+      '[data-testid="message-tree-toggle"]',
+    );
+    expect(reveal?.getAttribute("aria-expanded")).toBe("false");
+
+    flushSync(() => {
+      reveal?.click();
+    });
+    expect(row(target, "a1")).not.toBeNull();
+    expect(reveal?.getAttribute("aria-expanded")).toBe("true");
+
+    // The revealed continuation is off the active path too, so its own child takes one more tap:
+    // an abandoned chain is browsable one step at a time rather than searchable only.
+    const deeper = row(target, "a1")?.querySelector<HTMLButtonElement>(
+      '[data-testid="message-tree-toggle"]',
+    );
+    flushSync(() => {
+      deeper?.click();
+    });
+    expect(row(target, "a2")).not.toBeNull();
+
+    // Tapping again closes the branch without destroying anything.
+    flushSync(() => {
+      reveal?.click();
+    });
+    expect(row(target, "a1")).toBeNull();
+    expect(row(target, "u1")).not.toBeNull();
+  });
+
+  it("gives a linear Session no toggles at all", () => {
+    const store = new ClientStore();
+    const { target } = mountShell(store);
+    flushSync(() => {
+      store.receive(snapshotOf(ENTRIES));
+    });
+    flushSync(() => {
+      target.querySelector<HTMLButtonElement>('[data-testid="composer-branch"]')?.click();
+    });
+    flushSync(() => {
+      store.receive(treeOf(LINEAR_TREE));
+    });
+
+    // Every entry is a continuation of one path, so the whole Session is visible at once and no row
+    // offers to open something that is already open.
+    expect(rowIds(target)).toEqual(["m1", "m2", "m3", "m4"]);
+    expect(target.querySelectorAll('[data-testid="message-tree-toggle"]')).toHaveLength(0);
+    for (const element of target.querySelectorAll<HTMLElement>(
+      '[data-testid="message-tree-row"]',
+    )) {
+      expect(element.dataset["depth"]).toBe("0");
+    }
   });
 
   it("searches, then expands and highlights the entry the user picks", () => {

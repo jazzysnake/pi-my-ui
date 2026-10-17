@@ -5,8 +5,12 @@
  * highlighted row) and every decision about which rows that state yields lives here.
  *
  * A node is a **branch point** only when it has more than one child. A one-child node is a
- * continuation of its parent, not an alternative, so it adds no indent and carries no toggle; the
- * active path is descended through it directly and a linear Session renders as a flat list.
+ * continuation of its parent, not an alternative, so it adds no indent; the active path is descended
+ * through it directly and a linear Session renders as a flat list.
+ *
+ * Off the active path a one-child node is something else: it is an alternative like any other, so its
+ * child is hidden until the user opens it. Without a control on that row the rest of an abandoned
+ * branch would be reachable only by searching for it, which is why `expandable` covers it.
  */
 
 import { MessageRole, type SessionTree, type TreeNode } from "@pi-my-ui/protocol";
@@ -22,6 +26,11 @@ export interface TreeRow {
   readonly childCount: number;
   /** Whether the node's children are shown. A node with no children is never expanded. */
   readonly expanded: boolean;
+  /**
+   * Whether the row carries an expand control. A branch point always does. An off-path one-child
+   * node does too, because its child starts hidden and nothing else on the row would reveal it.
+   */
+  readonly expandable: boolean;
   /** Whether the node lies on the active branch (root → Leaf). */
   readonly onActivePath: boolean;
   /** Whether the node is the current Leaf. */
@@ -91,8 +100,8 @@ export function defaultExpandedIds(tree: SessionTree): ReadonlySet<string> {
 
 /**
  * Flatten the tree into rows, emitting a node's children only when its subtree is shown: it is an
- * expanded branch point, or a continuation on the active path. A collapsed row is still emitted with
- * its child count, so a branch is visible as a place to open rather than disappearing.
+ * expanded node, or a continuation on the active path. A collapsed row is still emitted with its
+ * child count, so a branch is visible as a place to open rather than disappearing.
  */
 export function flattenTree(tree: SessionTree, expanded: ReadonlySet<string>): readonly TreeRow[] {
   const onActivePath = activePathIds(tree);
@@ -100,15 +109,16 @@ export function flattenTree(tree: SessionTree, expanded: ReadonlySet<string>): r
   function visit(nodes: readonly TreeNode[], depth: number): void {
     for (const node of nodes) {
       const childCount = node.children.length;
+      const onPath = onActivePath.has(node.entry.id);
       const showsChildren =
-        childCount > 0 &&
-        (expanded.has(node.entry.id) || (childCount === 1 && onActivePath.has(node.entry.id)));
+        childCount > 0 && (expanded.has(node.entry.id) || (childCount === 1 && onPath));
       rows.push({
         node,
         depth,
         childCount,
         expanded: showsChildren,
-        onActivePath: onActivePath.has(node.entry.id),
+        expandable: childCount > 1 || (childCount === 1 && !onPath),
+        onActivePath: onPath,
         isLeaf: tree.leafId !== null && node.entry.id === tree.leafId,
       });
       if (showsChildren) {

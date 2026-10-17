@@ -6,7 +6,12 @@ import { startServer, type RunningServer } from "@pi-my-ui/server";
 import type { Script } from "@pi-my-ui/scripted-provider";
 
 import { startClientPageServer, type ClientPageServer } from "../src/client-page-server";
-import { generateSession, seedSession, type FixtureSession } from "../src/fixture-builder";
+import {
+  generateSession,
+  seedSession,
+  type FixtureSession,
+  type SeedName,
+} from "../src/fixture-builder";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 import { connectWsSession } from "../src/ws-session-client";
 import { readAttachSurfaces } from "../src/ws-transcript";
@@ -38,9 +43,9 @@ interface Harness {
   readonly client: ClientPageServer;
 }
 
-async function startHarness(): Promise<Harness> {
+async function startHarness(seed: SeedName = "branching"): Promise<Harness> {
   const home = await createHermeticHome();
-  const seeded = await seedSession(home, "branching");
+  const seeded = await seedSession(home, seed);
   const launch = await scriptedPiLaunch(home, UNUSED_SCRIPT);
   const server = await startServer({
     cwd: launch.cwd,
@@ -191,6 +196,73 @@ test("selecting a message moves the Leaf, follows it in the transcript and keeps
     await expect(row(page, LEAF_TEXT)).toHaveCount(0);
     await page.getByTestId("message-tree-search").fill(LEAF_TEXT);
     await expect(modal(page).getByTestId("message-tree-match")).toHaveCount(1);
+  } finally {
+    await disposeHarness(harness);
+  }
+});
+
+test("an abandoned branch head with a single child opens by tapping", async ({ page }) => {
+  const harness = await startHarness();
+  try {
+    await openHarness(page, harness, harness.seeded.id);
+    await expect(page.getByTestId("transcript")).toContainText(LEAF_TEXT, {
+      timeout: PI_START_TIMEOUT_MS,
+    });
+
+    await page.getByTestId("composer-branch").click();
+    await expect(modal(page)).toBeVisible();
+    // The abandoned branch is an alternative, so it starts collapsed: one row for its head and
+    // nothing of what it holds.
+    const offPathRows = modal(page).locator(
+      '[data-testid="message-tree-row"][data-active="false"]',
+    );
+    const head = row(page, "Seed text block 2.");
+    await expect(head).toHaveAttribute("data-active", "false");
+    const reveal = head.getByTestId("message-tree-toggle");
+    await expect(reveal).toHaveAttribute("aria-expanded", "false");
+    await expect(offPathRows).toHaveCount(1);
+    await expect(row(page, ABANDONED_MODEL)).toHaveCount(0);
+
+    // The head has a single child, which is still something to browse: tapping opens the next step
+    // of the abandoned branch instead of leaving a dead end.
+    await reveal.click();
+    await expect(reveal).toHaveAttribute("aria-expanded", "true");
+    await expect(offPathRows).toHaveCount(2);
+    await offPathRows.nth(1).getByTestId("message-tree-toggle").click();
+    await expect(row(page, ABANDONED_MODEL)).toBeVisible();
+
+    // Collapsing the head closes the branch again: browsing destroyed nothing either way.
+    await reveal.click();
+    await expect(offPathRows).toHaveCount(1);
+    await expect(row(page, ABANDONED_MODEL)).toHaveCount(0);
+    await expect(head).toBeVisible();
+  } finally {
+    await disposeHarness(harness);
+  }
+});
+
+test("a linear Session opens the whole tree with no toggles", async ({ page }) => {
+  const harness = await startHarness("plain");
+  try {
+    await openHarness(page, harness, harness.seeded.id);
+    await page.getByTestId("composer-branch").click();
+    await expect(modal(page)).toBeVisible();
+    await expect(page.getByTestId("message-tree-row").first()).toBeVisible();
+
+    // One path and no alternatives: every entry is already on screen, so no row offers to open
+    // anything and none of them indents as if it nested.
+    const geometry = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('[data-testid="message-tree-row"]')];
+      const depths = new Set(rows.map((row) => row.getAttribute("data-depth")));
+      return {
+        rows: rows.length,
+        toggles: document.querySelectorAll('[data-testid="message-tree-toggle"]').length,
+        depths: [...depths],
+      };
+    });
+    expect(geometry.rows).toBe(harness.seeded.entryCount);
+    expect(geometry.toggles).toBe(0);
+    expect(geometry.depths).toEqual(["0"]);
   } finally {
     await disposeHarness(harness);
   }

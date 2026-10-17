@@ -175,7 +175,7 @@
             data-leaf={row.isLeaf ? "true" : "false"}
             data-highlighted={highlightedId === row.node.entry.id ? "true" : "false"}
           >
-            {#if row.childCount > 1}
+            {#if row.expandable}
               <button
                 type="button"
                 class="grid min-h-11 min-w-11 shrink-0 place-items-center text-xs text-neutral-400"
@@ -183,7 +183,7 @@
                 aria-expanded={row.expanded}
                 aria-label={row.expanded
                   ? "Collapse branch"
-                  : `Expand ${String(row.childCount)} replies`}
+                  : `Expand ${String(row.childCount)} ${row.childCount === 1 ? "reply" : "replies"}`}
                 data-testid="message-tree-toggle"
                 onclick={() => {
                   toggle(row);
@@ -191,7 +191,7 @@
               >
                 <span class="flex items-center gap-1">
                   <span aria-hidden="true">{row.expanded ? "▾" : "▸"}</span>
-                  {#if !row.expanded}<span data-testid="message-tree-count"
+                  {#if !row.expanded && row.childCount > 1}<span data-testid="message-tree-count"
                       >{String(row.childCount)}</span
                     >{/if}
                 </span>

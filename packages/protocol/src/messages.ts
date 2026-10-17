@@ -4,7 +4,7 @@
  */
 
 import { ClientMessageType, ServerMessageType } from "./constants.js";
-import type { StreamingBehavior, ThinkingLevel } from "./constants.js";
+import type { SessionActivity, StreamingBehavior, ThinkingLevel } from "./constants.js";
 import type { DirectoryEntry } from "./files.js";
 import type {
   Cursor,
@@ -19,6 +19,11 @@ import type { ProtocolErrorInfo } from "./errors.js";
 /** List this server's Sessions. A Session-free capability, so it carries no Session and no Cursor. */
 export interface ListSessionsMessage {
   readonly type: typeof ClientMessageType.ListSessions;
+}
+
+/** Start a fresh Session. The server generates its id; a client never names one. */
+export interface CreateSessionMessage {
+  readonly type: typeof ClientMessageType.CreateSession;
 }
 
 /** Identify the Session to watch, and the Cursor the browser already holds when it has one. */
@@ -87,6 +92,7 @@ export interface PreviewFileMessage {
 
 export type ClientMessage =
   | ListSessionsMessage
+  | CreateSessionMessage
   | SubscribeMessage
   | PromptMessage
   | AbortMessage
@@ -96,10 +102,21 @@ export type ClientMessage =
   | ListDirectoryMessage
   | PreviewFileMessage;
 
-/** Every Session this server can serve, most recently active first. */
+/**
+ * Every Session this server can serve, most recently active first. `sessions` stays the disk facts
+ * pi wrote; `activity` is the server's live overlay for the Sessions that currently have a child,
+ * so a refreshed list cannot overwrite a row's working state with a stale file.
+ */
 export interface SessionsMessage {
   readonly type: typeof ServerMessageType.Sessions;
   readonly sessions: readonly SessionSummary[];
+  readonly activity: Readonly<Record<string, SessionActivity>>;
+}
+
+/** The Session a `createSession` request produced, so the client can open it. */
+export interface SessionCreatedMessage {
+  readonly type: typeof ServerMessageType.SessionCreated;
+  readonly sessionId: string;
 }
 
 /** A full Projection at a Cursor. */
@@ -158,6 +175,7 @@ export interface FilePreviewMessage {
 
 export type ServerMessage =
   | SessionsMessage
+  | SessionCreatedMessage
   | SnapshotMessage
   | DeltaMessage
   | SettingsMessage

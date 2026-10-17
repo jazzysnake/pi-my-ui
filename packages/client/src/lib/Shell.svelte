@@ -24,6 +24,7 @@
     onListDirectory,
     onPreviewFile,
     onDownloadFile,
+    onCreateSession = () => undefined,
   }: {
     store: ClientStore;
     status: ConnectionStatus;
@@ -41,6 +42,7 @@
     onListDirectory: (path: string) => void;
     onPreviewFile: (path: string) => void;
     onDownloadFile: (path: string) => void;
+    onCreateSession?: () => void;
   } = $props();
 
   let filesOpen = $state(false);
@@ -61,6 +63,7 @@
 <div
   class="relative flex h-dvh flex-col overflow-hidden bg-neutral-950 text-neutral-100"
   data-testid="app-shell"
+  data-session-id={store.sessions.activeSessionId ?? undefined}
 >
   <header class="flex items-center gap-2 border-b border-neutral-800 px-3 py-1">
     <span class="text-sm font-semibold tracking-wide uppercase">pi-my-ui</span>
@@ -109,9 +112,10 @@
   />
   {#if sessionsOpen}
     <SessionDrawer
-      summaries={store.sessions.summaries}
+      rows={store.sessions.rows}
       activeSessionId={store.sessions.activeSessionId}
       onSelect={onSelectSession}
+      {onCreateSession}
       onClose={() => {
         sessionsOpen = false;
       }}

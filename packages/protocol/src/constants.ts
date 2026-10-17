@@ -6,6 +6,7 @@
 /** Discriminants for every client→server message. */
 export const ClientMessageType = {
   ListSessions: "listSessions",
+  CreateSession: "createSession",
   Subscribe: "subscribe",
   Prompt: "prompt",
   Abort: "abort",
@@ -21,6 +22,7 @@ export type ClientMessageType = (typeof ClientMessageType)[keyof typeof ClientMe
 /** Discriminants for every server→client message. */
 export const ServerMessageType = {
   Sessions: "sessions",
+  SessionCreated: "sessionCreated",
   Snapshot: "snapshot",
   Delta: "delta",
   Settings: "settings",
@@ -49,6 +51,18 @@ export const RunStateKind = {
 } as const;
 
 export type RunStateKind = (typeof RunStateKind)[keyof typeof RunStateKind];
+
+/**
+ * The coarse working state a Session list row shows. A Session is working when its run is streaming
+ * or retrying; every other run state reads as idle, so the row has one closed signal rather than a
+ * per-state mapping that would drift from the run-state set.
+ */
+export const SessionActivity = {
+  Idle: "idle",
+  Working: "working",
+} as const;
+
+export type SessionActivity = (typeof SessionActivity)[keyof typeof SessionActivity];
 
 export type ProjectionDeltaKind = (typeof ProjectionDeltaKind)[keyof typeof ProjectionDeltaKind];
 

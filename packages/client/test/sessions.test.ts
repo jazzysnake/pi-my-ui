@@ -4,6 +4,7 @@ import { describe, expect, it, vi, type Mock } from "vitest";
 import {
   ProjectionDeltaKind,
   ServerMessageType,
+  SessionActivity,
   type ProjectedEntry,
   type ServerMessage,
   type SessionSummary,
@@ -24,8 +25,11 @@ function summaryOf(overrides: Partial<SessionSummary> & { id: string }): Session
   };
 }
 
-function sessionsMessage(sessions: readonly SessionSummary[]): ServerMessage {
-  return { type: ServerMessageType.Sessions, sessions };
+function sessionsMessage(
+  sessions: readonly SessionSummary[],
+  activity: Readonly<Record<string, SessionActivity>> = {},
+): ServerMessage {
+  return { type: ServerMessageType.Sessions, sessions, activity };
 }
 
 function snapshotOf(sessionId: string, entries: readonly ProjectedEntry[]): ServerMessage {
@@ -66,12 +70,14 @@ function entryOf(id: string, text: string): ProjectedEntry {
 interface Mounted {
   readonly target: HTMLElement;
   readonly select: Mock<(sessionId: string) => void>;
+  readonly create: Mock<() => void>;
 }
 
 function mountShell(store: ClientStore): Mounted {
   const select = vi.fn<(sessionId: string) => void>((sessionId) => {
     store.selectSession(sessionId);
   });
+  const create = vi.fn<() => void>();
   const target = document.createElement("div");
   document.body.append(target);
   flushSync(() => {
@@ -83,13 +89,14 @@ function mountShell(store: ClientStore): Mounted {
         onSelectSession: select,
         onPrompt: () => undefined,
         onAbort: () => undefined,
+        onCreateSession: create,
         onListDirectory: () => undefined,
         onPreviewFile: () => undefined,
         onDownloadFile: () => undefined,
       },
     });
   });
-  return { target, select };
+  return { target, select, create };
 }
 
 function openDrawer(target: HTMLElement): void {
@@ -222,5 +229,92 @@ describe("the session drawer over the store's ServerMessage input", () => {
       element.getAttribute("aria-label"),
     );
     expect(labelled.some((label) => /rename|delete/i.test(label ?? ""))).toBe(false);
+  });
+
+  it("reports a create request from the plus control", () => {
+    const store = new ClientStore();
+    const { target, create } = mountShell(store);
+    flushSync(() => {
+      store.receive(sessionsMessage([]));
+    });
+    openDrawer(target);
+
+    const plus = target.querySelector<HTMLButtonElement>('[data-testid="new-session-action"]');
+    if (plus === null) {
+      throw new Error("the new-session control is missing");
+    }
+    flushSync(() => {
+      plus.click();
+    });
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a working dot for a Session the server reports as working", () => {
+    const store = new ClientStore();
+    const { target } = mountShell(store);
+    flushSync(() => {
+      store.receive(
+        sessionsMessage([summaryOf({ id: "session-1", name: "One", lastActivityAt: 100 })], {
+          "session-1": SessionActivity.Working,
+        }),
+      );
+    });
+    openDrawer(target);
+
+    const row = target.querySelector('[data-testid="session-row"]');
+    expect(row?.getAttribute("data-activity")).toBe("working");
+    expect(row?.querySelector('[data-testid="activity-dot"]')).not.toBeNull();
+  });
+
+  it("marks a background Session unread when output arrives and clears it on select", () => {
+    const store = new ClientStore();
+    const { target } = mountShell(store);
+    flushSync(() => {
+      store.receive(
+        sessionsMessage([summaryOf({ id: "session-1", name: "One", lastActivityAt: 100 })]),
+      );
+    });
+    openDrawer(target);
+    const row = target.querySelector('[data-testid="session-row"]');
+    expect(row?.querySelector('[data-testid="activity-dot"]')).toBeNull();
+
+    // The Session produced output while the client was looking elsewhere.
+    flushSync(() => {
+      store.receive(
+        sessionsMessage([summaryOf({ id: "session-1", name: "One", lastActivityAt: 200 })]),
+      );
+    });
+    expect(row?.querySelector('[data-testid="activity-dot"]')).not.toBeNull();
+    expect(
+      row?.querySelector('[data-testid="activity-dot"]')?.getAttribute("data-activity-kind"),
+    ).toBe("unread");
+
+    // Viewing the Session advances its watermark, so the unread dot is gone.
+    flushSync(() => {
+      store.selectSession("session-1");
+    });
+    expect(row?.querySelector('[data-testid="activity-dot"]')).toBeNull();
+  });
+
+  it("never marks the Session being read unread", () => {
+    const store = new ClientStore();
+    const { target } = mountShell(store);
+    flushSync(() => {
+      store.receive(
+        sessionsMessage([summaryOf({ id: "session-1", name: "One", lastActivityAt: 100 })]),
+      );
+    });
+    flushSync(() => {
+      store.selectSession("session-1");
+    });
+    openDrawer(target);
+
+    flushSync(() => {
+      store.receive(
+        sessionsMessage([summaryOf({ id: "session-1", name: "One", lastActivityAt: 200 })]),
+      );
+    });
+    const row = target.querySelector('[data-testid="session-row"]');
+    expect(row?.querySelector('[data-testid="activity-dot"]')).toBeNull();
   });
 });

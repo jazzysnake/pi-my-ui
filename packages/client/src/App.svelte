@@ -25,6 +25,9 @@
         onMessage(message) {
           store.receive(message);
         },
+        onSessionCreated(sessionId) {
+          store.selectSession(sessionId);
+        },
       },
     });
     transport = created;
@@ -43,6 +46,7 @@
     store.selectSession(sessionId);
     transport?.switchSession(sessionId);
   }}
+  onCreateSession={() => transport?.createSession()}
   onPrompt={(text, images, behavior) => transport?.prompt(text, images, behavior)}
   onAbort={() => transport?.abort()}
   onSetModel={(provider, modelId) => transport?.setModel(provider, modelId)}

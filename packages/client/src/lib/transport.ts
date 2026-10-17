@@ -42,6 +42,8 @@ export const RECONNECT_BACKOFF_FACTOR = 2;
 export interface TransportHandlers {
   onStatus(status: ConnectionStatus): void;
   onMessage(message: ServerMessage): void;
+  /** The server generated a Session; the owner opens it. */
+  onSessionCreated?(sessionId: string): void;
 }
 
 export interface TransportOptions {
@@ -55,6 +57,8 @@ export interface Transport {
   stop(): void;
   /** Watch another Session without closing the link, from the start of its stream. */
   switchSession(sessionId: string): void;
+  /** Ask the server to start a fresh Session; the answer opens it. Ignored while the link is down. */
+  createSession(): void;
   /** Send one message to the Session's Pi child. Ignored while the link is down. */
   prompt(text: string, images?: readonly ImageAttachment[], behavior?: StreamingBehavior): void;
   /** Cancel the Session's running turn. Ignored while the link is down. */
@@ -136,6 +140,16 @@ export function createTransport(options: TransportOptions): Transport {
         return;
       }
       const message = JSON.parse(String(event.data)) as ServerMessage;
+      if (message.type === ServerMessageType.SessionCreated) {
+        // The new Session's id is the server's; opening it is this socket's own follow-up, so the
+        // subscribe goes out before the owner is told and a later frame cannot overtake it.
+        activeSessionId = message.sessionId;
+        cursor = undefined;
+        send(subscription());
+        options.handlers.onSessionCreated?.(message.sessionId);
+        options.handlers.onMessage(message);
+        return;
+      }
       if (message.type === ServerMessageType.Snapshot || message.type === ServerMessageType.Delta) {
         // A frame from the Session switched away from is dropped before it can move the Cursor, so
         // the next subscribe starts the new Session from the beginning of its stream.
@@ -184,6 +198,9 @@ export function createTransport(options: TransportOptions): Transport {
       activeSessionId = sessionId;
       cursor = undefined;
       send(subscription());
+    },
+    createSession() {
+      send({ type: ClientMessageType.CreateSession });
     },
     prompt(text, images, behavior) {
       send({

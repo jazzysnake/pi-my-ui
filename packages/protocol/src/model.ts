@@ -9,6 +9,7 @@ import {
   MessageRole,
   ProjectionDeltaKind,
   RunStateKind,
+  SessionActivity,
   ToolCallStatus,
 } from "./constants.js";
 
@@ -89,6 +90,17 @@ export type RunState =
     }
   | { readonly kind: typeof RunStateKind.Aborted }
   | { readonly kind: typeof RunStateKind.Errored; readonly message: string };
+
+/**
+ * The one definition of "this Session is working", from the run state the Projection holds. The
+ * server's activity signal and a client's reading of a Snapshot both use it, so a row can never
+ * disagree with the transcript beside it.
+ */
+export function sessionActivityOf(runState: RunState): SessionActivity {
+  return runState.kind === RunStateKind.Streaming || runState.kind === RunStateKind.Retrying
+    ? SessionActivity.Working
+    : SessionActivity.Idle;
+}
 
 /** A cursor-addressed, ordered group of deltas. */
 export interface DeltaBatch {

@@ -6,7 +6,7 @@ import type { Script } from "@pi-my-ui/scripted-provider";
 import { seedSession, type FixtureSession } from "../src/fixture-builder";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 import { connectWsSession } from "../src/ws-session-client";
-import { projectionText, readUntilText } from "../src/ws-transcript";
+import { nextDelta, projectionText, readUntilText } from "../src/ws-transcript";
 
 const PI_TEST_TIMEOUT_MS = 90_000;
 
@@ -74,11 +74,7 @@ test("a client reattaching at a known Cursor receives the missed Deltas", async 
   const reader = await connectWsSession(harness.server.url);
   try {
     reader.send({ type: "subscribe", sessionId: harness.seeded.id, cursor: detachedAt });
-    const first = await reader.next();
-    expect(first.type).toBe("delta");
-    if (first.type !== "delta") {
-      return;
-    }
+    const first = await nextDelta(reader);
     expect(first.fromCursor).toBe(detachedAt);
 
     const replayed = await readUntilText(reader, REPLY, [first]);

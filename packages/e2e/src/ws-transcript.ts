@@ -49,8 +49,9 @@ export async function readUntilText(
       seen.push(message);
       continue;
     }
-    // Settings are not transcript state, so a run that lands across one still reads cleanly.
-    if (message.type === "settings") {
+    // Settings and the Session list are not transcript state, so a run that lands across one still
+    // reads cleanly.
+    if (message.type === "settings" || message.type === "sessions") {
       continue;
     }
     if (message.type === "snapshot") {
@@ -60,5 +61,23 @@ export async function readUntilText(
       throw new Error("the Snapshot arrived before the expected output");
     }
     throw new Error(`unexpected server message: ${JSON.stringify(message)}`);
+  }
+}
+
+/**
+ * The next Delta frame, skipping the Session list and Settings that are not transcript state. An
+ * activity change lets the server push a list frame ahead of a replay, so a reader that only cares
+ * about the transcript must not treat that as the answer.
+ */
+export async function nextDelta(client: WsSessionClient): Promise<DeltaMessage> {
+  for (;;) {
+    const message = await client.next();
+    if (message.type === "delta") {
+      return message;
+    }
+    if (message.type === "sessions" || message.type === "settings") {
+      continue;
+    }
+    throw new Error(`expected a Delta but received ${message.type}`);
   }
 }

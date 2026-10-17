@@ -163,13 +163,37 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
   }
   // The pool is created once the bound port is known, because the bridge socket's default path is
   // derived from it, and it is created before any connection is accepted.
-  const pool = createSessionPool(config, {
-    socketPath,
-    ...(config.bridge?.extensionEntry === undefined
-      ? {}
-      : { extensionEntry: config.bridge.extensionEntry }),
-    gate: bridge,
-  });
+  const pool = createSessionPool(
+    config,
+    {
+      socketPath,
+      ...(config.bridge?.extensionEntry === undefined
+        ? {}
+        : { extensionEntry: config.bridge.extensionEntry }),
+      gate: bridge,
+    },
+    // A Session starting, settling or retrying changes a row's live state, so every viewer gets a
+    // fresh list. The push is serialized below, so two quick transitions cannot deliver out of order.
+    { onActivity: () => scheduleSessionsPush() },
+  );
+
+  let sessionsPush: Promise<void> = Promise.resolve();
+
+  /** Send the current list and live activity to every socket, one push at a time. */
+  function scheduleSessionsPush(): void {
+    sessionsPush = sessionsPush
+      .then(async () => {
+        const message: ServerMessage = {
+          type: ServerMessageType.Sessions,
+          sessions: await listSessions(config.cwd, config.sessionDir),
+          activity: pool.activityById(),
+        };
+        for (const client of sockets.clients) {
+          send(client, message);
+        }
+      })
+      .catch(() => undefined);
+  }
 
   async function handle(
     socket: WebSocket,
@@ -195,7 +219,16 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
         send(socket, {
           type: ServerMessageType.Sessions,
           sessions: await listSessions(config.cwd, config.sessionDir),
+          activity: pool.activityById(),
         });
+        return;
+      }
+      // A fresh Session has a server-generated id and no file yet, so the client is told the id and
+      // opens it; the child pi starts names its own file from that id.
+      if (message.type === ClientMessageType.CreateSession) {
+        const host = pool.create();
+        send(socket, { type: ServerMessageType.SessionCreated, sessionId: host.sessionId });
+        scheduleSessionsPush();
         return;
       }
       // The file capability reads the server's working directory, not a Session, so it is answered

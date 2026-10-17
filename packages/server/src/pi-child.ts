@@ -56,6 +56,14 @@ export interface PiChild {
   stop(): Promise<void>;
 }
 
+/**
+ * Which Session a Pi child opens: an existing file the server found, or a fresh id the server
+ * generated. Pi names a new Session file itself, so the server must never invent the path.
+ */
+export type PiSessionTarget =
+  | { readonly kind: "file"; readonly sessionFile: string }
+  | { readonly kind: "id"; readonly sessionId: string };
+
 /** The subset of pi's model record the wire carries. */
 function toModelInfo(model: {
   readonly provider: string;
@@ -76,12 +84,17 @@ function toImageContent(image: ImageAttachment): ImageContent {
   return { type: "image", data: image.data, mimeType: image.mediaType };
 }
 
-/** Start a real `pi --mode rpc` child on `sessionFile` and wait until it is running. */
-export async function startPiChild(sessionFile: string, launch: PiChildLaunch): Promise<PiChild> {
+/** Start a real `pi --mode rpc` child on an existing Session file or a fresh Session id. */
+export async function startPiChild(
+  target: PiSessionTarget,
+  launch: PiChildLaunch,
+): Promise<PiChild> {
+  const sessionArgs =
+    target.kind === "file" ? ["--session", target.sessionFile] : ["--session-id", target.sessionId];
   const client = new RpcClient({
     cwd: launch.cwd,
     cliPath: launch.cliPath ?? join(getPackageDir(), "dist", "cli.js"),
-    args: [...(launch.args ?? []), "--session", sessionFile],
+    args: [...(launch.args ?? []), ...sessionArgs],
     ...(launch.env === undefined ? {} : { env: { ...launch.env } }),
     ...(launch.provider === undefined ? {} : { provider: launch.provider }),
     ...(launch.model === undefined ? {} : { model: launch.model }),

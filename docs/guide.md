@@ -117,7 +117,7 @@ replay. You never act on a reconnect.
 From top to bottom:
 
 - **Navigation bar** — the `☰` Sessions toggle, the wordmark `pi-my-ui`, then the agent pill, the
-  **Files** control and the connection dot.
+  connection dot and the **Files** control, which closes the row.
 - **Session bar** — the live marker (**Streaming**) while the agent is producing output, and the
   **context-usage readout** on the right. After a compaction the readout reads **Recalculating…**
   until pi has a new figure.

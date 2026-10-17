@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 **Symptom:** In the header's right-hand group the order is reversed from the previous UI: the folder
 comes first and the connection dot sits on the trailing edge. Owner: "the connect dot and the file
@@ -29,6 +29,28 @@ ordering change; otherwise leave it.
 
 **Done when**
 
-- [ ] The header's end group reads connection status, then Files, and Files is the rightmost control
-- [ ] Both controls keep their current size, position within the safe area, and test ids
-- [ ] `npm run verify` green
+- [x] The header's end group reads connection status, then Files, and Files is the rightmost control
+- [x] Both controls keep their current size, position within the safe area, and test ids
+- [x] `npm run verify` green
+
+## Comments
+
+Resolved on `v2-rewrite`. The end group in `packages/client/src/lib/TopBar.svelte` now reads agent
+pill, connection status, Files: the two elements swapped places and nothing else moved. Both controls
+keep `size-11` and `shrink-0` inside the `ml-auto` group and keep their test ids (`connection-status`
+and `files-toggle`), and the header's own `px-2` is what keeps Files clear of the right safe area.
+The wordmark was left alone — its weight and colour do not fall out of the ordering change, and the
+ticket made folding it in conditional on that.
+
+Coverage, written red first against the swapped order:
+
+- `packages/client/test/header.test.ts` mounts the shell and asserts the connection status precedes
+the Files toggle and that Files is the header's last control (the component seam).
+- `packages/e2e/test/phone-layout.spec.ts`'s top-bar test now measures the rendered boxes at 320 px:
+the dot's right edge ends before Files begins and Files' right edge is the rightmost in the bar (the
+rendered seam ticket 36 added).
+
+`docs/guide.md`'s region-by-region list stated the old order, so it now names the dot before Files.
+
+`npm run verify` is green: typecheck, lint/format, 134 store and component tests, build, and 113
+end-to-end tests across 2 shards in ~47 s.

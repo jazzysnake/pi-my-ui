@@ -50,6 +50,12 @@
   <span class="min-w-0 truncate text-body font-semibold tracking-wide uppercase">pi-my-ui</span>
   <div class="ml-auto flex min-w-0 shrink-0 items-center gap-1">
     <AgentPill {store} onOpen={onOpenAgents} />
+    <!--
+      Files closes the row because it is the control the header's trailing padding has to keep clear
+      of the right safe area. The connection status reveals its label to its own left, so it sits
+      before Files without anything moving beside it.
+    -->
+    <ConnectionStatusIndicator {status} />
     <button
       type="button"
       class="grid size-11 shrink-0 place-items-center rounded border border-hairline-strong text-dim"
@@ -59,7 +65,6 @@
     >
       <Icon name="folder" />
     </button>
-    <ConnectionStatusIndicator {status} />
   </div>
 </header>
 

@@ -257,6 +257,20 @@ test("a drawer scrolls itself and never the page or the transcript behind it", a
   }
 });
 
+interface HeaderControl {
+  readonly testId: string | null;
+  readonly left: number;
+  readonly right: number;
+}
+
+function headerControl(controls: readonly HeaderControl[], testId: string): HeaderControl {
+  const control = controls.find((candidate) => candidate.testId === testId);
+  if (control === undefined) {
+    throw new Error(`the top bar has no ${testId} control`);
+  }
+  return control;
+}
+
 test("the top bar holds its controls inside the narrowest phone", async ({ page }) => {
   // The subagents seed carries every header element at once — the agent pill and a context readout
   // beside the navigation controls — which is the widest the top of the screen ever gets.
@@ -286,10 +300,29 @@ test("the top bar holds its controls inside the narrowest phone", async ({ page 
           .map((control) => control.getBoundingClientRect())
           .filter((rect) => rect.left < 0 || rect.right > window.innerWidth)
           .map((rect) => `${String(Math.round(rect.left))}..${String(Math.round(rect.right))}`),
+        controls: controls.map((control) => {
+          const rect = control.getBoundingClientRect();
+          return {
+            testId: control.getAttribute("data-testid") ?? control.getAttribute("aria-label"),
+            left: rect.left,
+            right: rect.right,
+          };
+        }),
       };
     });
     expect(header.scrollWidth).toBeLessThanOrEqual(header.clientWidth);
     expect(header.offscreen, "header controls outside the viewport").toEqual([]);
+
+    // Files is the control the header's trailing padding has to keep clear of the right safe area,
+    // so it closes the row and the connection status sits to its left.
+    const status = headerControl(header.controls, "connection-status");
+    const files = headerControl(header.controls, "files-toggle");
+    expect(status.right, "the connection status must end before Files begins").toBeLessThanOrEqual(
+      files.left,
+    );
+    expect(files.right, "Files must be the rightmost control in the top bar").toBe(
+      Math.max(...header.controls.map((control) => control.right)),
+    );
   } finally {
     await disposeHarness(harness);
   }

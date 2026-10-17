@@ -18,6 +18,7 @@ import {
   ToolCallStatus,
   reduceDeltaBatch,
   type ContentBlock,
+  type PiChildExit,
   type ProjectedEntry,
   type ProjectionDelta,
   type RunState,
@@ -48,6 +49,8 @@ export interface SessionProjectionMachine {
   /** Apply one subagent record from the bridge; a repeat of the same state is not re-published. */
   applySubagent(agent: SubagentAgent): readonly ProjectionDelta[];
   markAborted(): readonly ProjectionDelta[];
+  /** The Session's Pi child is gone; nothing it was doing is still going on. */
+  markCrashed(exit: PiChildExit): readonly ProjectionDelta[];
 }
 
 export function createSessionProjectionMachine(
@@ -433,6 +436,13 @@ export function createSessionProjectionMachine(
         return [];
       }
       return emit([setRunState({ kind: RunStateKind.Aborted })]);
+    },
+    markCrashed(exit) {
+      // The streamed message died with the child, so the provisional row it was building can never be
+      // completed; the durable entry the child persisted before it went is what a reseed restores.
+      streamingEntryId = null;
+      abortRequested = false;
+      return emit([setRunState({ kind: RunStateKind.Crashed, ...exit })]);
     },
   };
 }

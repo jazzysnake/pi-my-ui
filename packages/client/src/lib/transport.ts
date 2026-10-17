@@ -77,6 +77,8 @@ export interface Transport {
   setSessionName(name: string): void;
   /** Ask pi to export the Session to HTML. Ignored while the link is down. */
   exportSession(): void;
+  /** Ask the server to respawn a Session's lost Pi child from its file. Ignored while down. */
+  reconnect(): void;
   /** Ask for one directory of the server's working directory. Ignored while the link is down. */
   listDirectory(path: string): void;
   /** Ask for a bounded text preview of one file. Ignored while the link is down. */
@@ -247,6 +249,9 @@ export function createTransport(options: TransportOptions): Transport {
     },
     exportSession() {
       send({ type: ClientMessageType.ExportSession, sessionId: activeSessionId });
+    },
+    reconnect() {
+      send({ type: ClientMessageType.Reconnect, sessionId: activeSessionId });
     },
     listDirectory(path) {
       send({ type: ClientMessageType.ListDirectory, path });

@@ -56,6 +56,7 @@
   onSetSessionName={(name) => transport?.setSessionName(name)}
   onGetSessionStats={() => transport?.getSessionStats()}
   onExportSession={() => transport?.exportSession()}
+  onReconnect={() => transport?.reconnect()}
   onBranch={() => undefined}
   onListDirectory={(path) => transport?.listDirectory(path)}
   onPreviewFile={(path) => transport?.previewFile(path)}

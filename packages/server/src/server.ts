@@ -300,6 +300,12 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
         });
         return;
       }
+      if (message.type === ClientMessageType.Reconnect) {
+        // The host answers with a fresh Snapshot to every viewer of the Session, so the request needs
+        // no reply of its own: the browser's Starting row ends when the Projection arrives.
+        await host.reconnect();
+        return;
+      }
       await host.abort();
     } catch (error) {
       // A bridge that is missing or silent is a server fault the owner must see, not just a browser

@@ -19,6 +19,7 @@ export const ClientMessageType = {
   SetSessionName: "setSessionName",
   ExportSession: "exportSession",
   Bash: "bash",
+  Reconnect: "reconnect",
 } as const;
 
 export type ClientMessageType = (typeof ClientMessageType)[keyof typeof ClientMessageType];
@@ -57,6 +58,7 @@ export const RunStateKind = {
   Retrying: "retrying",
   Aborted: "aborted",
   Errored: "errored",
+  Crashed: "crashed",
 } as const;
 
 export type RunStateKind = (typeof RunStateKind)[keyof typeof RunStateKind];

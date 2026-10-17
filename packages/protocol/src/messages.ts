@@ -126,6 +126,16 @@ export interface ExportSessionMessage {
   readonly sessionId: string;
 }
 
+/**
+ * Respawn a Session whose Pi child is gone: the server starts a new child from the Session file and
+ * sends a fresh Snapshot. A client sends it for a crashed child only; an evicted child is respawned
+ * by its next `subscribe`, so opening a Session never needs this message.
+ */
+export interface ReconnectMessage {
+  readonly type: typeof ClientMessageType.Reconnect;
+  readonly sessionId: string;
+}
+
 export type ClientMessage =
   | ListSessionsMessage
   | CreateSessionMessage
@@ -140,7 +150,8 @@ export type ClientMessage =
   | PreviewFileMessage
   | GetSessionStatsMessage
   | SetSessionNameMessage
-  | ExportSessionMessage;
+  | ExportSessionMessage
+  | ReconnectMessage;
 
 /**
  * Every Session this server can serve, most recently active first. `sessions` stays the disk facts

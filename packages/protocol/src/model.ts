@@ -142,7 +142,19 @@ export type ProjectionDelta =
   | { readonly kind: typeof ProjectionDeltaKind.RunState; readonly runState: RunState }
   | { readonly kind: typeof ProjectionDeltaKind.SubagentUpsert; readonly agent: SubagentAgent };
 
-/** What a Session's run is doing. `aborted` and `errored` linger until the next run starts. */
+/**
+ * How a Pi child ended when it exited unexpectedly. A signal is reported for a child that was
+ * killed (an OOM killer, a terminal, a crash handler); the code is pi's own exit status otherwise.
+ */
+export interface PiChildExit {
+  readonly exitCode: number | null;
+  readonly signal: string | null;
+}
+
+/**
+ * What a Session's run is doing. `aborted`, `errored` and `crashed` linger until the next run
+ * starts; `crashed` means the Pi child itself is gone, so only a respawn can continue the Session.
+ */
 export type RunState =
   | { readonly kind: typeof RunStateKind.Idle }
   | { readonly kind: typeof RunStateKind.Streaming }
@@ -154,12 +166,13 @@ export type RunState =
       readonly delayMs: number;
     }
   | { readonly kind: typeof RunStateKind.Aborted }
-  | { readonly kind: typeof RunStateKind.Errored; readonly message: string };
+  | { readonly kind: typeof RunStateKind.Errored; readonly message: string }
+  | ({ readonly kind: typeof RunStateKind.Crashed } & PiChildExit);
 
 /**
- * The one definition of "this Session is working", from the run state the Projection holds. The
- * server's activity signal and a client's reading of a Snapshot both use it, so a row can never
- * disagree with the transcript beside it.
+ * Whether this Session is working, from the run state the Projection holds. The server's activity
+ * signal and a client's reading of a Snapshot both use it, so a row can never disagree with the
+ * transcript beside it. A crashed child is not working: nothing is running to work.
  */
 export function sessionActivityOf(runState: RunState): SessionActivity {
   return runState.kind === RunStateKind.Streaming || runState.kind === RunStateKind.Retrying

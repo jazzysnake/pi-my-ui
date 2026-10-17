@@ -267,6 +267,8 @@ export function validateClientMessage(value: unknown): ClientMessage {
       return validateSetSessionName(record);
     case ClientMessageType.ExportSession:
       return validateExportSession(record);
+    case ClientMessageType.Reconnect:
+      return { type: ClientMessageType.Reconnect, sessionId: requireSessionId(record) };
     default:
       throw new ProtocolError(
         ProtocolErrorCode.UnknownType,

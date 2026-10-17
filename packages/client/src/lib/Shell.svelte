@@ -32,6 +32,7 @@
     onPreviewFile,
     onDownloadFile,
     onCreateSession = () => undefined,
+    onReconnect = () => undefined,
   }: {
     store: ClientStore;
     status: ConnectionStatus;
@@ -54,6 +55,7 @@
     onPreviewFile: (path: string) => void;
     onDownloadFile: (path: string) => void;
     onCreateSession?: () => void;
+    onReconnect?: () => void;
   } = $props();
 
   let filesOpen = $state(false);
@@ -68,6 +70,15 @@
   ): void {
     store.composer.noteSend();
     onPrompt(text, images, behavior);
+  }
+
+  /**
+   * The respawn the transcript's crash row offers. The store records the wait before the transport is
+   * asked, so the row reads Starting… from the click and falls back to the crash if the ask fails.
+   */
+  function handleReconnect(): void {
+    store.transcript.requestReconnect();
+    onReconnect();
   }
 
   /** The active Session's name as the drawer has it; a Session with none is named honestly. */
@@ -153,7 +164,11 @@
     </div>
   </header>
   <Transcript entries={store.transcript.entries} />
-  <RunStateRow runState={store.transcript.runState} />
+  <RunStateRow
+    runState={store.transcript.runState}
+    starting={store.transcript.starting}
+    onReconnect={handleReconnect}
+  />
   {#if store.commands.notice !== null || store.commands.stats !== null || store.commands.exportedPath !== null}
     <section
       class="border-t border-neutral-800 px-3 py-2 text-xs"

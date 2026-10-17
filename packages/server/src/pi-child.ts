@@ -4,6 +4,7 @@
  */
 
 import { join } from "node:path";
+import type { ChildProcess } from "node:child_process";
 
 import {
   getPackageDir,
@@ -19,6 +20,7 @@ import type {
   CommandInfo,
   ImageAttachment,
   ModelInfo,
+  PiChildExit,
   SessionStats,
   StreamingBehavior,
   ThinkingLevel,
@@ -71,6 +73,11 @@ export interface PiChild {
   setSessionName(name: string): Promise<void>;
   /** Write the Session's HTML export inside the served directory; returns its relative path. */
   exportHtml(): Promise<string>;
+  /**
+   * Subscribe to the child's own exit, with pi's code and signal; returns an unsubscribe. A child the
+   * server stopped deliberately is filtered out, so only an unexpected exit is reported.
+   */
+  onExit(listener: (exit: PiChildExit) => void): () => void;
   stop(): Promise<void>;
 }
 
@@ -207,6 +214,33 @@ async function runBash(
   return toBashResult(response.data);
 }
 
+/**
+ * pi's RPC client owns the child process and reports its exit only as an error on the next request,
+ * so a server would learn about a crash from an unrelated command, or never if the browser goes
+ * quiet. The process pi spawned is the only live source of the exit facts a crash row shows, so the
+ * child the client holds is read here. Worth knowing: if pi stops exposing it, a crash stops being
+ * reported, which the end-to-end crash spec fails on.
+ */
+function watchExit(client: RpcClient): {
+  subscribe(listener: (exit: PiChildExit) => void): () => void;
+} {
+  const listeners = new Set<(exit: PiChildExit) => void>();
+  const child = (client as unknown as { process: ChildProcess | null }).process;
+  child?.once("exit", (code, signal) => {
+    for (const listener of [...listeners]) {
+      listener({ exitCode: code, signal });
+    }
+  });
+  return {
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+}
+
 /** Start a real `pi --mode rpc` child on an existing Session file or a fresh Session id. */
 export async function startPiChild(
   target: PiSessionTarget,
@@ -223,9 +257,17 @@ export async function startPiChild(
     ...(launch.model === undefined ? {} : { model: launch.model }),
   });
   await client.start();
+  const exited = watchExit(client);
+  let stoppedOnPurpose = false;
   return {
     entries: () => client.getEntries(),
     onEvent: (listener) => client.onEvent(listener),
+    onExit: (listener) =>
+      exited.subscribe((exit) => {
+        if (!stoppedOnPurpose) {
+          listener(exit);
+        }
+      }),
     prompt: async (text, images, behavior) => {
       await client.prompt(
         text,
@@ -260,6 +302,9 @@ export async function startPiChild(
     async exportHtml() {
       return (await client.exportHtml()).path;
     },
-    stop: () => client.stop(),
+    async stop() {
+      stoppedOnPurpose = true;
+      await client.stop();
+    },
   };
 }

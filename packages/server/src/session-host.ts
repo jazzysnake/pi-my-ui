@@ -2,6 +2,10 @@
  * One Session as the server holds it: a lazily started Pi child, the live Projection built from its
  * events, and the viewers that receive the Projection's Deltas. A child is addressed either by the
  * Session file it opens or by a fresh server-generated id, so no two children can write one file.
+ *
+ * The Session outlives its child. A child is stopped when nobody watches it (eviction) or dies on its
+ * own (a crash), and the Session keeps its Projection either way: opening it starts a new child from
+ * the same Session file, which is what makes both events recoverable rather than fatal.
  */
 
 import {
@@ -12,6 +16,7 @@ import {
   type Cursor,
   type DeltaMessage,
   type ImageAttachment,
+  type PiChildExit,
   type ProjectionDelta,
   type ServerMessage,
   type SessionStats,
@@ -24,13 +29,9 @@ import {
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 
 import type { ServerClock } from "./clock.js";
-import {
-  startPiChild,
-  type PiChild,
-  type PiChildLaunch,
-  type PiSessionTarget,
-  type PiSettings,
-} from "./pi-child.js";
+import { createDeltaHistory } from "./delta-history.js";
+import type { PiChildLaunch, PiSessionTarget, PiSettings } from "./pi-child.js";
+import { createSessionChild, type SessionChild } from "./session-child.js";
 import { createSessionProjectionMachine } from "./session-projection.js";
 
 /** A recipient of one Session's Snapshot and Deltas; the connection implements it over its socket. */
@@ -64,6 +65,15 @@ export interface SessionHost {
   setSessionName(name: string): Promise<void>;
   /** Export the Session to HTML inside the served directory; returns pi's relative path. */
   exportHtml(): Promise<string>;
+  /**
+   * When this Session's child becomes evictable if nothing else happens, or `undefined` when it is
+   * not a candidate now: watched, working, already gone, or not started yet.
+   */
+  evictionDueAt(idleTimeoutMs: number): number | undefined;
+  /** Stop the child and keep the Session; the next viewer starts a new one from the same file. */
+  evict(): Promise<void>;
+  /** Start a new child for a Session whose child is gone, and hand every viewer its Projection. */
+  reconnect(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -83,28 +93,18 @@ export interface SessionHostOptions {
   readonly clock: ServerClock;
   /** Called once per working-state change, so a server can refresh every viewer's Session list. */
   readonly onActivity?: ((sessionId: string, activity: SessionActivity) => void) | undefined;
+  /** Called when anything that decides eviction changed: a viewer, a run, or a publish. */
+  readonly onIdleChange?: (() => void) | undefined;
 }
-
-/** One published Delta batch, kept so a reconnecting viewer can replay what it missed. */
-interface RetainedBatch {
-  readonly message: DeltaMessage;
-  readonly publishedAt: number;
-}
-
-/** Batches retained per Session; the oldest is dropped past this, falling a viewer back to a Snapshot. */
-const MAX_RETAINED_BATCHES = 2048;
-/** Age bound on the retained batches, so an unwatched Session does not hold Deltas indefinitely. */
-const DELTA_HISTORY_TTL_MS = 5 * 60_000;
 
 export function createSessionHost(options: SessionHostOptions): SessionHost {
   const machine = createSessionProjectionMachine(options.sessionId, options.launch.cwd);
   const viewers = new Set<SessionViewer>();
-  let starting: Promise<PiChild> | undefined;
-  let unsubscribe: (() => void) | undefined;
-  let seeding: Promise<void> | undefined;
-  let seeded = false;
+  const history = createDeltaHistory();
   let cursor = 0;
-  const history: RetainedBatch[] = [];
+  let seeded = false;
+  let seeding: Promise<void> | undefined;
+  let restarting: Promise<void> | undefined;
   /**
    * Last working state reported upward, so a text-only Delta never triggers a list refresh. It
    * starts idle because seeding only fills entries, so a freshly attached Session has no change to
@@ -113,6 +113,25 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
   let reportedActivity: SessionActivity = SessionActivity.Idle;
   /** Events delivered while the seed reads pi; applied once the Projection exists, never dropped. */
   let buffering: JsonAgentSessionEvent[] | null = null;
+  /** The last moment this Session did anything, which is where its idle window starts. */
+  let lastActivityAt = options.clock.now();
+
+  const child: SessionChild = createSessionChild({
+    target: options.target,
+    launch: options.launch,
+    onEvent: (event) => {
+      onEvent(event);
+    },
+    onLost: (exit) => {
+      onLost(exit);
+    },
+  });
+
+  /** Record that the Session is in use, so an idle window starts from now rather than from before. */
+  function touch(): void {
+    lastActivityAt = options.clock.now();
+    options.onIdleChange?.();
+  }
 
   /** Report the current working state when it changed, and only then. */
   function reportActivity(): void {
@@ -122,23 +141,6 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
     }
     reportedActivity = activity;
     options.onActivity?.(options.sessionId, activity);
-  }
-
-  /** Drop batches past either bound from the front, so the retained window is always the newest. */
-  function retain(message: DeltaMessage): void {
-    history.push({ message, publishedAt: options.clock.now() });
-    for (;;) {
-      const oldest = history[0];
-      if (oldest === undefined) {
-        return;
-      }
-      const tooMany = history.length > MAX_RETAINED_BATCHES;
-      const tooOld = options.clock.now() - oldest.publishedAt > DELTA_HISTORY_TTL_MS;
-      if (!tooMany && !tooOld) {
-        return;
-      }
-      history.shift();
-    }
   }
 
   function publish(deltas: readonly ProjectionDelta[]): void {
@@ -154,32 +156,12 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       cursor,
       deltas,
     };
-    retain(message);
+    history.retain(message, options.clock.now());
     reportActivity();
+    touch();
     for (const viewer of [...viewers]) {
       viewer.onMessage(message);
     }
-  }
-
-  /**
-   * The messages a viewer at `from` is owed, or `undefined` when the server must send a Snapshot
-   * instead. Every retained Cursor between the oldest batch's start and the current one is a batch
-   * boundary, so a value in that range bridges; anything else is unknown.
-   */
-  function missedFrom(from: Cursor | undefined): readonly ServerMessage[] | undefined {
-    if (from === undefined) {
-      return undefined;
-    }
-    const oldest = history[0];
-    if (oldest === undefined) {
-      return from === cursor ? [] : undefined;
-    }
-    if (from < oldest.message.fromCursor || from > cursor) {
-      return undefined;
-    }
-    return history
-      .filter((retained) => retained.message.cursor > from)
-      .map((retained) => retained.message);
   }
 
   function onEvent(event: JsonAgentSessionEvent): void {
@@ -188,6 +170,15 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       return;
     }
     publish(machine.applyEvent(event));
+  }
+
+  /**
+   * A child that died on its own leaves the Session with nothing running and no way to continue, so
+   * the transcript says exactly that: the exit pi's process reported, and the Reconnect the reader
+   * needs to start another one from the file.
+   */
+  function onLost(exit: PiChildExit): void {
+    publish(machine.markCrashed(exit));
   }
 
   /**
@@ -203,21 +194,6 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
     publish(machine.applySubagent(agent));
   });
 
-  function ensureChild(): Promise<PiChild> {
-    // A child that failed to start must not be remembered: the next request retries rather than
-    // replaying the first failure for the life of the server.
-    starting ??= startPiChild(options.target, options.launch)
-      .then((pi) => {
-        unsubscribe = pi.onEvent(onEvent);
-        return pi;
-      })
-      .catch((error: unknown) => {
-        starting = undefined;
-        throw error;
-      });
-    return starting;
-  }
-
   async function doSeed(): Promise<void> {
     buffering = [];
     // Registered before the child starts: the extension connects on its own session start, which can
@@ -225,10 +201,12 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
     const bridgeReady = options.bridge.waitForSession(options.sessionId);
     void bridgeReady.catch(() => undefined);
     try {
-      const pi = await ensureChild();
+      const pi = await child.ensure();
       await bridgeReady;
       const { entries, leafId } = await pi.entries();
       cursor = machine.seed(entries, leafId);
+      // A reseed renumbers Cursors, so nothing retained describes the new stream.
+      history.clear();
       seeded = true;
       reportActivity();
     } finally {
@@ -246,8 +224,52 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
     if (seeded) {
       return Promise.resolve();
     }
-    seeding ??= doSeed();
+    return seedNow();
+  }
+
+  /** One seed at a time: a seed reads pi and replaces the whole Projection. */
+  function seedNow(): Promise<void> {
+    seeding ??= doSeed().finally(() => {
+      seeding = undefined;
+    });
     return seeding;
+  }
+
+  /**
+   * Replace the child and rebuild the Projection from the Session file. Two viewers arriving at an
+   * evicted Session share one restart, so a Session can never run two children at once.
+   */
+  function restart(): Promise<void> {
+    restarting ??= doRestart().finally(() => {
+      restarting = undefined;
+    });
+    return restarting;
+  }
+
+  async function doRestart(): Promise<void> {
+    await child.stop();
+    // The child wrote to the Session file while it ran, so the Projection is rebuilt from the file
+    // rather than trusted: a crash may have persisted an entry no Delta ever carried.
+    seeded = false;
+    await seedNow();
+    for (const viewer of [...viewers]) {
+      viewer.onMessage(snapshot());
+    }
+  }
+
+  /**
+   * Make the Session servable: seed it the first time, and replace a child that is gone. Without this
+   * a viewer's timing would decide whether the Session has a child, and an evicted or crashed Session
+   * would answer its next request from a Projection nothing is behind.
+   */
+  async function ensureServed(): Promise<void> {
+    if (!seeded) {
+      await ensureSeeded();
+      return;
+    }
+    if (!child.running) {
+      await restart();
+    }
   }
 
   function snapshot(): SnapshotMessage {
@@ -269,8 +291,7 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
 
   /** Re-read pi's settings and hand them to every viewer, so the status strip shows pi's values. */
   async function broadcastSettings(): Promise<void> {
-    const pi = await ensureChild();
-    const message = settingsMessage(await pi.settings());
+    const message = settingsMessage(await (await child.ensure()).settings());
     for (const viewer of [...viewers]) {
       viewer.onMessage(message);
     }
@@ -282,8 +303,8 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       return sessionActivityOf(machine.projection.runState);
     },
     async attach(viewer, from) {
-      await ensureSeeded();
-      const missed = missedFrom(from);
+      await ensureServed();
+      const missed = history.missedFrom(from, cursor);
       if (missed === undefined) {
         viewer.onMessage(snapshot());
       } else {
@@ -293,36 +314,36 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       }
       // Registering after the synchronous sends keeps the replayed Deltas ahead of every new one.
       viewers.add(viewer);
+      touch();
       // Settings are read from pi on every attach rather than replayed, so a browser that was
       // disconnected when a setting changed still sees pi's current value.
       try {
-        viewer.onMessage(settingsMessage(await (await ensureChild()).settings()));
+        viewer.onMessage(settingsMessage(await (await child.ensure()).settings()));
       } catch {
         // A supplementary read must not fail a subscription that already delivered a Snapshot.
       }
       // The palette's discoverable commands come from the same child, so they are read on attach
       // and never cached across a Session switch that could point them at the wrong child.
       try {
-        viewer.onMessage(commandsMessage(await (await ensureChild()).commands()));
+        viewer.onMessage(commandsMessage(await (await child.ensure()).commands()));
       } catch {
         // A child that cannot list commands still serves its transcript; the palette falls back to
         // the built-ins rather than failing the subscription.
       }
       return () => {
         viewers.delete(viewer);
+        touch();
       };
     },
     async prompt(text, images, behavior) {
-      await ensureSeeded();
-      const pi = await ensureChild();
-      await pi.prompt(text, images, behavior);
+      await ensureServed();
+      await (await child.ensure()).prompt(text, images, behavior);
     },
     async bash(command, excludeFromContext) {
-      await ensureSeeded();
+      await ensureServed();
       publish(machine.bash.begin(command, excludeFromContext));
       try {
-        const pi = await ensureChild();
-        const outcome = await pi.bash(command, excludeFromContext);
+        const outcome = await (await child.ensure()).bash(command, excludeFromContext);
         publish(machine.bash.end(outcome.output, outcome));
       } catch (error) {
         // A command that never reached pi must not leave a card that looks like it ran.
@@ -331,48 +352,68 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       }
     },
     async abort() {
-      await ensureSeeded();
+      await ensureServed();
       publish(machine.markAborted());
-      const pi = await ensureChild();
-      await pi.abort();
+      await (await child.ensure()).abort();
     },
     async setModel(provider, modelId) {
-      await ensureSeeded();
-      await (await ensureChild()).setModel(provider, modelId);
+      await ensureServed();
+      await (await child.ensure()).setModel(provider, modelId);
       await broadcastSettings();
+      touch();
     },
     async setThinkingLevel(level) {
-      await ensureSeeded();
-      await (await ensureChild()).setThinkingLevel(level);
+      await ensureServed();
+      await (await child.ensure()).setThinkingLevel(level);
       await broadcastSettings();
+      touch();
     },
     async setAutoCompaction(enabled) {
-      await ensureSeeded();
-      await (await ensureChild()).setAutoCompaction(enabled);
+      await ensureServed();
+      await (await child.ensure()).setAutoCompaction(enabled);
       await broadcastSettings();
+      touch();
     },
     async sessionStats() {
-      await ensureSeeded();
-      return await (await ensureChild()).stats();
+      await ensureServed();
+      touch();
+      return await (await child.ensure()).stats();
     },
     async setSessionName(name) {
-      await ensureSeeded();
-      await (await ensureChild()).setSessionName(name);
+      await ensureServed();
+      touch();
+      await (await child.ensure()).setSessionName(name);
     },
     async exportHtml() {
-      await ensureSeeded();
-      return await (await ensureChild()).exportHtml();
+      await ensureServed();
+      touch();
+      return await (await child.ensure()).exportHtml();
+    },
+    evictionDueAt(idleTimeoutMs) {
+      // A watched Session is never evicted, and neither is one with work in flight: the child is
+      // needed to finish it, and stopping it would lose output the reader is waiting for.
+      if (!seeded || !child.running || viewers.size > 0) {
+        return undefined;
+      }
+      return sessionActivityOf(machine.projection.runState) === SessionActivity.Idle
+        ? lastActivityAt + idleTimeoutMs
+        : undefined;
+    },
+    async evict() {
+      // The Session is its file; stopping the child costs the Projection nothing that a reseed cannot
+      // rebuild, and it is what bounds the pool's memory.
+      await child.stop();
+      options.onIdleChange?.();
+    },
+    async reconnect() {
+      // Unconditional: the reader asked for a new child, so even one that is still running is
+      // replaced. The Projection is rebuilt from the Session file either way.
+      await restart();
     },
     async close() {
       unsubscribeAgents();
       viewers.clear();
-      unsubscribe?.();
-      unsubscribe = undefined;
-      const pending = starting;
-      starting = undefined;
-      if (pending !== undefined) {
-        await (await pending).stop().catch(() => undefined);
-      }
+      await child.stop();
     },
   };
 }

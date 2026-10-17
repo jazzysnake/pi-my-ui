@@ -2,6 +2,10 @@
  * The Sessions this server serves, one Pi child each. Hosts are keyed both by the Session file pi
  * resolves and by the Session id, so a file a client already watched cannot start a second writer
  * and a fresh Session cannot be adopted twice.
+ *
+ * The pool also decides when a child is not worth keeping: a Session nobody watches, with nothing
+ * running, is evicted after the idle window. Every deadline is scheduled on the injected clock, so
+ * the window is a fact about time the server can be told rather than something a test waits out.
  */
 
 import { randomUUID } from "node:crypto";
@@ -10,10 +14,13 @@ import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { ProtocolError, ProtocolErrorCode, type SessionActivity } from "@pi-my-ui/protocol";
 
 import type { ServerConfig } from "./config.js";
-import { systemClock } from "./clock.js";
+import { systemClock, type ServerClock, type ServerTimer } from "./clock.js";
 import { withBridgeLaunch } from "./bridge/launch.js";
 import { createSessionHost, type BridgeGate, type SessionHost } from "./session-host.js";
 import type { PiSessionTarget } from "./pi-child.js";
+
+/** How long a Session's child is kept with no viewer, no run and no request. */
+export const DEFAULT_IDLE_TIMEOUT_MS = 300_000;
 
 export interface SessionPool {
   hostFor(sessionId: string): Promise<SessionHost>;
@@ -44,6 +51,62 @@ export function createSessionPool(
   const hostsById = new Map<string, SessionHost>();
   const hostsByFile = new Map<string, SessionHost>();
   const pending = new Map<string, Promise<SessionHost>>();
+  const clock: ServerClock = config.clock ?? systemClock;
+  const idleTimeoutMs = config.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
+  const keepAlive = config.keepAlive ?? false;
+  let eviction: ServerTimer | undefined;
+  let scheduledFor: number | undefined;
+
+  function uniqueHosts(): SessionHost[] {
+    return [...new Set(hostsById.values())];
+  }
+
+  /**
+   * Arm one timer for the nearest deadline in the pool, so the first Session to fall idle is the one
+   * the timer is about. Re-arming is idempotent: a publish that changes nothing about eviction leaves
+   * the armed timer alone.
+   */
+  function scheduleEviction(): void {
+    if (keepAlive) {
+      return;
+    }
+    let dueAt: number | undefined;
+    for (const host of uniqueHosts()) {
+      const candidate = host.evictionDueAt(idleTimeoutMs);
+      if (candidate !== undefined && (dueAt === undefined || candidate < dueAt)) {
+        dueAt = candidate;
+      }
+    }
+    if (dueAt === undefined) {
+      eviction?.cancel();
+      eviction = undefined;
+      scheduledFor = undefined;
+      return;
+    }
+    if (eviction !== undefined && scheduledFor === dueAt) {
+      return;
+    }
+    eviction?.cancel();
+    scheduledFor = dueAt;
+    eviction = clock.setTimeout(
+      () => {
+        eviction = undefined;
+        scheduledFor = undefined;
+        void evictDue();
+      },
+      Math.max(0, dueAt - clock.now()),
+    );
+  }
+
+  async function evictDue(): Promise<void> {
+    const now = clock.now();
+    const due = uniqueHosts().filter((host) => {
+      const candidate = host.evictionDueAt(idleTimeoutMs);
+      return candidate !== undefined && candidate <= now;
+    });
+    await Promise.all(due.map((host) => host.evict()));
+    scheduleEviction();
+  }
 
   function startHost(sessionId: string, target: PiSessionTarget): SessionHost {
     const host = createSessionHost({
@@ -53,10 +116,15 @@ export function createSessionPool(
       // starts one (the health endpoint, a static check) needs no built bridge.
       launch: withBridgeLaunch({ cwd: config.cwd, ...config.pi }, bridge),
       bridge: bridge.gate,
-      clock: config.clock ?? systemClock,
-      onActivity: listeners.onActivity,
+      clock,
+      onActivity: (changedSessionId, activity) => {
+        listeners.onActivity?.(changedSessionId, activity);
+        scheduleEviction();
+      },
+      onIdleChange: scheduleEviction,
     });
     hostsById.set(sessionId, host);
+    scheduleEviction();
     return host;
   }
 
@@ -103,6 +171,9 @@ export function createSessionPool(
       return activity;
     },
     async close() {
+      eviction?.cancel();
+      eviction = undefined;
+      scheduledFor = undefined;
       const closing = [...new Set(hostsById.values())].map((host) => host.close());
       hostsById.clear();
       hostsByFile.clear();

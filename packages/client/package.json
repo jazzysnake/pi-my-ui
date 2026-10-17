@@ -6,7 +6,6 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run"
   },

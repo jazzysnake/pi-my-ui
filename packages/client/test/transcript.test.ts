@@ -118,10 +118,12 @@ describe("markdown in the transcript", () => {
       store.receive(snapshotOf([entry("entry-1", MessageRole.Assistant, ASSISTANT_MARKDOWN)]));
     });
 
-    const copy = target.querySelector<HTMLButtonElement>('[data-testid="copy-raw"]');
+    const copy = target.querySelector<HTMLButtonElement>('[data-testid="copy-message"]');
     if (copy === null) {
-      throw new Error("the copy control is missing");
+      throw new Error("the message card's copy control is missing");
     }
+    expect(copy.getAttribute("aria-label")).toBe("Copy message");
+    expect(copy.closest('[data-testid="message-card"]')).not.toBeNull();
     flushSync(() => {
       copy.click();
     });

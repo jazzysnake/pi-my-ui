@@ -121,6 +121,7 @@ export const ICONS = {
     paths: ["M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"],
     rects: [{ x: 8, y: 8, width: 14, height: 14, rx: 2 }],
   },
+  check: { paths: ["M20 6 9 17l-5-5"] },
   dot: { circles: [{ cx: 12, cy: 12, r: 1 }] },
   user: {
     paths: ["M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"],

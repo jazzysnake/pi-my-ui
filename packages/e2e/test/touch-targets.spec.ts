@@ -80,6 +80,10 @@ test("every control the composer's own states put on screen meets the minimum", 
   try {
     await openHarness(page, harness, "Seed text block 3.");
     await expect(page.getByTestId("status-model")).toBeVisible();
+    await expect(page.getByTestId("copy-message").first()).toHaveAttribute(
+      "aria-label",
+      "Copy message",
+    );
     await expectEveryControlMeetsTouchTarget(page, "a Session open");
 
     await page.getByTestId("composer-attach-input").setInputFiles({

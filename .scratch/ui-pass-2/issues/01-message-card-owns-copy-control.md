@@ -19,30 +19,30 @@ feature's evidence folder are normative for appearance. Use their look, not thei
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Assistant, reader, bash and orphan tool-result message rows render inside a bordered card;
+- [x] Assistant, reader, bash and orphan tool-result message rows render inside a bordered card;
       notification cards and compaction boundaries keep their current presentation.
-- [ ] The reader's card uses the raised surface and the stronger hairline; every other role uses the
+- [x] The reader's card uses the raised surface and the stronger hairline; every other role uses the
       plain panel surface, so role is carried without a new accent colour.
-- [ ] A message card shows one copy control inside its top-right corner, inset from the border, only
+- [x] A message card shows one copy control inside its top-right corner, inset from the border, only
       when the message's clipboard text is non-empty.
-- [ ] No copy control appears on notifications, compaction boundaries, thinking-only messages,
+- [x] No copy control appears on notifications, compaction boundaries, thinking-only messages,
       tool-call-only messages, or error-only messages.
-- [ ] When the control renders, the card's first block reserves its column and no content is drawn
+- [x] When the control renders, the card's first block reserves its column and no content is drawn
       beneath it; a first thinking row ends clear of the column.
-- [ ] The thinking row is a hairline box on the canvas surface with a chevron and "Thinking", 44 px
+- [x] The thinking row is a hairline box on the canvas surface with a chevron and "Thinking", 44 px
       tap height, collapsed by default, and has no copy control of its own.
-- [ ] Tool calls and bash cards keep their current markup and type size, and remain visibly distinct
+- [x] Tool calls and bash cards keep their current markup and type size, and remain visibly distinct
       objects inside the card.
-- [ ] Tapping the control writes the message's clipboard text; on success the glyph becomes a check
+- [x] Tapping the control writes the message's clipboard text; on success the glyph becomes a check
       in the success tone for 1.4 s and reverts.
-- [ ] The control's accessible name stays "Copy message" through the confirmation, and "Copied" is
+- [x] The control's accessible name stays "Copy message" through the confirmation, and "Copied" is
       announced once in a polite live region.
-- [ ] A rejected clipboard write leaves the glyph and the live region unchanged.
-- [ ] The card, control and first-block yield hold at 320 px without pushing text off screen or
+- [x] A rejected clipboard write leaves the glyph and the live region unchanged.
+- [x] The card, control and first-block yield hold at 320 px without pushing text off screen or
       widening the page.
-- [ ] Component tests cover copy presence, the written text, the check confirmation and its revert
+- [x] Component tests cover copy presence, the written text, the check confirmation and its revert
       on fake timers, rejected writes, and the first-block yield measured through the DOM.
-- [ ] The end-to-end touch-target check covers the new copy control.
-- [ ] The existing markdown copy assertion points at the message card's control.
+- [x] The end-to-end touch-target check covers the new copy control.
+- [x] The existing markdown copy assertion points at the message card's control.

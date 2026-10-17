@@ -123,11 +123,76 @@ test("renders assistant markdown, contains a wide code block, and copies raw mar
     const assistantRow = page
       .getByTestId("transcript-entry")
       .filter({ hasText: "Rendering notes" });
-    await assistantRow.getByTestId("copy-raw").click();
+    const copy = assistantRow.getByTestId("copy-message");
+    await expect(copy).toHaveAttribute("aria-label", "Copy message");
+    await expect(assistantRow.getByTestId("message-card").getByTestId("copy-message")).toHaveCount(
+      1,
+    );
+    await copy.click();
+    await expect(copy).toHaveAttribute("data-copied", "true");
+    await expect(copy.locator("svg")).toHaveAttribute("data-icon", "check");
+    expect(await copy.evaluate((element) => getComputedStyle(element).color)).toBe(
+      "rgb(126, 231, 135)",
+    );
 
     const clipboard = await page.evaluate(() => navigator.clipboard.readText());
     expect(clipboard).toContain("# Rendering notes");
     expect(clipboard).toContain(LONG_CODE_LINE);
+  } finally {
+    await disposeHarness(harness);
+  }
+});
+
+test("the message card keeps its corner control inside the card at 320 px", async ({ page }) => {
+  const harness = await startHarness(UNUSED_SCRIPT, "plain");
+  try {
+    await openHarness(page, harness, "Seed text block 3.");
+    await page.setViewportSize({ width: 320, height: 851 });
+
+    const card = page
+      .getByTestId("message-card")
+      .filter({ has: page.getByTestId("copy-message") })
+      .first();
+    await expect(card.getByTestId("copy-message")).toBeVisible();
+
+    const measured = await card.evaluate((element) => {
+      const control = element.querySelector('[data-testid="copy-message"]');
+      const firstBlock = element.querySelector('[data-testid="message-card-first-block"]');
+      if (control === null || firstBlock === null) {
+        return null;
+      }
+      const cardBox = element.getBoundingClientRect();
+      const controlBox = control.getBoundingClientRect();
+      const firstBlockBox = firstBlock.getBoundingClientRect();
+      return {
+        cardLeft: cardBox.left,
+        cardRight: cardBox.right,
+        cardTop: cardBox.top,
+        cardBottom: cardBox.bottom,
+        controlLeft: controlBox.left,
+        controlRight: controlBox.right,
+        controlTop: controlBox.top,
+        controlBottom: controlBox.bottom,
+        controlWidth: controlBox.width,
+        controlHeight: controlBox.height,
+        firstBlockContentRight:
+          firstBlockBox.right - parseFloat(getComputedStyle(firstBlock).paddingRight),
+        documentScrollWidth: document.documentElement.scrollWidth,
+        documentClientWidth: document.documentElement.clientWidth,
+      };
+    });
+    if (measured === null) {
+      throw new Error("the message card is missing its control or first block");
+    }
+
+    expect(measured.controlLeft).toBeGreaterThanOrEqual(measured.cardLeft);
+    expect(measured.controlRight).toBeLessThanOrEqual(measured.cardRight);
+    expect(measured.controlTop).toBeGreaterThanOrEqual(measured.cardTop);
+    expect(measured.controlBottom).toBeLessThanOrEqual(measured.cardBottom);
+    expect(measured.controlWidth).toBeGreaterThanOrEqual(44);
+    expect(measured.controlHeight).toBeGreaterThanOrEqual(44);
+    expect(measured.firstBlockContentRight).toBeLessThanOrEqual(measured.controlLeft);
+    expect(measured.documentScrollWidth).toBeLessThanOrEqual(measured.documentClientWidth);
   } finally {
     await disposeHarness(harness);
   }

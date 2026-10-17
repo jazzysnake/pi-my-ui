@@ -115,6 +115,49 @@ export async function seedSession(home: HermeticHome, name: SeedName): Promise<F
   return await writeSessionFile(home, rehomed);
 }
 
+/** The two facts a fork, clone or subagent child adds to a Session file: a parent pointer and a name. */
+export interface RelatedSessionOptions {
+  /** The Session file the new file names as its parent, as pi writes it for a fork or a child. */
+  readonly parentSessionPath?: string;
+  /** The name pi records in the file, which is what the drawer reads a row's title from. */
+  readonly name: string;
+  /** One user message, so the file is a Session with a transcript and not just a header. */
+  readonly firstMessage: string;
+}
+
+/**
+ * Write a Session that carries a parent pointer and a name, the two facts that tell a subagent's
+ * child from the owner's own fork. pi's own writer stamps the header, so the file is one pi would
+ * resume.
+ */
+export async function writeRelatedSession(
+  home: HermeticHome,
+  options: RelatedSessionOptions,
+): Promise<FixtureSession> {
+  await mkdir(home.sessionsDir, { recursive: true });
+  const manager = SessionManager.create(
+    home.workspace,
+    home.sessionsDir,
+    options.parentSessionPath === undefined ? {} : { parentSession: options.parentSessionPath },
+  );
+  manager.appendSessionInfo(options.name);
+  manager.appendMessage({
+    role: "user",
+    content: [{ type: "text", text: options.firstMessage }],
+    timestamp: Date.now(),
+  });
+  const path = manager.getSessionFile();
+  if (path === undefined) {
+    throw new Error("the related session writer produced no Session file");
+  }
+  return {
+    id: manager.getSessionId(),
+    path,
+    entryCount: manager.getEntries().length,
+    leafId: manager.getLeafId(),
+  };
+}
+
 function generatedTimestamp(index: number, offset = 0): number {
   return GENERATED_EPOCH_MS + index * 1000 + offset;
 }

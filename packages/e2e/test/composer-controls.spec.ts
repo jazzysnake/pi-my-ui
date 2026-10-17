@@ -210,6 +210,84 @@ test("the status strip lists pi's models and thinking levels", async ({ page }) 
   }
 });
 
+test("a tap outside an open model list dismisses it and leaves the model alone", async ({
+  page,
+}) => {
+  const harness = await startHarness(UNUSED_SCRIPT);
+  try {
+    await openHarness(page, harness);
+    const options = page.getByTestId("model-options");
+    const model = page.getByTestId("status-model");
+    const current = await model.textContent();
+    await page.getByTestId("model-picker-toggle").tap();
+    await expect(options).toBeVisible();
+
+    // A text block is the hardest tap target to observe: it has no click handler, which is where a
+    // click-based dismissal goes quiet on touch.
+    await page.getByTestId("transcript").getByText("Seed text block 3.").tap();
+    await expect(options).toHaveCount(0);
+    await expect(model).toHaveText(current ?? "");
+
+    // The control that opened the list is not "away": tapping it must close the list rather than
+    // close on the way down and reopen on the click.
+    await page.getByTestId("model-picker-toggle").tap();
+    await expect(options).toBeVisible();
+    await page.getByTestId("model-picker-toggle").tap();
+    await expect(options).toHaveCount(0);
+  } finally {
+    await disposeHarness(harness);
+  }
+});
+
+test("a tap outside an open effort list dismisses it and leaves the effort alone", async ({
+  page,
+}) => {
+  const harness = await startHarness(UNUSED_SCRIPT);
+  try {
+    await openHarness(page, harness);
+    const options = page.getByTestId("thinking-options");
+    const thinking = page.getByTestId("status-thinking");
+    const current = await thinking.textContent();
+    await page.getByTestId("thinking-picker-toggle").tap();
+    await expect(options).toBeVisible();
+
+    await page.getByTestId("composer-input").tap();
+    await expect(options).toHaveCount(0);
+    await expect(thinking).toHaveText(current ?? "");
+    // The same tap reached the input instead of being swallowed: a full-screen scrim would eat it.
+    await expect(page.getByTestId("composer-input")).toBeFocused();
+  } finally {
+    await disposeHarness(harness);
+  }
+});
+
+test("opening one picker closes the other, and a chosen row applies once", async ({ page }) => {
+  const harness = await startHarness(UNUSED_SCRIPT);
+  try {
+    await openHarness(page, harness);
+    await page.getByTestId("model-picker-toggle").tap();
+    await expect(page.getByTestId("model-options")).toBeVisible();
+
+    await page.getByTestId("thinking-picker-toggle").tap();
+    await expect(page.getByTestId("model-options")).toHaveCount(0);
+    await expect(page.getByTestId("thinking-options")).toBeVisible();
+
+    // A row that is not pi's current level, so the strip changing proves the tap reached the row.
+    const row = page.locator('[data-testid="thinking-option"][aria-selected="false"]').first();
+    const chosen = (await row.textContent())?.trim() ?? "";
+    await row.tap();
+    await expect(page.getByTestId("thinking-options")).toHaveCount(0);
+    await expect(page.getByTestId("status-thinking")).toHaveText(chosen);
+
+    await page.getByTestId("model-picker-toggle").tap();
+    await page.getByTestId("model-option").first().tap();
+    await expect(page.getByTestId("model-options")).toHaveCount(0);
+    await expect(page.getByTestId("model-picker-toggle")).toHaveAttribute("aria-expanded", "false");
+  } finally {
+    await disposeHarness(harness);
+  }
+});
+
 test("Enter inserts a newline and Ctrl+Enter sends", async ({ page }) => {
   const harness = await startHarness([
     {

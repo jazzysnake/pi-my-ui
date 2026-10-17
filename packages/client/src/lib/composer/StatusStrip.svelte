@@ -23,6 +23,31 @@
     onSetModel(model.provider, model.id);
   }
 
+  /**
+   * A tap away from the open picker dismisses it. The listener is on `pointerdown`, not `click`,
+   * because most of the page is plain text: a tap on the transcript is not a click target on touch,
+   * so a click listener would never hear the tap that should dismiss the list. The picker's own
+   * handles and rows carry `data-picker-owned` so a tap on one reaches its click handler with the
+   * list still open; dismissing on the way down would either drop a row tap or make a tap on the
+   * open toggle close and reopen the same list.
+   *
+   * The trade-off is that a touch scroll also begins with a pointerdown, so it dismisses too. A
+   * menu anchored above the input is transient, and hearing every tap is worth more than surviving
+   * a scroll that started outside it.
+   */
+  $effect(() => {
+    if (open === null) return;
+    function dismiss(event: PointerEvent): void {
+      const target = event.target;
+      if (target instanceof Element && target.closest("[data-picker-owned]") !== null) return;
+      onOpenChange(null);
+    }
+    window.addEventListener("pointerdown", dismiss);
+    return () => {
+      window.removeEventListener("pointerdown", dismiss);
+    };
+  });
+
   function chooseThinking(level: ThinkingLevel): void {
     onOpenChange(null);
     onSetThinkingLevel(level);
@@ -54,6 +79,7 @@
     aria-expanded={open === "model"}
     aria-label="Model"
     data-testid="model-picker-toggle"
+    data-picker-owned
     onclick={() => {
       onOpenChange(open === "model" ? null : "model");
     }}
@@ -67,6 +93,7 @@
     aria-expanded={open === "thinking"}
     aria-label="Thinking level"
     data-testid="thinking-picker-toggle"
+    data-picker-owned
     onclick={() => {
       onOpenChange(open === "thinking" ? null : "thinking");
     }}
@@ -97,6 +124,7 @@
       role="listbox"
       aria-label="Models"
       data-testid="model-options"
+      data-picker-owned
     >
       {#each settings.availableModels as model (model.provider + model.id)}
         <li>
@@ -123,6 +151,7 @@
       role="listbox"
       aria-label="Thinking levels"
       data-testid="thinking-options"
+      data-picker-owned
     >
       {#each settings.availableThinkingLevels as level (level)}
         <li>

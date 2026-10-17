@@ -128,6 +128,66 @@ test("renders assistant markdown, contains a wide code block, and copies raw mar
     await expect(assistantRow.getByTestId("message-card").getByTestId("copy-message")).toHaveCount(
       1,
     );
+
+    const codeBlock = assistantRow.getByTestId("code-block").first();
+    const codeCopy = codeBlock.getByTestId("copy-code");
+    await expect(codeCopy).toHaveAttribute("aria-label", "Copy code");
+    await expect(codeBlock.locator("pre").getByTestId("copy-code")).toHaveCount(0);
+
+    const geometry = await codeBlock.evaluate((frame) => {
+      const strip = frame.querySelector('[data-testid="code-copy-strip"]');
+      const button = frame.querySelector('[data-testid="copy-code"]');
+      const pre = frame.querySelector("pre");
+      if (strip === null || button === null || pre === null) {
+        return null;
+      }
+      const frameBox = frame.getBoundingClientRect();
+      const stripBox = strip.getBoundingClientRect();
+      const buttonBox = button.getBoundingClientRect();
+      const preBox = pre.getBoundingClientRect();
+      return {
+        frameRight: frameBox.right,
+        stripRight: stripBox.right,
+        stripHeight: stripBox.height,
+        buttonWidth: buttonBox.width,
+        buttonHeight: buttonBox.height,
+        buttonLeft: buttonBox.left,
+        buttonTop: buttonBox.top,
+        buttonBottom: buttonBox.bottom,
+        preContentTop: preBox.top + parseFloat(getComputedStyle(pre).paddingTop),
+        preScrollWidth: pre.scrollWidth,
+        preClientWidth: pre.clientWidth,
+      };
+    });
+    if (geometry === null) {
+      throw new Error("the code block is missing its strip, control or pre");
+    }
+
+    // The tap box is 44 px inside a 28 px strip at the block's top-right, and its overflow lands on
+    // the block's padding: the code's own box starts below it.
+    expect(geometry.stripHeight).toBeCloseTo(28, 0);
+    expect(geometry.frameRight - geometry.stripRight).toBeLessThanOrEqual(2);
+    expect(geometry.buttonWidth).toBeGreaterThanOrEqual(44);
+    expect(geometry.buttonHeight).toBeGreaterThanOrEqual(44);
+    expect(geometry.buttonBottom).toBeLessThanOrEqual(geometry.preContentTop + 0.5);
+    expect(geometry.preScrollWidth).toBeGreaterThan(geometry.preClientWidth);
+
+    // Scrolling the code sideways moves the code and leaves the control where it is.
+    await codeBlock.locator("pre").evaluate((pre) => {
+      pre.scrollLeft = pre.scrollWidth;
+    });
+    const afterScroll = await codeCopy.evaluate((button) => {
+      const box = button.getBoundingClientRect();
+      return { left: box.left, top: box.top };
+    });
+    expect(afterScroll.left).toBeCloseTo(geometry.buttonLeft, 1);
+    expect(afterScroll.top).toBeCloseTo(geometry.buttonTop, 1);
+
+    await codeCopy.click();
+    await expect(codeCopy).toHaveAttribute("data-copied", "true");
+    await expect(codeCopy.locator("svg")).toHaveAttribute("data-icon", "check");
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(LONG_CODE_LINE);
+
     await copy.click();
     await expect(copy).toHaveAttribute("data-copied", "true");
     await expect(copy.locator("svg")).toHaveAttribute("data-icon", "check");
@@ -135,9 +195,51 @@ test("renders assistant markdown, contains a wide code block, and copies raw mar
       "rgb(126, 231, 135)",
     );
 
+    // The message card's control copies the whole message, fences and all, not just the code.
     const clipboard = await page.evaluate(() => navigator.clipboard.readText());
     expect(clipboard).toContain("# Rendering notes");
     expect(clipboard).toContain(LONG_CODE_LINE);
+    expect(clipboard).toContain("```ts");
+
+    // At the narrowest phone the strip holds its place and still widens nothing.
+    await page.setViewportSize({ width: 320, height: 851 });
+    const narrow = await page.evaluate(() => {
+      const transcript = document.querySelector('[data-testid="transcript"]');
+      const frame = document.querySelector('[data-testid="code-block"]');
+      if (frame === null) {
+        return null;
+      }
+      const button = frame.querySelector('[data-testid="copy-code"]');
+      const strip = frame.querySelector('[data-testid="code-copy-strip"]');
+      if (button === null || strip === null) {
+        return null;
+      }
+      const frameBox = frame.getBoundingClientRect();
+      const buttonBox = button.getBoundingClientRect();
+      return {
+        frameLeft: frameBox.left,
+        frameRight: frameBox.right,
+        buttonLeft: buttonBox.left,
+        buttonRight: buttonBox.right,
+        buttonWidth: buttonBox.width,
+        buttonHeight: buttonBox.height,
+        stripHeight: strip.getBoundingClientRect().height,
+        documentScrollWidth: document.documentElement.scrollWidth,
+        documentClientWidth: document.documentElement.clientWidth,
+        transcriptScrollWidth: transcript?.scrollWidth ?? 0,
+        transcriptClientWidth: transcript?.clientWidth ?? 0,
+      };
+    });
+    if (narrow === null) {
+      throw new Error("the code block is missing at 320 px");
+    }
+    expect(narrow.buttonLeft).toBeGreaterThanOrEqual(narrow.frameLeft);
+    expect(narrow.buttonRight).toBeLessThanOrEqual(narrow.frameRight);
+    expect(narrow.buttonWidth).toBeGreaterThanOrEqual(44);
+    expect(narrow.buttonHeight).toBeGreaterThanOrEqual(44);
+    expect(narrow.stripHeight).toBeCloseTo(28, 0);
+    expect(narrow.documentScrollWidth).toBeLessThanOrEqual(narrow.documentClientWidth);
+    expect(narrow.transcriptScrollWidth).toBeLessThanOrEqual(narrow.transcriptClientWidth);
   } finally {
     await disposeHarness(harness);
   }

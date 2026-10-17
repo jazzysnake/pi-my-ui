@@ -12,18 +12,18 @@ Reference: the committed transcript-row prototype's code-block treatment is norm
 
 **Blocked by:** 01 (shares the copy confirmation and tap-target behaviour).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Every fenced code block in assistant markdown gets a copy control named "Copy code".
-- [ ] Tapping it writes exactly the code text, with no fences and no language label.
-- [ ] The control shows the same 1.4 s check confirmation and leaves the glyph unchanged on a
+- [x] Every fenced code block in assistant markdown gets a copy control named "Copy code".
+- [x] Tapping it writes exactly the code text, with no fences and no language label.
+- [x] The control shows the same 1.4 s check confirmation and leaves the glyph unchanged on a
       rejected write.
-- [ ] The control occupies a 28 px strip at the block's top-right, with a 44 px tap box, and does not
+- [x] The control occupies a 28 px strip at the block's top-right, with a 44 px tap box, and does not
       overlay the code.
-- [ ] Wide code still scrolls horizontally inside its block; the control stays put.
-- [ ] The message card's copy control still copies the whole message, including the code.
-- [ ] The sanitized rendered output remains the only injected HTML; the control is attached after
+- [x] Wide code still scrolls horizontally inside its block; the control stays put.
+- [x] The message card's copy control still copies the whole message, including the code.
+- [x] The sanitized rendered output remains the only injected HTML; the control is attached after
       sanitization.
-- [ ] Layout holds at 320 px.
-- [ ] Component tests cover control presence, copying code only, and confirmation; an end-to-end test
+- [x] Layout holds at 320 px.
+- [x] Component tests cover control presence, copying code only, and confirmation; an end-to-end test
       covers the clipboard contents and the touch target.

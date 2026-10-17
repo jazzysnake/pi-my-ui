@@ -5,6 +5,7 @@
   import AgentPill from "./AgentPill.svelte";
   import ConnectionStatusIndicator from "./ConnectionStatusIndicator.svelte";
   import ContextUsageMeter from "./ContextUsageMeter.svelte";
+  import ForkPicker from "./ForkPicker.svelte";
   import RunStateRow from "./RunStateRow.svelte";
   import SessionDrawer from "./SessionDrawer.svelte";
   import SessionStatsPanel from "./SessionStatsPanel.svelte";
@@ -29,6 +30,9 @@
     onSetSessionName = () => undefined,
     onGetSessionStats = () => undefined,
     onExportSession = () => undefined,
+    onGetForkMessages = () => undefined,
+    onFork = () => undefined,
+    onClone = () => undefined,
     onBranch = () => undefined,
     onListDirectory,
     onPreviewFile,
@@ -53,6 +57,9 @@
     onSetSessionName?: (name: string) => void;
     onGetSessionStats?: () => void;
     onExportSession?: () => void;
+    onGetForkMessages?: () => void;
+    onFork?: (entryId: string) => void;
+    onClone?: () => void;
     onBranch?: () => void;
     onListDirectory: (path: string) => void;
     onPreviewFile: (path: string) => void;
@@ -63,6 +70,7 @@
 
   let filesOpen = $state(false);
   let sessionsOpen = $state(false);
+  let forkOpen = $state(false);
 
   // The Shell owns the composer-to-store interaction: every send is recorded before the transport
   // is asked, so the composer can tell pi's acceptance from a refusal.
@@ -123,9 +131,17 @@
         // nothing here reports success.
         onCompact(args === "" ? undefined : args);
         return;
-      case BuiltinCommand.Tree:
       case BuiltinCommand.Fork:
+        // pi owns the list of messages a fork can start from, so the picker opens empty and fills
+        // from pi's answer rather than from what this client happens to hold.
+        store.commands.beginForkPicker();
+        forkOpen = true;
+        onGetForkMessages();
+        return;
       case BuiltinCommand.Clone:
+        onClone();
+        return;
+      case BuiltinCommand.Tree:
         store.commands.setNotice(notImplementedMessage(command));
         return;
       default:
@@ -239,6 +255,18 @@
     {onSetAutoCompaction}
     {onBranch}
   />
+  {#if forkOpen}
+    <ForkPicker
+      messages={store.commands.forkMessages}
+      onChoose={(entryId) => {
+        forkOpen = false;
+        onFork(entryId);
+      }}
+      onClose={() => {
+        forkOpen = false;
+      }}
+    />
+  {/if}
   {#if sessionsOpen}
     <SessionDrawer
       rows={store.sessions.rows}

@@ -19,6 +19,9 @@ export const ClientMessageType = {
   GetSessionStats: "getSessionStats",
   SetSessionName: "setSessionName",
   ExportSession: "exportSession",
+  GetForkMessages: "getForkMessages",
+  ForkSession: "forkSession",
+  CloneSession: "cloneSession",
   Bash: "bash",
   Reconnect: "reconnect",
 } as const;
@@ -40,6 +43,8 @@ export const ServerMessageType = {
   SessionStats: "sessionStats",
   SessionExported: "sessionExported",
   SessionRenamed: "sessionRenamed",
+  ForkMessages: "forkMessages",
+  SessionForked: "sessionForked",
 } as const;
 
 export type ServerMessageType = (typeof ServerMessageType)[keyof typeof ServerMessageType];
@@ -155,6 +160,17 @@ export const CommandSource = {
 } as const;
 
 export type CommandSource = (typeof CommandSource)[keyof typeof CommandSource];
+
+/**
+ * The two mutations that make a new Session out of an existing one: a fork branches from an earlier
+ * user message, a clone copies the active branch. The spellings are pi's own commands.
+ */
+export const SessionMutation = {
+  Fork: "fork",
+  Clone: "clone",
+} as const;
+
+export type SessionMutation = (typeof SessionMutation)[keyof typeof SessionMutation];
 
 /** pi's reasoning levels; `off` disables it. */
 export const ThinkingLevel = {

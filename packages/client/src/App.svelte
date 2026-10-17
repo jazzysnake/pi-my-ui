@@ -25,7 +25,7 @@
         onMessage(message) {
           store.receive(message);
         },
-        onSessionCreated(sessionId) {
+        onSessionOpened(sessionId) {
           store.selectSession(sessionId);
         },
       },
@@ -57,6 +57,9 @@
   onSetSessionName={(name) => transport?.setSessionName(name)}
   onGetSessionStats={() => transport?.getSessionStats()}
   onExportSession={() => transport?.exportSession()}
+  onGetForkMessages={() => transport?.getForkMessages()}
+  onFork={(entryId) => transport?.forkSession(entryId)}
+  onClone={() => transport?.cloneSession()}
   onReconnect={() => transport?.reconnect()}
   onBranch={() => undefined}
   onListDirectory={(path) => transport?.listDirectory(path)}

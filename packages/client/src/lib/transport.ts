@@ -42,8 +42,8 @@ export const RECONNECT_BACKOFF_FACTOR = 2;
 export interface TransportHandlers {
   onStatus(status: ConnectionStatus): void;
   onMessage(message: ServerMessage): void;
-  /** The server generated a Session; the owner opens it. */
-  onSessionCreated?(sessionId: string): void;
+  /** A Session this client asked for exists; the owner watches it. */
+  onSessionOpened?(sessionId: string): void;
 }
 
 export interface TransportOptions {
@@ -79,6 +79,12 @@ export interface Transport {
   setSessionName(name: string): void;
   /** Ask pi to export the Session to HTML. Ignored while the link is down. */
   exportSession(): void;
+  /** Ask pi which user messages a fork can start from. Ignored while the link is down. */
+  getForkMessages(): void;
+  /** Create a new Session branching from `entryId`. Ignored while the link is down. */
+  forkSession(entryId: string): void;
+  /** Copy the active branch into a new Session. Ignored while the link is down. */
+  cloneSession(): void;
   /** Ask the server to respawn a Session's lost Pi child from its file. Ignored while down. */
   reconnect(): void;
   /** Ask for one directory of the server's working directory. Ignored while the link is down. */
@@ -152,13 +158,20 @@ export function createTransport(options: TransportOptions): Transport {
         return;
       }
       const message = JSON.parse(String(event.data)) as ServerMessage;
-      if (message.type === ServerMessageType.SessionCreated) {
-        // The new Session's id is the server's; opening it is this socket's own follow-up, so the
-        // subscribe goes out before the owner is told and a later frame cannot overtake it.
-        activeSessionId = message.sessionId;
+      // A created Session and a fork or clone both produce one this client should watch; a vetoed
+      // mutation names no Session, so it only reaches the store's notice.
+      const opened =
+        message.type === ServerMessageType.SessionCreated ||
+        message.type === ServerMessageType.SessionForked
+          ? message.sessionId
+          : undefined;
+      if (opened !== undefined) {
+        // Opening it is this socket's own follow-up, so the subscribe goes out before the owner is
+        // told and a later frame cannot overtake it.
+        activeSessionId = opened;
         cursor = undefined;
         send(subscription());
-        options.handlers.onSessionCreated?.(message.sessionId);
+        options.handlers.onSessionOpened?.(opened);
         options.handlers.onMessage(message);
         return;
       }
@@ -260,6 +273,15 @@ export function createTransport(options: TransportOptions): Transport {
     },
     exportSession() {
       send({ type: ClientMessageType.ExportSession, sessionId: activeSessionId });
+    },
+    getForkMessages() {
+      send({ type: ClientMessageType.GetForkMessages, sessionId: activeSessionId });
+    },
+    forkSession(entryId) {
+      send({ type: ClientMessageType.ForkSession, sessionId: activeSessionId, entryId });
+    },
+    cloneSession() {
+      send({ type: ClientMessageType.CloneSession, sessionId: activeSessionId });
     },
     reconnect() {
       send({ type: ClientMessageType.Reconnect, sessionId: activeSessionId });

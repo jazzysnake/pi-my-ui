@@ -14,8 +14,11 @@ import type { Cursor, ImageAttachment } from "./model.js";
 import type {
   BashMessage,
   ClientMessage,
+  CloneSessionMessage,
   CompactMessage,
   ExportSessionMessage,
+  ForkSessionMessage,
+  GetForkMessagesMessage,
   GetSessionStatsMessage,
   ListDirectoryMessage,
   PreviewFileMessage,
@@ -244,6 +247,22 @@ function validateExportSession(record: Record<string, unknown>): ExportSessionMe
   return { type: ClientMessageType.ExportSession, sessionId: requireSessionId(record) };
 }
 
+function validateGetForkMessages(record: Record<string, unknown>): GetForkMessagesMessage {
+  return { type: ClientMessageType.GetForkMessages, sessionId: requireSessionId(record) };
+}
+
+function validateForkSession(record: Record<string, unknown>): ForkSessionMessage {
+  const entryId = record["entryId"];
+  if (typeof entryId !== "string" || entryId === "") {
+    malformed('"entryId" must be a non-empty string');
+  }
+  return { type: ClientMessageType.ForkSession, sessionId: requireSessionId(record), entryId };
+}
+
+function validateCloneSession(record: Record<string, unknown>): CloneSessionMessage {
+  return { type: ClientMessageType.CloneSession, sessionId: requireSessionId(record) };
+}
+
 /** Parse one already-decoded client message, or throw a typed {@link ProtocolError}. */
 export function validateClientMessage(value: unknown): ClientMessage {
   const record = asRecord(value);
@@ -282,6 +301,12 @@ export function validateClientMessage(value: unknown): ClientMessage {
       return validateSetSessionName(record);
     case ClientMessageType.ExportSession:
       return validateExportSession(record);
+    case ClientMessageType.GetForkMessages:
+      return validateGetForkMessages(record);
+    case ClientMessageType.ForkSession:
+      return validateForkSession(record);
+    case ClientMessageType.CloneSession:
+      return validateCloneSession(record);
     case ClientMessageType.Reconnect:
       return { type: ClientMessageType.Reconnect, sessionId: requireSessionId(record) };
     default:

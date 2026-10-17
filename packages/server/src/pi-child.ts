@@ -18,6 +18,7 @@ import type { ImageContent } from "@earendil-works/pi-ai";
 import type {
   BashExecutionResult,
   CommandInfo,
+  ForkMessage,
   ImageAttachment,
   ModelInfo,
   PiChildExit,
@@ -51,6 +52,14 @@ export interface PiSettings {
   readonly autoCompactionEnabled: boolean;
 }
 
+/**
+ * A fork or clone pi ran. `cancelled` means an extension's `session_before_fork` handler stopped the
+ * mutation, so no Session was created; pi answers success either way.
+ */
+export interface PiSessionMutation {
+  readonly cancelled: boolean;
+}
+
 export interface PiChild {
   entries(): Promise<PiEntries>;
   /** Subscribe to pi's live event stream; returns an unsubscribe. */
@@ -75,6 +84,14 @@ export interface PiChild {
   setSessionName(name: string): Promise<void>;
   /** Write the Session's HTML export inside the served directory; returns its relative path. */
   exportHtml(): Promise<string>;
+  /** The user messages a fork can start from, in pi's order. */
+  forkMessages(): Promise<readonly ForkMessage[]>;
+  /** Branch the Session into a new file from `entryId`, which pi then binds this child to. */
+  fork(entryId: string): Promise<PiSessionMutation>;
+  /** Copy the active branch into a new file, which pi then binds this child to. */
+  clone(): Promise<PiSessionMutation>;
+  /** The Session id this child is bound to now; a completed fork or clone changes it. */
+  sessionId(): Promise<string>;
   /**
    * Subscribe to the child's own exit, with pi's code and signal; returns an unsubscribe. A child the
    * server stopped deliberately is filtered out, so only an unexpected exit is reported.
@@ -306,6 +323,12 @@ export async function startPiChild(
     setSessionName: (name) => client.setSessionName(name),
     async exportHtml() {
       return (await client.exportHtml()).path;
+    },
+    forkMessages: () => client.getForkMessages(),
+    fork: (entryId) => client.fork(entryId),
+    clone: () => client.clone(),
+    async sessionId() {
+      return (await client.getState()).sessionId;
     },
     async stop() {
       stoppedOnPurpose = true;

@@ -90,6 +90,9 @@ export interface Mounted {
   readonly createSession: ReturnType<typeof vi.fn>;
   readonly downloadFile: ReturnType<typeof vi.fn>;
   readonly branch: ReturnType<typeof vi.fn>;
+  readonly getForkMessages: ReturnType<typeof vi.fn>;
+  readonly fork: ReturnType<typeof vi.fn>;
+  readonly clone: ReturnType<typeof vi.fn>;
 }
 
 export function mountShell(store: ClientStore, status = ConnectionStatus.Connected): Mounted {
@@ -106,6 +109,9 @@ export function mountShell(store: ClientStore, status = ConnectionStatus.Connect
   const createSession = vi.fn();
   const downloadFile = vi.fn();
   const branch = vi.fn();
+  const getForkMessages = vi.fn();
+  const fork = vi.fn();
+  const clone = vi.fn();
   const target = document.createElement("div");
   document.body.append(target);
   flushSync(() => {
@@ -127,6 +133,9 @@ export function mountShell(store: ClientStore, status = ConnectionStatus.Connect
         onExportSession: exportSession,
         onCreateSession: createSession,
         onBranch: branch,
+        onGetForkMessages: getForkMessages,
+        onFork: fork,
+        onClone: clone,
         onListDirectory: () => undefined,
         onPreviewFile: () => undefined,
         onDownloadFile: downloadFile,
@@ -148,6 +157,9 @@ export function mountShell(store: ClientStore, status = ConnectionStatus.Connect
     createSession,
     downloadFile,
     branch,
+    getForkMessages,
+    fork,
+    clone,
   };
 }
 

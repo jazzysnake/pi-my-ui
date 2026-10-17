@@ -4,13 +4,19 @@
  */
 
 import { ClientMessageType, ServerMessageType } from "./constants.js";
-import type { SessionActivity, StreamingBehavior, ThinkingLevel } from "./constants.js";
+import type {
+  SessionActivity,
+  SessionMutation,
+  StreamingBehavior,
+  ThinkingLevel,
+} from "./constants.js";
 import type { DirectoryEntry } from "./files.js";
 import type {
   CommandInfo,
   ContextUsage,
   Cursor,
   DeltaBatch,
+  ForkMessage,
   ImageAttachment,
   ModelInfo,
   SessionProjection,
@@ -147,6 +153,28 @@ export interface ReconnectMessage {
   readonly sessionId: string;
 }
 
+/** Read the Session's user messages a fork can start from; a read, so it carries no Cursor. */
+export interface GetForkMessagesMessage {
+  readonly type: typeof ClientMessageType.GetForkMessages;
+  readonly sessionId: string;
+}
+
+/**
+ * Create a new Session that branches from `entryId`, an earlier user message. pi excludes that
+ * message and everything after it, so the original Session keeps the message it was forked from.
+ */
+export interface ForkSessionMessage {
+  readonly type: typeof ClientMessageType.ForkSession;
+  readonly sessionId: string;
+  readonly entryId: string;
+}
+
+/** Copy the Session's active branch into a new Session, leaving the original as it stands. */
+export interface CloneSessionMessage {
+  readonly type: typeof ClientMessageType.CloneSession;
+  readonly sessionId: string;
+}
+
 export type ClientMessage =
   | ListSessionsMessage
   | CreateSessionMessage
@@ -163,6 +191,9 @@ export type ClientMessage =
   | GetSessionStatsMessage
   | SetSessionNameMessage
   | ExportSessionMessage
+  | GetForkMessagesMessage
+  | ForkSessionMessage
+  | CloneSessionMessage
   | ReconnectMessage;
 
 /**
@@ -275,6 +306,24 @@ export interface SessionRenamedMessage {
   readonly name: string;
 }
 
+/** The user messages a fork can start from, answering a {@link GetForkMessagesMessage}. */
+export interface ForkMessagesMessage {
+  readonly type: typeof ServerMessageType.ForkMessages;
+  readonly sessionId: string;
+  readonly messages: readonly ForkMessage[];
+}
+
+/**
+ * A fork or clone ran. `sessionId` is the Session it created, absent when an extension vetoed the
+ * mutation before it happened: a veto is neither a new Session nor a failure.
+ */
+export interface SessionForkedMessage {
+  readonly type: typeof ServerMessageType.SessionForked;
+  readonly sourceSessionId: string;
+  readonly mutation: SessionMutation;
+  readonly sessionId?: string;
+}
+
 export type ServerMessage =
   | SessionsMessage
   | SessionCreatedMessage
@@ -288,4 +337,6 @@ export type ServerMessage =
   | CommandsMessage
   | SessionStatsMessage
   | SessionExportedMessage
-  | SessionRenamedMessage;
+  | SessionRenamedMessage
+  | ForkMessagesMessage
+  | SessionForkedMessage;

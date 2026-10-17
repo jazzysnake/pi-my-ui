@@ -45,6 +45,12 @@ export interface CommandInfo {
   readonly source: CommandSource;
 }
 
+/** One user message a fork can start from, as pi lists its forking choices. */
+export interface ForkMessage {
+  readonly entryId: string;
+  readonly text: string;
+}
+
 /** Context-window usage as pi reports it; `tokens` is null when pi cannot estimate it. */
 export interface ContextUsage {
   readonly tokens: number | null;

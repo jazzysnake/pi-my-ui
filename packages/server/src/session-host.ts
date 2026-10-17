@@ -17,6 +17,7 @@ import {
   type ContextUsageMessage,
   type Cursor,
   type DeltaMessage,
+  type ForkMessage,
   type ImageAttachment,
   type PiChildExit,
   type ProjectionDelta,
@@ -34,6 +35,7 @@ import type { ServerClock } from "./clock.js";
 import { createDeltaHistory } from "./delta-history.js";
 import type { PiChildLaunch, PiSessionTarget, PiSettings } from "./pi-child.js";
 import { createSessionChild, type SessionChild } from "./session-child.js";
+import { createSessionMutations, type SessionMutationOutcome } from "./session-mutation.js";
 import { createSessionProjectionMachine } from "./session-projection.js";
 
 /** A recipient of one Session's Snapshot and Deltas; the connection implements it over its socket. */
@@ -69,6 +71,12 @@ export interface SessionHost {
   setSessionName(name: string): Promise<void>;
   /** Export the Session to HTML inside the served directory; returns pi's relative path. */
   exportHtml(): Promise<string>;
+  /** The user messages a fork can start from, so the picker offers pi's own choices. */
+  forkMessages(): Promise<readonly ForkMessage[]>;
+  /** Create a new Session branching from an earlier message, leaving this one as it stands. */
+  forkSession(entryId: string): Promise<SessionMutationOutcome>;
+  /** Copy this Session's active branch into a new Session, leaving this one as it stands. */
+  cloneSession(): Promise<SessionMutationOutcome>;
   /**
    * When this Session's child becomes evictable if nothing else happens, or `undefined` when it is
    * not a candidate now: watched, working, already gone, or not started yet.
@@ -119,6 +127,11 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
   let buffering: JsonAgentSessionEvent[] | null = null;
   /** The last moment this Session did anything, which is where its idle window starts. */
   let lastActivityAt = options.clock.now();
+  /**
+   * Set while pi has rebound the child to another Session, when its events describe that Session and
+   * this one's Projection must not take them.
+   */
+  let holding = false;
   /** The in-flight context-usage read, and whether another was asked for while it ran. */
   let contextRead: Promise<void> | undefined;
   let contextReadQueued = false;
@@ -172,6 +185,9 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
   }
 
   function onEvent(event: JsonAgentSessionEvent): void {
+    if (holding) {
+      return;
+    }
     if (buffering !== null) {
       buffering.push(event);
       return;
@@ -343,6 +359,22 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
     }
   }
 
+  /**
+   * Fork and clone share one procedure (pi rebinds the child, so this Session has to be rebuilt from
+   * its own file), and that procedure lives in its own module rather than growing this one.
+   */
+  const mutations = createSessionMutations({
+    sessionId: options.sessionId,
+    prepare: ensureServed,
+    child: () => child.ensure(),
+    stopChild: () => child.stop(),
+    rebuild: restart,
+    holdEvents: (held) => {
+      holding = held;
+    },
+    touch,
+  });
+
   return {
     sessionId: options.sessionId,
     get activity() {
@@ -448,6 +480,11 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       touch();
       return await (await child.ensure()).exportHtml();
     },
+    async forkMessages() {
+      return await mutations.forkMessages();
+    },
+    forkSession: mutations.fork,
+    cloneSession: mutations.clone,
     evictionDueAt(idleTimeoutMs) {
       // A watched Session is never evicted, and neither is one with work in flight: the child is
       // needed to finish it, and stopping it would lose output the reader is waiting for.

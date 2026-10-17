@@ -14,6 +14,7 @@ import type { AddressInfo } from "node:net";
 import {
   ClientMessageType,
   ServerMessageType,
+  SessionMutation,
   parseClientMessage,
   toProtocolErrorInfo,
   type ClientMessage,
@@ -302,6 +303,35 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
           sessionId: message.sessionId,
           path: await host.exportHtml(),
         });
+        return;
+      }
+      if (message.type === ClientMessageType.GetForkMessages) {
+        send(socket, {
+          type: ServerMessageType.ForkMessages,
+          sessionId: message.sessionId,
+          messages: await host.forkMessages(),
+        });
+        return;
+      }
+      if (
+        message.type === ClientMessageType.ForkSession ||
+        message.type === ClientMessageType.CloneSession
+      ) {
+        const outcome =
+          message.type === ClientMessageType.ForkSession
+            ? await host.forkSession(message.entryId)
+            : await host.cloneSession();
+        send(socket, {
+          type: ServerMessageType.SessionForked,
+          sourceSessionId: message.sessionId,
+          mutation:
+            message.type === ClientMessageType.ForkSession
+              ? SessionMutation.Fork
+              : SessionMutation.Clone,
+          ...(outcome.kind === "created" ? { sessionId: outcome.sessionId } : {}),
+        });
+        // The mutation wrote a Session file, so every viewer's list has a row it does not know.
+        scheduleSessionsPush();
         return;
       }
       if (message.type === ClientMessageType.Reconnect) {

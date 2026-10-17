@@ -15,7 +15,8 @@
   import { entryText } from "./transcript.js";
   import { windowEntries } from "./transcript-window.js";
 
-  let { entries }: { entries: readonly ProjectedEntry[] } = $props();
+  let { entries, empty = null }: { entries: readonly ProjectedEntry[]; empty?: string | null } =
+    $props();
 
   const mounted = $derived(windowEntries(entries));
 
@@ -71,6 +72,9 @@
   data-testid="transcript"
   onscroll={handleScroll}
 >
+  {#if entries.length === 0 && empty !== null}
+    <p class="text-sm text-neutral-400" data-testid="transcript-empty">{empty}</p>
+  {/if}
   {#if mounted.hiddenCount > 0}
     <p
       class="mb-3 text-xs text-neutral-500"

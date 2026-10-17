@@ -27,6 +27,7 @@ export const ClientMessageType = {
   GetTree: "getTree",
   MoveLeaf: "moveLeaf",
   SteerSubagent: "steerSubagent",
+  GetSubagentTranscript: "getSubagentTranscript",
 } as const;
 
 export type ClientMessageType = (typeof ClientMessageType)[keyof typeof ClientMessageType];
@@ -50,6 +51,7 @@ export const ServerMessageType = {
   SessionForked: "sessionForked",
   SessionTree: "sessionTree",
   LeafMoved: "leafMoved",
+  SubagentTranscript: "subagentTranscript",
 } as const;
 
 export type ServerMessageType = (typeof ServerMessageType)[keyof typeof ServerMessageType];

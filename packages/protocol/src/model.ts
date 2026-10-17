@@ -14,7 +14,7 @@ import {
   SessionActivity,
   ToolCallStatus,
 } from "./constants.js";
-import type { SubagentAgent } from "./subagents.js";
+import { SubagentTranscriptLookupKind, type SubagentAgent } from "./subagents.js";
 
 /** A position in one Session's ordered stream of Delta batches. */
 export type Cursor = number;
@@ -165,6 +165,22 @@ export interface SubagentTranscript {
   readonly agentId: string;
   readonly entries: readonly ProjectedEntry[];
 }
+
+/**
+ * What a run's own session file held when it was read. A run this server streamed live is served
+ * from the Projection instead, so this is the answer for the runs of earlier processes only.
+ */
+export type SubagentTranscriptLookup =
+  | {
+      readonly kind: typeof SubagentTranscriptLookupKind.Found;
+      readonly entries: readonly ProjectedEntry[];
+    }
+  | { readonly kind: typeof SubagentTranscriptLookupKind.Absent }
+  | {
+      readonly kind: typeof SubagentTranscriptLookupKind.Unavailable;
+      /** Why the conversation cannot be opened, in the server's own words. */
+      readonly reason: string;
+    };
 
 /** One ordered change to a {@link SessionProjection}. */
 export type ProjectionDelta =

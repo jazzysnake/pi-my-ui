@@ -50,6 +50,7 @@
   onPrompt={(text, images, behavior) => transport?.prompt(text, images, behavior)}
   onBash={(command, excludeFromContext) => transport?.bash(command, excludeFromContext)}
   onSteerSubagent={(agentId, message) => transport?.steerSubagent(agentId, message)}
+  onGetSubagentTranscript={(agentId) => transport?.getSubagentTranscript(agentId)}
   onAbort={() => transport?.abort()}
   onSetModel={(provider, modelId) => transport?.setModel(provider, modelId)}
   onSetThinkingLevel={(level) => transport?.setThinkingLevel(level)}

@@ -20,6 +20,7 @@ import type {
   ForkSessionMessage,
   GetForkMessagesMessage,
   GetSessionStatsMessage,
+  GetSubagentTranscriptMessage,
   GetTreeMessage,
   ListDirectoryMessage,
   MoveLeafMessage,
@@ -294,6 +295,21 @@ function validateMoveLeaf(record: Record<string, unknown>): MoveLeafMessage {
   return { type: ClientMessageType.MoveLeaf, sessionId: requireSessionId(record), entryId };
 }
 
+/** One agent record's id; whether a conversation exists for it is the server's answer. */
+function validateGetSubagentTranscript(
+  record: Record<string, unknown>,
+): GetSubagentTranscriptMessage {
+  const agentId = record["agentId"];
+  if (typeof agentId !== "string" || agentId === "") {
+    malformed('"agentId" must be a non-empty string');
+  }
+  return {
+    type: ClientMessageType.GetSubagentTranscript,
+    sessionId: requireSessionId(record),
+    agentId,
+  };
+}
+
 function requireEntryId(record: Record<string, unknown>): string {
   const entryId = record["entryId"];
   if (typeof entryId !== "string" || entryId === "") {
@@ -352,6 +368,8 @@ export function validateClientMessage(value: unknown): ClientMessage {
       return validateMoveLeaf(record);
     case ClientMessageType.SteerSubagent:
       return validateSteerSubagent(record);
+    case ClientMessageType.GetSubagentTranscript:
+      return validateGetSubagentTranscript(record);
     case ClientMessageType.Reconnect:
       return { type: ClientMessageType.Reconnect, sessionId: requireSessionId(record) };
     default:

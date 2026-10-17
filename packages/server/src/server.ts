@@ -278,6 +278,15 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
         await host.steerSubagent(message.agentId, message.message);
         return;
       }
+      if (message.type === ClientMessageType.GetSubagentTranscript) {
+        send(socket, {
+          type: ServerMessageType.SubagentTranscript,
+          sessionId: message.sessionId,
+          agentId: message.agentId,
+          ...(await host.subagentTranscript(message.agentId)),
+        });
+        return;
+      }
       if (message.type === ClientMessageType.Bash) {
         await host.bash(message.command, message.excludeFromContext);
         return;

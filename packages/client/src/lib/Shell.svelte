@@ -44,6 +44,7 @@
     onCreateSession = () => undefined,
     onReconnect = () => undefined,
     onSteerSubagent = () => undefined,
+    onGetSubagentTranscript = () => undefined,
   }: {
     store: ClientStore;
     status: ConnectionStatus;
@@ -74,6 +75,8 @@
     onReconnect?: () => void;
     /** Steer one running subagent; a typed message while its conversation is shown. */
     onSteerSubagent?: (agentId: string, message: string) => void;
+    /** Read one settled run's own conversation from the session file pi-subagents wrote. */
+    onGetSubagentTranscript?: (agentId: string) => void;
   } = $props();
 
   let filesOpen = $state(false);
@@ -92,6 +95,28 @@
       ? store.transcript.entries
       : store.subagents.transcriptOf(store.subagents.focusedAgentId),
   );
+
+  /** The sentence for an agent whose transcript is empty, so an empty view is never unexplained. */
+  const shownEmpty = $derived(
+    store.subagents.focusedAgentId === null
+      ? null
+      : (store.subagents.emptyStateOf(store.subagents.focusedAgentId)?.message ?? null),
+  );
+
+  // Focusing an agent is what asks for its conversation on disk, and the ask is repeated after a
+  // resync drops the answer: both are facts the store holds, so the effect follows them rather than
+  // the click that caused them.
+  $effect(() => {
+    const agentId = store.subagents.focusedAgentId;
+    if (agentId === null) {
+      return;
+    }
+    // Reading the roster makes a newly reported agent a reason to look again.
+    void store.subagents.agents;
+    if (store.subagents.requestPastTranscript(agentId)) {
+      onGetSubagentTranscript(agentId);
+    }
+  });
 
   /**
    * The agent a typed message would steer. While an agent's conversation is shown, plain text is
@@ -254,7 +279,7 @@
       <ConnectionStatusIndicator {status} />
     </div>
   </header>
-  <Transcript entries={shownEntries} />
+  <Transcript entries={shownEntries} empty={shownEmpty} />
   <RunStateRow
     runState={store.transcript.runState}
     starting={store.transcript.starting}

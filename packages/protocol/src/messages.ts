@@ -22,6 +22,7 @@ import type {
   SessionProjection,
   SessionStats,
   SessionSummary,
+  SubagentTranscriptLookup,
 } from "./model.js";
 import type { ProtocolErrorInfo } from "./errors.js";
 import type { SessionTree } from "./tree.js";
@@ -204,6 +205,17 @@ export interface SteerSubagentMessage {
   readonly message: string;
 }
 
+/**
+ * Ask for one run's own conversation, read from the child session file pi-subagents wrote. Only a
+ * run this server did not stream has one to read, so a client asks for the agent it is focusing.
+ */
+export interface GetSubagentTranscriptMessage {
+  readonly type: typeof ClientMessageType.GetSubagentTranscript;
+  readonly sessionId: string;
+  /** The agent record's id, as the Projection's `subagents` carry it. */
+  readonly agentId: string;
+}
+
 export type ClientMessage =
   | ListSessionsMessage
   | CreateSessionMessage
@@ -226,6 +238,7 @@ export type ClientMessage =
   | GetTreeMessage
   | MoveLeafMessage
   | SteerSubagentMessage
+  | GetSubagentTranscriptMessage
   | ReconnectMessage;
 
 /**
@@ -374,6 +387,16 @@ export interface LeafMovedMessage {
   readonly leafId: string | null;
 }
 
+/**
+ * One settled run's conversation as its own session file holds it. `kind` says what the file held:
+ * the projected entries, nothing, or why it could not be opened.
+ */
+export type SubagentTranscriptMessage = SubagentTranscriptLookup & {
+  readonly type: typeof ServerMessageType.SubagentTranscript;
+  readonly sessionId: string;
+  readonly agentId: string;
+};
+
 export type ServerMessage =
   | SessionsMessage
   | SessionCreatedMessage
@@ -391,4 +414,5 @@ export type ServerMessage =
   | ForkMessagesMessage
   | SessionForkedMessage
   | SessionTreeMessage
-  | LeafMovedMessage;
+  | LeafMovedMessage
+  | SubagentTranscriptMessage;

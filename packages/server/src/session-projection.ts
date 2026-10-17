@@ -35,7 +35,7 @@ import { createLiveCompaction } from "./live-compaction.js";
 import { blocksFromMessage, projectionBatch, roleOf, toolResultOutput } from "./projection.js";
 import { blockEditOf } from "./streaming-blocks.js";
 import { createSubagentTranscripts } from "./subagent-transcripts.js";
-import { workflowRunsFromEntries } from "./workflow-runs.js";
+import { seededProjection } from "./session-seed.js";
 import { createLiveWorkflow } from "./live-workflow.js";
 
 type AgentMessage = Extract<JsonAgentSessionEvent, { readonly type: "message_start" }>["message"];
@@ -360,23 +360,13 @@ export function createSessionProjectionMachine(
     seed(entries, leafId) {
       bash.reset();
       const batch = projectionBatch({ entries, leafId, fromCursor: 0 });
-      // The bridge can report an agent before pi's entries finish reading, and those records outlive
-      // the reseed, since the seed describes the transcript and not who is working on it. Workflow
-      // runs are the opposite: nothing live reports them, so the reseed re-derives them from the same
-      // entries a launch and a settle leave behind.
-      const live = projection.subagents.filter((agent) => agent.runKind !== "workflow");
-      projection = reduceDeltaBatch(
-        {
-          sessionId,
-          cwd,
-          leafId: null,
-          entries: [],
-          runState: IDLE_RUN_STATE,
-          subagents: [...live, ...workflowRunsFromEntries(entries)],
-          subagentTranscripts: [],
-        },
+      projection = seededProjection({
+        sessionId,
+        cwd,
+        entries,
+        live: projection.subagents,
         batch,
-      );
+      });
       streamingEntryId = null;
       agentTranscripts.forgetAll();
       compaction.reset();

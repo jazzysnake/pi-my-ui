@@ -12,9 +12,6 @@ import {
   ServerMessageType,
   SessionActivity,
   sessionActivityOf,
-  type CommandsMessage,
-  type ContextUsage,
-  type ContextUsageMessage,
   type Cursor,
   type DeltaMessage,
   type ForkMessage,
@@ -24,9 +21,9 @@ import {
   type ServerMessage,
   type SessionStats,
   type SessionTree,
-  type SettingsMessage,
   type SnapshotMessage,
   type StreamingBehavior,
+  type SubagentTranscriptLookup,
   type ThinkingLevel,
 } from "@pi-my-ui/protocol";
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
@@ -35,7 +32,9 @@ import type { ServerClock } from "./clock.js";
 import type { BridgeGate } from "./bridge/gate.js";
 import { attachBridgeEvents } from "./bridge/events.js";
 import { createDeltaHistory } from "./delta-history.js";
-import type { PiChildLaunch, PiSessionTarget, PiSettings } from "./pi-child.js";
+import { createPastTranscriptReader } from "./past-transcripts.js";
+import { contextUsageMessage, sendAttachSupplements, settingsMessage } from "./session-attach.js";
+import type { PiChildLaunch, PiSessionTarget } from "./pi-child.js";
 import { createSessionChild, type SessionChild } from "./session-child.js";
 import { createSessionLeaf } from "./session-leaf.js";
 import { createSessionMutations, type SessionMutationOutcome } from "./session-mutation.js";
@@ -64,6 +63,11 @@ export interface SessionHost {
   /** Run a `!`/`!!` shell command; `!!` keeps its output out of the model's context. */
   bash(command: string, excludeFromContext: boolean): Promise<void>;
   steerSubagent(agentId: string, message: string): Promise<void>;
+  /**
+   * One settled run's own conversation, read from the session file pi-subagents wrote for it, or the
+   * reason it cannot be read. Only a run this process did not stream needs a file.
+   */
+  subagentTranscript(agentId: string): Promise<SubagentTranscriptLookup>;
   abort(): Promise<void>;
   setModel(provider: string, modelId: string): Promise<void>;
   setThinkingLevel(level: ThinkingLevel): Promise<void>;
@@ -215,10 +219,6 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
     }
   }
 
-  function contextUsageMessage(contextUsage: ContextUsage | null): ContextUsageMessage {
-    return { type: ServerMessageType.ContextUsage, sessionId: options.sessionId, contextUsage };
-  }
-
   /** One read at a time, and a read asked for during one runs after it, so figures cannot arrive
    * out of order. A failed read sends nothing: a stale figure is better than a fabricated empty one. */
   function refreshContextUsage(): void {
@@ -229,7 +229,7 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
     contextRead = (async () => {
       try {
         const stats = await (await child.ensure()).stats();
-        broadcast(contextUsageMessage(stats.contextUsage));
+        broadcast(contextUsageMessage(options.sessionId, stats.contextUsage));
       } catch {
         // The transcript is served whether or not pi can report its context size.
       }
@@ -357,17 +357,9 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
     };
   }
 
-  function settingsMessage(settings: PiSettings): SettingsMessage {
-    return { type: ServerMessageType.Settings, sessionId: options.sessionId, ...settings };
-  }
-
-  function commandsMessage(commands: CommandsMessage["commands"]): CommandsMessage {
-    return { type: ServerMessageType.Commands, sessionId: options.sessionId, commands };
-  }
-
   /** Re-read pi's settings and hand them to every viewer, so the status strip shows pi's values. */
   async function broadcastSettings(): Promise<void> {
-    const message = settingsMessage(await (await child.ensure()).settings());
+    const message = settingsMessage(options.sessionId, await (await child.ensure()).settings());
     for (const viewer of [...viewers]) {
       viewer.onMessage(message);
     }
@@ -386,6 +378,17 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
   });
 
   const steering = createSessionSteering(options, ensureServed, touch);
+
+  /**
+   * A settled run's conversation lives in its own session file, beside the Session's; the reader
+   * owns that join. The Session's current file is asked for each time because a fork or a clone
+   * rebinds the child to a new one.
+   */
+  const readSubagentTranscript = createPastTranscriptReader({
+    serve: ensureServed,
+    sessionFile: async () => (await (await child.ensure()).stats()).sessionFile,
+    agents: () => machine.projection.subagents,
+  });
 
   /**
    * Fork and clone share one procedure (pi rebinds the child, so this Session has to be rebuilt from
@@ -421,27 +424,7 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       // Registering after the synchronous sends keeps the replayed Deltas ahead of every new one.
       viewers.add(viewer);
       touch();
-      // Settings are read from pi on every attach rather than replayed, so a browser that was
-      // disconnected when a setting changed still sees pi's current value.
-      try {
-        viewer.onMessage(settingsMessage(await (await child.ensure()).settings()));
-      } catch {
-        // A supplementary read must not fail a subscription that already delivered a Snapshot.
-      }
-      // The palette's discoverable commands come from the same child, so they are read on attach
-      // and never cached across a Session switch that could point them at the wrong child.
-      try {
-        viewer.onMessage(commandsMessage(await (await child.ensure()).commands()));
-      } catch {
-        // A child that cannot list commands still serves its transcript; the palette falls back to
-        // the built-ins rather than failing the subscription.
-      }
-      // The context figure is read, not replayed, so a viewer that was away sees pi's current one.
-      try {
-        viewer.onMessage(contextUsageMessage((await (await child.ensure()).stats()).contextUsage));
-      } catch {
-        // A Session with no figure still serves its transcript; the readout says it is unavailable.
-      }
+      await sendAttachSupplements(viewer, options.sessionId, () => child.ensure());
       return () => {
         viewers.delete(viewer);
         touch();
@@ -452,6 +435,7 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       await (await child.ensure()).prompt(text, images, behavior);
     },
     steerSubagent: steering.steerSubagent,
+    subagentTranscript: readSubagentTranscript,
     async bash(command, excludeFromContext) {
       await ensureServed();
       publish(machine.bash.begin(command, excludeFromContext));

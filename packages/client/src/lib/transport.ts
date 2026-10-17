@@ -65,6 +65,8 @@ export interface Transport {
   bash(command: string, excludeFromContext: boolean): void;
   /** Send one message into a running subagent's own conversation. Ignored while the link is down. */
   steerSubagent(agentId: string, message: string): void;
+  /** Ask for one settled run's own conversation on disk. Ignored while the link is down. */
+  getSubagentTranscript(agentId: string): void;
   /** Cancel the Session's running turn. Ignored while the link is down. */
   abort(): void;
   /** Switch the Session's model. Ignored while the link is down. */
@@ -256,6 +258,13 @@ export function createTransport(options: TransportOptions): Transport {
         sessionId: activeSessionId,
         agentId,
         message,
+      });
+    },
+    getSubagentTranscript(agentId) {
+      send({
+        type: ClientMessageType.GetSubagentTranscript,
+        sessionId: activeSessionId,
+        agentId,
       });
     },
     abort() {

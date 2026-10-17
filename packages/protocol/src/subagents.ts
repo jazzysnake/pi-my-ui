@@ -34,6 +34,20 @@ export function isActiveSubagent(status: SubagentStatus): boolean {
 }
 
 /**
+ * Whether an agent's conversation is on disk: found, absent, or refused because the file could not be
+ * read or the run could not be told apart from another one. Only a run this server did not stream is
+ * ever read from a file.
+ */
+export const SubagentTranscriptLookupKind = {
+  Found: "found",
+  Absent: "absent",
+  Unavailable: "unavailable",
+} as const;
+
+export type SubagentTranscriptLookupKind =
+  (typeof SubagentTranscriptLookupKind)[keyof typeof SubagentTranscriptLookupKind];
+
+/**
  * What kind of run a row is. A workflow owns the agents it starts and reports nothing about itself
  * on pi-subagents' lifecycle bus, so it is a row of its own rather than an agent.
  */

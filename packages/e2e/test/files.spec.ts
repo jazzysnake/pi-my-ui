@@ -11,6 +11,7 @@ import { startClientPageServer, type ClientPageServer } from "../src/client-page
 import { seedSession, type FixtureSession } from "../src/fixture-builder";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 import { connectWsSession } from "../src/ws-session-client";
+import { readAttachSurfaces } from "../src/ws-transcript";
 
 const PI_TEST_TIMEOUT_MS = 90_000;
 const DOWNLOAD_EVENT_TIMEOUT_MS = 10_000;
@@ -165,8 +166,9 @@ test("refuses path traversal, out-of-root reads, and anything that would write",
   try {
     client.send({ type: "subscribe", sessionId: harness.seeded.id });
     expect((await client.next()).type).toBe("snapshot");
-    // Settings follow the Snapshot, so consume them before asserting on capability replies.
-    expect((await client.next()).type).toBe("settings");
+    // Settings and the discoverable commands follow the Snapshot, so consume both before asserting
+    // on capability replies.
+    await readAttachSurfaces(client);
 
     // Traversal, an absolute path and a symlink escape are each a typed refusal, never a listing.
     for (const path of ["..", "/etc", "escape-dir"]) {

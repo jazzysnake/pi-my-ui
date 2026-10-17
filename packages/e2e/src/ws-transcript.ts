@@ -50,8 +50,8 @@ export async function readUntilText(
       continue;
     }
     // Settings and the Session list are not transcript state, so a run that lands across one still
-    // reads cleanly.
-    if (message.type === "settings" || message.type === "sessions") {
+    // reads cleanly. The palette's commands are read on attach for the same reason.
+    if (message.type === "settings" || message.type === "sessions" || message.type === "commands") {
       continue;
     }
     if (message.type === "snapshot") {
@@ -75,9 +75,25 @@ export async function nextDelta(client: WsSessionClient): Promise<DeltaMessage> 
     if (message.type === "delta") {
       return message;
     }
-    if (message.type === "sessions" || message.type === "settings") {
+    if (message.type === "sessions" || message.type === "settings" || message.type === "commands") {
       continue;
     }
     throw new Error(`expected a Delta but received ${message.type}`);
+  }
+}
+
+/**
+ * The non-transcript frames a subscribe sends after its Snapshot: the Session's Settings and its
+ * discoverable Commands. A caller reads both so the next frame it sees is the answer it asked for.
+ */
+export async function readAttachSurfaces(client: WsSessionClient): Promise<void> {
+  const read = new Set<string>();
+  while (read.size < 2) {
+    const message = await client.next();
+    if (message.type === "settings" || message.type === "commands") {
+      read.add(message.type);
+      continue;
+    }
+    throw new Error(`expected settings or commands but received ${message.type}`);
   }
 }

@@ -13,11 +13,14 @@ import {
 import type { Cursor, ImageAttachment } from "./model.js";
 import type {
   ClientMessage,
+  ExportSessionMessage,
+  GetSessionStatsMessage,
   ListDirectoryMessage,
   PreviewFileMessage,
   PromptMessage,
   SetAutoCompactionMessage,
   SetModelMessage,
+  SetSessionNameMessage,
   SetThinkingLevelMessage,
   SubscribeMessage,
 } from "./messages.js";
@@ -194,6 +197,22 @@ function validateSetAutoCompaction(record: Record<string, unknown>): SetAutoComp
   };
 }
 
+function validateGetSessionStats(record: Record<string, unknown>): GetSessionStatsMessage {
+  return { type: ClientMessageType.GetSessionStats, sessionId: requireSessionId(record) };
+}
+
+function validateSetSessionName(record: Record<string, unknown>): SetSessionNameMessage {
+  const name = record["name"];
+  if (typeof name !== "string" || name.trim() === "") {
+    malformed('"name" must be a non-empty string');
+  }
+  return { type: ClientMessageType.SetSessionName, sessionId: requireSessionId(record), name };
+}
+
+function validateExportSession(record: Record<string, unknown>): ExportSessionMessage {
+  return { type: ClientMessageType.ExportSession, sessionId: requireSessionId(record) };
+}
+
 /** Parse one already-decoded client message, or throw a typed {@link ProtocolError}. */
 export function validateClientMessage(value: unknown): ClientMessage {
   const record = asRecord(value);
@@ -222,6 +241,12 @@ export function validateClientMessage(value: unknown): ClientMessage {
       return validateListDirectory(record);
     case ClientMessageType.PreviewFile:
       return validatePreviewFile(record);
+    case ClientMessageType.GetSessionStats:
+      return validateGetSessionStats(record);
+    case ClientMessageType.SetSessionName:
+      return validateSetSessionName(record);
+    case ClientMessageType.ExportSession:
+      return validateExportSession(record);
     default:
       throw new ProtocolError(
         ProtocolErrorCode.UnknownType,

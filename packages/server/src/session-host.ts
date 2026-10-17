@@ -8,11 +8,13 @@ import {
   ServerMessageType,
   SessionActivity,
   sessionActivityOf,
+  type CommandsMessage,
   type Cursor,
   type DeltaMessage,
   type ImageAttachment,
   type ProjectionDelta,
   type ServerMessage,
+  type SessionStats,
   type SettingsMessage,
   type SnapshotMessage,
   type StreamingBehavior,
@@ -53,6 +55,12 @@ export interface SessionHost {
   setModel(provider: string, modelId: string): Promise<void>;
   setThinkingLevel(level: ThinkingLevel): Promise<void>;
   setAutoCompaction(enabled: boolean): Promise<void>;
+  /** pi's statistics for this Session, read on demand for the session panel. */
+  sessionStats(): Promise<SessionStats>;
+  /** Rename the Session in pi; the caller refreshes the Session list afterwards. */
+  setSessionName(name: string): Promise<void>;
+  /** Export the Session to HTML inside the served directory; returns pi's relative path. */
+  exportHtml(): Promise<string>;
   close(): Promise<void>;
 }
 
@@ -237,6 +245,10 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
     return { type: ServerMessageType.Settings, sessionId: options.sessionId, ...settings };
   }
 
+  function commandsMessage(commands: CommandsMessage["commands"]): CommandsMessage {
+    return { type: ServerMessageType.Commands, sessionId: options.sessionId, commands };
+  }
+
   /** Re-read pi's settings and hand them to every viewer, so the status strip shows pi's values. */
   async function broadcastSettings(): Promise<void> {
     const pi = await ensureChild();
@@ -270,6 +282,14 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       } catch {
         // A supplementary read must not fail a subscription that already delivered a Snapshot.
       }
+      // The palette's discoverable commands come from the same child, so they are read on attach
+      // and never cached across a Session switch that could point them at the wrong child.
+      try {
+        viewer.onMessage(commandsMessage(await (await ensureChild()).commands()));
+      } catch {
+        // A child that cannot list commands still serves its transcript; the palette falls back to
+        // the built-ins rather than failing the subscription.
+      }
       return () => {
         viewers.delete(viewer);
       };
@@ -299,6 +319,18 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       await ensureSeeded();
       await (await ensureChild()).setAutoCompaction(enabled);
       await broadcastSettings();
+    },
+    async sessionStats() {
+      await ensureSeeded();
+      return await (await ensureChild()).stats();
+    },
+    async setSessionName(name) {
+      await ensureSeeded();
+      await (await ensureChild()).setSessionName(name);
+    },
+    async exportHtml() {
+      await ensureSeeded();
+      return await (await ensureChild()).exportHtml();
     },
     async close() {
       viewers.clear();

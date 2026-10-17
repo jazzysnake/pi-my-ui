@@ -3,25 +3,28 @@
 
   let {
     settings,
+    open,
+    onOpenChange,
     onSetModel,
     onSetThinkingLevel,
     onSetAutoCompaction,
   }: {
     settings: SettingsMessage;
+    /** Which picker is open; the composer owns this so `/model` and a tap open the same one. */
+    open: "model" | "thinking" | null;
+    onOpenChange: (next: "model" | "thinking" | null) => void;
     onSetModel: (provider: string, modelId: string) => void;
     onSetThinkingLevel: (level: ThinkingLevel) => void;
     onSetAutoCompaction: (enabled: boolean) => void;
   } = $props();
 
-  let open = $state<"model" | "thinking" | null>(null);
-
   function chooseModel(model: ModelInfo): void {
-    open = null;
+    onOpenChange(null);
     onSetModel(model.provider, model.id);
   }
 
   function chooseThinking(level: ThinkingLevel): void {
-    open = null;
+    onOpenChange(null);
     onSetThinkingLevel(level);
   }
 
@@ -47,7 +50,7 @@
     aria-label="Model"
     data-testid="model-picker-toggle"
     onclick={() => {
-      open = open === "model" ? null : "model";
+      onOpenChange(open === "model" ? null : "model");
     }}
   >
     <span data-testid="status-model">{settings.model?.name ?? "No model"}</span>
@@ -60,7 +63,7 @@
     aria-label="Thinking level"
     data-testid="thinking-picker-toggle"
     onclick={() => {
-      open = open === "thinking" ? null : "thinking";
+      onOpenChange(open === "thinking" ? null : "thinking");
     }}
   >
     <span data-testid="status-thinking">{levelLabel(settings.thinkingLevel)}</span>

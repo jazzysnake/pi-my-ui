@@ -79,6 +79,11 @@ export interface Mounted {
   readonly setModel: ReturnType<typeof vi.fn>;
   readonly setThinking: ReturnType<typeof vi.fn>;
   readonly setAutoCompaction: ReturnType<typeof vi.fn>;
+  readonly setSessionName: ReturnType<typeof vi.fn>;
+  readonly getSessionStats: ReturnType<typeof vi.fn>;
+  readonly exportSession: ReturnType<typeof vi.fn>;
+  readonly createSession: ReturnType<typeof vi.fn>;
+  readonly downloadFile: ReturnType<typeof vi.fn>;
   readonly branch: ReturnType<typeof vi.fn>;
 }
 
@@ -88,6 +93,11 @@ export function mountShell(store: ClientStore, status = ConnectionStatus.Connect
   const setModel = vi.fn();
   const setThinking = vi.fn();
   const setAutoCompaction = vi.fn();
+  const setSessionName = vi.fn();
+  const getSessionStats = vi.fn();
+  const exportSession = vi.fn();
+  const createSession = vi.fn();
+  const downloadFile = vi.fn();
   const branch = vi.fn();
   const target = document.createElement("div");
   document.body.append(target);
@@ -103,14 +113,31 @@ export function mountShell(store: ClientStore, status = ConnectionStatus.Connect
         onSetModel: setModel,
         onSetThinkingLevel: setThinking,
         onSetAutoCompaction: setAutoCompaction,
+        onSetSessionName: setSessionName,
+        onGetSessionStats: getSessionStats,
+        onExportSession: exportSession,
+        onCreateSession: createSession,
         onBranch: branch,
         onListDirectory: () => undefined,
         onPreviewFile: () => undefined,
-        onDownloadFile: () => undefined,
+        onDownloadFile: downloadFile,
       },
     });
   });
-  return { target, prompt, abort, setModel, setThinking, setAutoCompaction, branch };
+  return {
+    target,
+    prompt,
+    abort,
+    setModel,
+    setThinking,
+    setAutoCompaction,
+    setSessionName,
+    getSessionStats,
+    exportSession,
+    createSession,
+    downloadFile,
+    branch,
+  };
 }
 
 export function input(target: HTMLElement): HTMLTextAreaElement {

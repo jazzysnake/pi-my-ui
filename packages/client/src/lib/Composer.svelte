@@ -2,12 +2,14 @@
   import {
     RunStateKind,
     StreamingBehavior,
+    type CommandInfo,
     type ImageAttachment,
     type RunState,
     type SettingsMessage,
     type ThinkingLevel,
   } from "@pi-my-ui/protocol";
 
+  import CommandPalette from "./CommandPalette.svelte";
   import StatusStrip from "./composer/StatusStrip.svelte";
   import {
     AttachmentRejection,
@@ -16,16 +18,22 @@
     toImageAttachments,
     type ComposerAttachment,
   } from "./composer/attachments.js";
+  import { BuiltinCommand } from "./commands/builtins.js";
+  import { buildPaletteEntries, completionText, filterPaletteEntries } from "./commands/palette.js";
+  import { ComposerRouteKind, paletteQuery, routeComposerSubmission } from "./commands/router.js";
+  import { tuiOnlyRefusalMessage } from "./commands/tui-only.js";
   import { ConnectionStatus } from "./transport.js";
 
   let {
     runState,
     status,
     settings,
+    commands,
     error,
     sentCount,
     onPrompt,
     onAbort,
+    onCommand,
     onSetModel,
     onSetThinkingLevel,
     onSetAutoCompaction,
@@ -35,6 +43,8 @@
     runState: RunState;
     status: ConnectionStatus;
     settings: SettingsMessage | null;
+    /** The Session's discoverable commands, merged into the palette with the built-ins. */
+    commands: readonly CommandInfo[];
     error: string | null;
     sentCount: number;
     onPrompt: (
@@ -43,6 +53,8 @@
       behavior?: StreamingBehavior,
     ) => void;
     onAbort: () => void;
+    /** Run a built-in whose action lives outside the composer, with the text after its name. */
+    onCommand: (command: BuiltinCommand, args: string) => void;
     onSetModel: (provider: string, modelId: string) => void;
     onSetThinkingLevel: (level: ThinkingLevel) => void;
     onSetAutoCompaction: (enabled: boolean) => void;
@@ -56,6 +68,12 @@
   /** The user's visible choice for a message sent during a run; `steer` interrupts by default. */
   let streamingChoice = $state<StreamingBehavior>(StreamingBehavior.Steer);
   let fileInput = $state<HTMLInputElement | null>(null);
+  let textarea = $state<HTMLTextAreaElement | null>(null);
+  let statusPicker = $state<"model" | "thinking" | null>(null);
+  /** The palette row the Enter, Tab and tap gestures all act on. */
+  let highlighted = $state(0);
+  /** Set by Escape and by a completion, so a dismissed palette does not reopen on the same text. */
+  let paletteDismissed = $state(false);
   /**
    * The `sentCount` the composer saw when it handed pi a message, or `null` when nothing is in
    * flight. Clearing waits for the count to pass it, so the draft survives a refused message.
@@ -69,6 +87,17 @@
   const connected = $derived(status === ConnectionStatus.Connected);
   const hasContent = $derived(text.trim() !== "" || attachments.length > 0);
   const canSend = $derived(connected && pendingFrom === null && hasContent);
+
+  const query = $derived(paletteQuery(text));
+  const paletteEntries = $derived(
+    query === null || paletteDismissed
+      ? []
+      : filterPaletteEntries(buildPaletteEntries(commands), query),
+  );
+  const paletteOpen = $derived(paletteEntries.length > 0);
+  const activeIndex = $derived(
+    paletteEntries.length === 0 ? 0 : Math.min(highlighted, paletteEntries.length - 1),
+  );
 
   // The composer clears only once pi has accepted the message: its echo appears in the transcript as
   // the user's own entry. A refused message produces no entry, so the text and images stay put.
@@ -86,6 +115,14 @@
     }
   });
 
+  // A picker left open across a session switch would offer the previous Session's models; the
+  // settings going away is the switch's signal.
+  $effect(() => {
+    if (settings === null) {
+      statusPicker = null;
+    }
+  });
+
   function releaseAll(): void {
     for (const attachment of attachments) {
       releaseAttachment(attachment);
@@ -97,6 +134,19 @@
   function nextAttachmentId(): string {
     attachmentId += 1;
     return `attachment-${String(attachmentId)}`;
+  }
+
+  /** Reset the palette highlight on every keystroke, so it always points at the first best match. */
+  function handleInput(): void {
+    highlighted = 0;
+    paletteDismissed = false;
+  }
+
+  function choose(entry: { readonly name: string }): void {
+    text = completionText(entry.name);
+    paletteDismissed = true;
+    highlighted = 0;
+    textarea?.focus();
   }
 
   async function handleFilesChosen(event: Event): Promise<void> {
@@ -129,8 +179,30 @@
     localError = null;
   }
 
+  /**
+   * One submission, three meanings. A prompt goes to pi; a built-in runs its action; a TUI-only
+   * command is refused here and never reaches the model. The two status controls are consumed by the
+   * composer's own pickers, so `/model` and a tap on the strip open the same list.
+   */
   function submit(behavior?: StreamingBehavior): void {
     if (!canSend) {
+      return;
+    }
+    const route = routeComposerSubmission(text);
+    if (route.kind === ComposerRouteKind.TuiOnly) {
+      localError = tuiOnlyRefusalMessage(route.name);
+      return;
+    }
+    if (route.kind === ComposerRouteKind.Builtin) {
+      if (route.command === BuiltinCommand.Model || route.command === BuiltinCommand.Thinking) {
+        releaseAll();
+        localError = null;
+        statusPicker = route.command === BuiltinCommand.Model ? "model" : "thinking";
+        return;
+      }
+      releaseAll();
+      localError = null;
+      onCommand(route.command, route.args);
       return;
     }
     localError = null;
@@ -144,9 +216,37 @@
       submit(running ? streamingChoice : undefined);
       return;
     }
+    if (paletteOpen && event.key === "Enter") {
+      const entry = paletteEntries[activeIndex];
+      if (entry !== undefined) {
+        event.preventDefault();
+        choose(entry);
+      }
+      return;
+    }
+    if (paletteOpen && event.key === "Tab") {
+      const entry = paletteEntries[activeIndex];
+      if (entry !== undefined) {
+        // Consuming Tab keeps focus in the composer, which is what lets the arguments be typed next.
+        event.preventDefault();
+        choose(entry);
+      }
+      return;
+    }
+    if (paletteOpen && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+      const step = event.key === "ArrowDown" ? 1 : paletteEntries.length - 1;
+      highlighted = (activeIndex + step) % paletteEntries.length;
+      event.preventDefault();
+      return;
+    }
     if (event.key === "Escape") {
       // The palette owns the first Escape when it is open, so it can dismiss without aborting.
       if (onEscape?.() === true) {
+        event.preventDefault();
+        return;
+      }
+      if (paletteOpen) {
+        paletteDismissed = true;
         event.preventDefault();
         return;
       }
@@ -154,7 +254,6 @@
         event.preventDefault();
         onAbort();
       }
-      return;
     }
   }
 </script>
@@ -165,7 +264,16 @@
   data-testid="composer"
 >
   {#if settings !== null}
-    <StatusStrip {settings} {onSetModel} {onSetThinkingLevel} {onSetAutoCompaction} />
+    <StatusStrip
+      {settings}
+      open={statusPicker}
+      onOpenChange={(next) => {
+        statusPicker = next;
+      }}
+      {onSetModel}
+      {onSetThinkingLevel}
+      {onSetAutoCompaction}
+    />
   {/if}
 
   {#if running}
@@ -256,6 +364,10 @@
     <p class="text-xs text-red-400" role="alert" data-testid="composer-error">{visibleError}</p>
   {/if}
 
+  {#if paletteOpen}
+    <CommandPalette entries={paletteEntries} highlighted={activeIndex} onChoose={choose} />
+  {/if}
+
   <div class="flex items-end gap-2">
     <input
       bind:this={fileInput}
@@ -270,12 +382,14 @@
       }}
     />
     <textarea
+      bind:this={textarea}
       class="min-h-11 min-w-0 flex-1 resize-none rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-sm text-neutral-100"
       rows="1"
       placeholder="Message pi"
       aria-label="Message"
       data-testid="composer-input"
       bind:value={text}
+      oninput={handleInput}
       onkeydown={handleKeydown}></textarea>
     <button
       type="button"

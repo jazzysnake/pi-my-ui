@@ -52,6 +52,9 @@
   onSetModel={(provider, modelId) => transport?.setModel(provider, modelId)}
   onSetThinkingLevel={(level) => transport?.setThinkingLevel(level)}
   onSetAutoCompaction={(enabled) => transport?.setAutoCompaction(enabled)}
+  onSetSessionName={(name) => transport?.setSessionName(name)}
+  onGetSessionStats={() => transport?.getSessionStats()}
+  onExportSession={() => transport?.exportSession()}
   onBranch={() => undefined}
   onListDirectory={(path) => transport?.listDirectory(path)}
   onPreviewFile={(path) => transport?.previewFile(path)}

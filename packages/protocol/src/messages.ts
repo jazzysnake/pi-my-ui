@@ -7,11 +7,13 @@ import { ClientMessageType, ServerMessageType } from "./constants.js";
 import type { SessionActivity, StreamingBehavior, ThinkingLevel } from "./constants.js";
 import type { DirectoryEntry } from "./files.js";
 import type {
+  CommandInfo,
   Cursor,
   DeltaBatch,
   ImageAttachment,
   ModelInfo,
   SessionProjection,
+  SessionStats,
   SessionSummary,
 } from "./model.js";
 import type { ProtocolErrorInfo } from "./errors.js";
@@ -90,6 +92,29 @@ export interface PreviewFileMessage {
   readonly path: string;
 }
 
+/** Read one Session's statistics for the session panel; a read, so it carries no Cursor. */
+export interface GetSessionStatsMessage {
+  readonly type: typeof ClientMessageType.GetSessionStats;
+  readonly sessionId: string;
+}
+
+/** Set the Session's display name in pi (`session_info`); the name is never empty. */
+export interface SetSessionNameMessage {
+  readonly type: typeof ClientMessageType.SetSessionName;
+  readonly sessionId: string;
+  readonly name: string;
+}
+
+/**
+ * Export the Session to an HTML file. The client names no path: pi writes its own
+ * `pi-session-<basename>.html` inside the served directory and answers the relative path, so the
+ * file-download route can serve it and an arbitrary write target is impossible.
+ */
+export interface ExportSessionMessage {
+  readonly type: typeof ClientMessageType.ExportSession;
+  readonly sessionId: string;
+}
+
 export type ClientMessage =
   | ListSessionsMessage
   | CreateSessionMessage
@@ -100,7 +125,10 @@ export type ClientMessage =
   | SetThinkingLevelMessage
   | SetAutoCompactionMessage
   | ListDirectoryMessage
-  | PreviewFileMessage;
+  | PreviewFileMessage
+  | GetSessionStatsMessage
+  | SetSessionNameMessage
+  | ExportSessionMessage;
 
 /**
  * Every Session this server can serve, most recently active first. `sessions` stays the disk facts
@@ -173,6 +201,34 @@ export interface FilePreviewMessage {
   readonly truncated: boolean;
 }
 
+/** Every command this Session's Pi child offers: prompt templates, skills and extension commands. */
+export interface CommandsMessage {
+  readonly type: typeof ServerMessageType.Commands;
+  readonly sessionId: string;
+  readonly commands: readonly CommandInfo[];
+}
+
+/** One Session's statistics, answering a {@link GetSessionStatsMessage}. */
+export interface SessionStatsMessage {
+  readonly type: typeof ServerMessageType.SessionStats;
+  readonly sessionId: string;
+  readonly stats: SessionStats;
+}
+
+/** The relative path of the HTML file pi wrote for an {@link ExportSessionMessage}. */
+export interface SessionExportedMessage {
+  readonly type: typeof ServerMessageType.SessionExported;
+  readonly sessionId: string;
+  readonly path: string;
+}
+
+/** pi accepted the Session's new display name, so the client can say so without guessing. */
+export interface SessionRenamedMessage {
+  readonly type: typeof ServerMessageType.SessionRenamed;
+  readonly sessionId: string;
+  readonly name: string;
+}
+
 export type ServerMessage =
   | SessionsMessage
   | SessionCreatedMessage
@@ -181,4 +237,8 @@ export type ServerMessage =
   | SettingsMessage
   | ErrorMessage
   | DirectoryListingMessage
-  | FilePreviewMessage;
+  | FilePreviewMessage
+  | CommandsMessage
+  | SessionStatsMessage
+  | SessionExportedMessage
+  | SessionRenamedMessage;

@@ -15,6 +15,9 @@ export const ClientMessageType = {
   SetAutoCompaction: "setAutoCompaction",
   ListDirectory: "listDirectory",
   PreviewFile: "previewFile",
+  GetSessionStats: "getSessionStats",
+  SetSessionName: "setSessionName",
+  ExportSession: "exportSession",
 } as const;
 
 export type ClientMessageType = (typeof ClientMessageType)[keyof typeof ClientMessageType];
@@ -29,6 +32,10 @@ export const ServerMessageType = {
   Error: "error",
   DirectoryListing: "directoryListing",
   FilePreview: "filePreview",
+  Commands: "commands",
+  SessionStats: "sessionStats",
+  SessionExported: "sessionExported",
+  SessionRenamed: "sessionRenamed",
 } as const;
 
 export type ServerMessageType = (typeof ServerMessageType)[keyof typeof ServerMessageType];
@@ -115,6 +122,18 @@ export const StreamingBehavior = {
 } as const;
 
 export type StreamingBehavior = (typeof StreamingBehavior)[keyof typeof StreamingBehavior];
+
+/**
+ * What kind of resource registered a discoverable command. These are pi's own source values, so the
+ * palette's badge is pi's vocabulary rather than a second spelling that can drift.
+ */
+export const CommandSource = {
+  Extension: "extension",
+  Prompt: "prompt",
+  Skill: "skill",
+} as const;
+
+export type CommandSource = (typeof CommandSource)[keyof typeof CommandSource];
 
 /** pi's reasoning levels; `off` disables it. */
 export const ThinkingLevel = {

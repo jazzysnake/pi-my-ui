@@ -5,6 +5,7 @@
  */
 
 import {
+  CommandSource,
   ContentBlockType,
   MessageRole,
   ProjectionDeltaKind,
@@ -33,6 +34,42 @@ export interface ModelInfo {
   readonly id: string;
   readonly name: string;
   readonly reasoning: boolean;
+}
+
+/** One discoverable command pi offers for the palette: a prompt template, skill or extension command. */
+export interface CommandInfo {
+  readonly name: string;
+  readonly description: string;
+  readonly source: CommandSource;
+}
+
+/** Context-window usage as pi reports it; `tokens` is null when pi cannot estimate it. */
+export interface ContextUsage {
+  readonly tokens: number | null;
+  readonly contextWindow: number;
+  readonly percent: number | null;
+}
+
+/** Token totals one Session has spent, in pi's own four buckets. */
+export interface SessionTokenUsage {
+  readonly input: number;
+  readonly output: number;
+  readonly cacheRead: number;
+  readonly cacheWrite: number;
+  readonly total: number;
+}
+
+/** One Session's statistics for the session panel; every value is pi's, never a client estimate. */
+export interface SessionStats {
+  readonly sessionId: string;
+  readonly sessionFile: string | null;
+  readonly userMessages: number;
+  readonly assistantMessages: number;
+  readonly toolCalls: number;
+  readonly totalMessages: number;
+  readonly tokens: SessionTokenUsage;
+  readonly cost: number;
+  readonly contextUsage: ContextUsage | null;
 }
 
 /** A block of user/assistant/tool text. */

@@ -6,7 +6,7 @@ import type { Script } from "@pi-my-ui/scripted-provider";
 import { seedSession, type FixtureSession } from "../src/fixture-builder";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 import { connectWsSession } from "../src/ws-session-client";
-import { nextDelta, projectionText, readUntilText } from "../src/ws-transcript";
+import { nextDelta, projectionText, readAttachSurfaces, readUntilText } from "../src/ws-transcript";
 
 const PI_TEST_TIMEOUT_MS = 90_000;
 
@@ -97,8 +97,9 @@ test("an unknown Cursor is answered with a fresh Snapshot", async () => {
       return;
     }
     expect(projectionText(stale.projection.entries)).toContain("Seed text block 3.");
-    // Settings follow the Snapshot, so read them before the next subscribe's answer.
-    expect((await reader.next()).type).toBe("settings");
+    // Settings and the discoverable commands follow the Snapshot, so read them before the next
+    // subscribe's answer.
+    await readAttachSurfaces(reader);
 
     // A Cursor ahead of the stream is unknown for the same reason.
     reader.send({

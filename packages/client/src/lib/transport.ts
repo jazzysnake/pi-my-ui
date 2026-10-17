@@ -69,6 +69,12 @@ export interface Transport {
   setThinkingLevel(level: ThinkingLevel): void;
   /** Turn pi's automatic compaction on or off. Ignored while the link is down. */
   setAutoCompaction(enabled: boolean): void;
+  /** Ask for one Session's statistics. Ignored while the link is down. */
+  getSessionStats(): void;
+  /** Set the Session's display name in pi. Ignored while the link is down. */
+  setSessionName(name: string): void;
+  /** Ask pi to export the Session to HTML. Ignored while the link is down. */
+  exportSession(): void;
   /** Ask for one directory of the server's working directory. Ignored while the link is down. */
   listDirectory(path: string): void;
   /** Ask for a bounded text preview of one file. Ignored while the link is down. */
@@ -222,6 +228,15 @@ export function createTransport(options: TransportOptions): Transport {
     },
     setAutoCompaction(enabled) {
       send({ type: ClientMessageType.SetAutoCompaction, sessionId: activeSessionId, enabled });
+    },
+    getSessionStats() {
+      send({ type: ClientMessageType.GetSessionStats, sessionId: activeSessionId });
+    },
+    setSessionName(name) {
+      send({ type: ClientMessageType.SetSessionName, sessionId: activeSessionId, name });
+    },
+    exportSession() {
+      send({ type: ClientMessageType.ExportSession, sessionId: activeSessionId });
     },
     listDirectory(path) {
       send({ type: ClientMessageType.ListDirectory, path });

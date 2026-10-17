@@ -269,6 +269,33 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
         await host.setAutoCompaction(message.enabled);
         return;
       }
+      if (message.type === ClientMessageType.GetSessionStats) {
+        send(socket, {
+          type: ServerMessageType.SessionStats,
+          sessionId: message.sessionId,
+          stats: await host.sessionStats(),
+        });
+        return;
+      }
+      if (message.type === ClientMessageType.SetSessionName) {
+        await host.setSessionName(message.name);
+        send(socket, {
+          type: ServerMessageType.SessionRenamed,
+          sessionId: message.sessionId,
+          name: message.name,
+        });
+        // The name is disk state the drawer reads, so the list is re-read and pushed to every viewer.
+        scheduleSessionsPush();
+        return;
+      }
+      if (message.type === ClientMessageType.ExportSession) {
+        send(socket, {
+          type: ServerMessageType.SessionExported,
+          sessionId: message.sessionId,
+          path: await host.exportHtml(),
+        });
+        return;
+      }
       await host.abort();
     } catch (error) {
       // A bridge that is missing or silent is a server fault the owner must see, not just a browser

@@ -13,8 +13,10 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { ImageContent } from "@earendil-works/pi-ai";
 import type {
+  CommandInfo,
   ImageAttachment,
   ModelInfo,
+  SessionStats,
   StreamingBehavior,
   ThinkingLevel,
 } from "@pi-my-ui/protocol";
@@ -53,6 +55,12 @@ export interface PiChild {
   setModel(provider: string, modelId: string): Promise<void>;
   setThinkingLevel(level: ThinkingLevel): Promise<void>;
   setAutoCompaction(enabled: boolean): Promise<void>;
+  /** Every command this child offers the palette: prompt templates, skills and extension commands. */
+  commands(): Promise<readonly CommandInfo[]>;
+  stats(): Promise<SessionStats>;
+  setSessionName(name: string): Promise<void>;
+  /** Write the Session's HTML export inside the served directory; returns its relative path. */
+  exportHtml(): Promise<string>;
   stop(): Promise<void>;
 }
 
@@ -82,6 +90,68 @@ function toModelInfo(model: {
 /** Pi's `ImageContent` names the type `mimeType`; the contract names it `mediaType`. */
 function toImageContent(image: ImageAttachment): ImageContent {
   return { type: "image", data: image.data, mimeType: image.mediaType };
+}
+
+/** pi answers an absent description with `undefined`; the wire carries one shape. */
+function toCommandInfo(command: {
+  readonly name: string;
+  readonly description?: string | undefined;
+  readonly source: CommandInfo["source"];
+}): CommandInfo {
+  return {
+    name: command.name,
+    description: command.description ?? "",
+    source: command.source,
+  };
+}
+
+/** Narrow pi's stats record to the contract, mapping the optional context usage to `null`. */
+function toSessionStats(stats: {
+  readonly sessionId: string;
+  readonly sessionFile?: string | undefined;
+  readonly userMessages: number;
+  readonly assistantMessages: number;
+  readonly toolCalls: number;
+  readonly totalMessages: number;
+  readonly tokens: {
+    readonly input: number;
+    readonly output: number;
+    readonly cacheRead: number;
+    readonly cacheWrite: number;
+    readonly total: number;
+  };
+  readonly cost: number;
+  readonly contextUsage?: {
+    readonly tokens: number | null;
+    readonly contextWindow: number;
+    readonly percent: number | null;
+  };
+}): SessionStats {
+  const context = stats.contextUsage;
+  return {
+    sessionId: stats.sessionId,
+    sessionFile: stats.sessionFile ?? null,
+    userMessages: stats.userMessages,
+    assistantMessages: stats.assistantMessages,
+    toolCalls: stats.toolCalls,
+    totalMessages: stats.totalMessages,
+    tokens: {
+      input: stats.tokens.input,
+      output: stats.tokens.output,
+      cacheRead: stats.tokens.cacheRead,
+      cacheWrite: stats.tokens.cacheWrite,
+      total: stats.tokens.total,
+    },
+    cost: stats.cost,
+    contextUsage:
+      context === undefined
+        ? null
+        : {
+            tokens: context.tokens,
+            contextWindow: context.contextWindow,
+            percent: context.percent,
+          },
+  };
 }
 
 /** Start a real `pi --mode rpc` child on an existing Session file or a fresh Session id. */
@@ -130,6 +200,12 @@ export async function startPiChild(
     },
     setThinkingLevel: (level) => client.setThinkingLevel(level),
     setAutoCompaction: (enabled) => client.setAutoCompaction(enabled),
+    commands: async () => (await client.getCommands()).map(toCommandInfo),
+    stats: async () => toSessionStats(await client.getSessionStats()),
+    setSessionName: (name) => client.setSessionName(name),
+    async exportHtml() {
+      return (await client.exportHtml()).path;
+    },
     stop: () => client.stop(),
   };
 }

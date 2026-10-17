@@ -57,8 +57,3 @@ export function findBuiltinByName(name: string): BuiltinSpec | null {
 export function slashName(name: string): string {
   return `/${name}`;
 }
-
-/** The one message a built-in with no wired action reports, so it is never mistaken for success. */
-export function notImplementedMessage(command: BuiltinCommand): string {
-  return `${slashName(command)} is not implemented yet`;
-}

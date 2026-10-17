@@ -6,11 +6,12 @@
   import ConnectionStatusIndicator from "./ConnectionStatusIndicator.svelte";
   import ContextUsageMeter from "./ContextUsageMeter.svelte";
   import ForkPicker from "./ForkPicker.svelte";
+  import MessageTreeModal from "./MessageTreeModal.svelte";
   import RunStateRow from "./RunStateRow.svelte";
   import SessionDrawer from "./SessionDrawer.svelte";
   import SessionStatsPanel from "./SessionStatsPanel.svelte";
   import Transcript from "./Transcript.svelte";
-  import { BuiltinCommand, notImplementedMessage } from "./commands/builtins.js";
+  import { BuiltinCommand } from "./commands/builtins.js";
   import FileTreePanel from "./files/FileTreePanel.svelte";
   import { ROOT_PATH } from "./files/rows.js";
   import type { ClientStore } from "./store/client-store.svelte.js";
@@ -33,7 +34,8 @@
     onGetForkMessages = () => undefined,
     onFork = () => undefined,
     onClone = () => undefined,
-    onBranch = () => undefined,
+    onGetTree = () => undefined,
+    onMoveLeaf = () => undefined,
     onListDirectory,
     onPreviewFile,
     onDownloadFile,
@@ -60,7 +62,8 @@
     onGetForkMessages?: () => void;
     onFork?: (entryId: string) => void;
     onClone?: () => void;
-    onBranch?: () => void;
+    onGetTree?: () => void;
+    onMoveLeaf?: (entryId: string) => void;
     onListDirectory: (path: string) => void;
     onPreviewFile: (path: string) => void;
     onDownloadFile: (path: string) => void;
@@ -71,6 +74,26 @@
   let filesOpen = $state(false);
   let sessionsOpen = $state(false);
   let forkOpen = $state(false);
+  /** The composer's draft, so the message tree can hand one of the user's messages back to it. */
+  let composerText = $state("");
+
+  // A confirmed Leaf move on one of the user's own messages returns its text here, which is what
+  // makes it editable and resubmittable instead of merely read.
+  $effect(() => {
+    const draft = store.tree.draft;
+    if (draft !== null) {
+      composerText = draft.text;
+    }
+  });
+
+  /**
+   * The one way into the message tree: the typed command and the composer's branch control both land
+   * here, so two entrances cannot drift into two modals or two different requests.
+   */
+  function openTree(): void {
+    store.tree.begin();
+    onGetTree();
+  }
 
   // The Shell owns the composer-to-store interaction: every send is recorded before the transport
   // is asked, so the composer can tell pi's acceptance from a refusal.
@@ -142,7 +165,7 @@
         onClone();
         return;
       case BuiltinCommand.Tree:
-        store.commands.setNotice(notImplementedMessage(command));
+        openTree();
         return;
       default:
         return;
@@ -253,7 +276,8 @@
     {onSetModel}
     {onSetThinkingLevel}
     {onSetAutoCompaction}
-    {onBranch}
+    onBranch={openTree}
+    bind:text={composerText}
   />
   {#if forkOpen}
     <ForkPicker
@@ -264,6 +288,22 @@
       }}
       onClose={() => {
         forkOpen = false;
+      }}
+    />
+  {/if}
+  {#if store.tree.open}
+    <MessageTreeModal
+      tree={store.tree.tree}
+      loading={store.tree.loading}
+      error={store.tree.error}
+      moveError={store.tree.moveError}
+      movingEntryId={store.tree.movingEntryId}
+      onSelect={(entry) => {
+        store.tree.select(entry);
+        onMoveLeaf(entry.entry.id);
+      }}
+      onClose={() => {
+        store.tree.close();
       }}
     />
   {/if}

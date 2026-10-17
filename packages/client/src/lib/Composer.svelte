@@ -16,6 +16,7 @@
   import {
     AttachmentRejection,
     addAttachments,
+    createAttachmentIds,
     releaseAttachment,
     toImageAttachments,
     type ComposerAttachment,
@@ -41,6 +42,7 @@
     onSetThinkingLevel,
     onSetAutoCompaction,
     onBranch,
+    text = $bindable(""),
     onEscape,
   }: {
     runState: RunState;
@@ -64,11 +66,12 @@
     onSetThinkingLevel: (level: ThinkingLevel) => void;
     onSetAutoCompaction: (enabled: boolean) => void;
     onBranch: () => void;
+    /** The draft itself, so a view can put a message back here for editing and resubmitting. */
+    text?: string;
     /** Consume Escape before the composer does; returns whether it was handled. */
     onEscape?: (() => boolean) | undefined;
   } = $props();
 
-  let text = $state("");
   let attachments = $state<readonly ComposerAttachment[]>([]);
   /** The user's visible choice for a message sent during a run; `steer` interrupts by default. */
   let streamingChoice = $state<StreamingBehavior>(StreamingBehavior.Steer);
@@ -84,7 +87,7 @@
    * flight. Clearing waits for the count to pass it, so the draft survives a refused message.
    */
   let pendingFrom = $state<number | null>(null);
-  let attachmentId = 0;
+  const nextAttachmentId = createAttachmentIds();
 
   const running = $derived(
     runState.kind === RunStateKind.Streaming || runState.kind === RunStateKind.Retrying,
@@ -132,11 +135,6 @@
     attachments.forEach((attachment) => releaseAttachment(attachment));
     attachments = [];
     text = "";
-  }
-
-  function nextAttachmentId(): string {
-    attachmentId += 1;
-    return `attachment-${String(attachmentId)}`;
   }
 
   /** Reset the palette highlight on every keystroke, so it always points at the first best match. */

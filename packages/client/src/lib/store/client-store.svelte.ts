@@ -10,6 +10,7 @@ import { createSessionsSlice, type SessionsSlice } from "./sessions.svelte.js";
 import { createSettingsSlice, type SettingsSlice } from "./settings.svelte.js";
 import { createSubagentsSlice, type SubagentsSlice } from "./subagents.svelte.js";
 import { createTranscriptSlice, type TranscriptSlice } from "./transcript.svelte.js";
+import { createTreeSlice, type TreeSlice } from "./tree.svelte.js";
 
 export class ClientStore {
   readonly transcript: TranscriptSlice = createTranscriptSlice();
@@ -20,6 +21,7 @@ export class ClientStore {
   readonly commands: CommandsSlice = createCommandsSlice();
   readonly subagents: SubagentsSlice = createSubagentsSlice();
   readonly context: ContextSlice = createContextSlice();
+  readonly tree: TreeSlice = createTreeSlice();
 
   receive(message: ServerMessage): void {
     this.transcript.receive(message);
@@ -30,6 +32,7 @@ export class ClientStore {
     this.commands.receive(message);
     this.subagents.receive(message);
     this.context.receive(message);
+    this.tree.receive(message);
   }
 
   /**
@@ -44,5 +47,6 @@ export class ClientStore {
     this.commands.clear();
     this.subagents.clear();
     this.context.clear();
+    this.tree.clear();
   }
 }

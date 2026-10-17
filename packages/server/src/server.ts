@@ -334,6 +334,25 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
         scheduleSessionsPush();
         return;
       }
+      if (message.type === ClientMessageType.GetTree) {
+        send(socket, {
+          type: ServerMessageType.SessionTree,
+          sessionId: message.sessionId,
+          tree: await host.tree(),
+        });
+        return;
+      }
+      if (message.type === ClientMessageType.MoveLeaf) {
+        // The host reseeds the Projection and hands every viewer a fresh Snapshot before this answer
+        // goes out, so the transcript follows the new path before the move is reported as done.
+        const move = await host.moveLeaf(message.entryId);
+        send(socket, {
+          type: ServerMessageType.LeafMoved,
+          sessionId: message.sessionId,
+          ...move,
+        });
+        return;
+      }
       if (message.type === ClientMessageType.Reconnect) {
         // The host answers with a fresh Snapshot to every viewer of the Session, so the request needs
         // no reply of its own: the browser's Starting row ends when the Projection arrives.

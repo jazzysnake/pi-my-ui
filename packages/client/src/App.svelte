@@ -61,7 +61,8 @@
   onFork={(entryId) => transport?.forkSession(entryId)}
   onClone={() => transport?.cloneSession()}
   onReconnect={() => transport?.reconnect()}
-  onBranch={() => undefined}
+  onGetTree={() => transport?.getTree()}
+  onMoveLeaf={(entryId) => transport?.moveLeaf(entryId)}
   onListDirectory={(path) => transport?.listDirectory(path)}
   onPreviewFile={(path) => transport?.previewFile(path)}
   onDownloadFile={(path) => startFileDownload(fileDownloadUrl(config.wsUrl, path))}

@@ -2,8 +2,8 @@
  * The bridge extension, loaded into every Pi child. It connects to the server's user-only Unix
  * socket on `session_start`; the server serves the Session only once that handshake is done, so a
  * child without a bridge is a loud server failure, not a Session that quietly lacks a capability.
- * The extension is otherwise inert: it never spawns, stops or consumes a subagent, and it never
- * writes Session content.
+ * Its one mutation is moving the Session's Leaf to an entry that already exists; it never spawns,
+ * stops or consumes a subagent, and it never writes Session content.
  */
 
 import { BRIDGE_SOCKET_ENV_VAR } from "@pi-my-ui/protocol";
@@ -11,6 +11,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { BridgeRecordType, type SubagentAgent } from "@pi-my-ui/protocol";
 
 import { BRIDGE_LOG_PREFIX, BridgeClient, type BridgeLog } from "./client.js";
+import { registerLeafNavigationCommand } from "./leaf-navigation.js";
 import { SUBAGENTS_LIFECYCLE_CHANNELS, lifecycleAgent, subagentManager } from "./subagents.js";
 
 export {
@@ -19,6 +20,13 @@ export {
   BRIDGE_RECONNECT_DELAYS_MS,
 } from "./client.js";
 export { BridgeClient, type BridgeClientOptions, type BridgeLog } from "./client.js";
+export {
+  LEAF_NAVIGATION_COMMAND_DESCRIPTION,
+  registerLeafNavigationCommand,
+  type LeafNavigationApi,
+  type LeafNavigationContext,
+  type LeafNavigationLog,
+} from "./leaf-navigation.js";
 export {
   SUBAGENTS_CREATED_CHANNEL,
   SUBAGENTS_LIFECYCLE_CHANNELS,
@@ -40,6 +48,10 @@ function defaultLog(line: string): void {
 export function registerBridge(pi: ExtensionAPI, log: BridgeLog = defaultLog): void {
   let client: BridgeClient | undefined;
   let agents = new Map<string, SubagentAgent>();
+
+  // Registered before anything else: the server reaches a leaf move by invoking this command, and a
+  // Session served without it could not switch branches at all.
+  registerLeafNavigationCommand(pi, log);
 
   // Subscribed at factory time, so a pi-subagents activation that runs its own `session_start`
   // handler first is already discoverable here.

@@ -15,6 +15,8 @@ export const ProtocolErrorCode = {
   InternalError: "internalError",
   /** A filesystem path that escapes the served root: a security refusal, not a malformed request. */
   PathEscape: "pathEscape",
+  /** A well-formed request the server refused to perform; the refusal is never success. */
+  CommandFailed: "commandFailed",
 } as const;
 
 export type ProtocolErrorCode = (typeof ProtocolErrorCode)[keyof typeof ProtocolErrorCode];

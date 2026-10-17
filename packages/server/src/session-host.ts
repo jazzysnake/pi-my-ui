@@ -23,6 +23,7 @@ import {
   type ProjectionDelta,
   type ServerMessage,
   type SessionStats,
+  type SessionTree,
   type SettingsMessage,
   type SnapshotMessage,
   type StreamingBehavior,
@@ -35,6 +36,7 @@ import type { ServerClock } from "./clock.js";
 import { createDeltaHistory } from "./delta-history.js";
 import type { PiChildLaunch, PiSessionTarget, PiSettings } from "./pi-child.js";
 import { createSessionChild, type SessionChild } from "./session-child.js";
+import { createSessionLeaf } from "./session-leaf.js";
 import { createSessionMutations, type SessionMutationOutcome } from "./session-mutation.js";
 import { createSessionProjectionMachine } from "./session-projection.js";
 
@@ -77,6 +79,14 @@ export interface SessionHost {
   forkSession(entryId: string): Promise<SessionMutationOutcome>;
   /** Copy this Session's active branch into a new Session, leaving this one as it stands. */
   cloneSession(): Promise<SessionMutationOutcome>;
+  /** The Session's whole message tree, for the `tree` view. */
+  tree(): Promise<SessionTree>;
+  /**
+   * Move the Leaf to an entry that already exists, and report the Leaf pi left the Session on. A
+   * refusal throws: pi swallows an error inside its own command handler, so the only evidence of a
+   * move is the Leaf pi reports afterwards.
+   */
+  moveLeaf(entryId: string): Promise<{ readonly entryId: string; readonly leafId: string | null }>;
   /**
    * When this Session's child becomes evictable if nothing else happens, or `undefined` when it is
    * not a candidate now: watched, working, already gone, or not started yet.
@@ -308,15 +318,23 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
     return restarting;
   }
 
-  async function doRestart(): Promise<void> {
-    await child.stop();
-    // The child wrote to the Session file while it ran, so the Projection is rebuilt from the file
-    // rather than trusted: a crash may have persisted an entry no Delta ever carried.
+  /**
+   * Rebuild the Projection from the Session file and hand every viewer a fresh Snapshot. A reseed
+   * renumbers Cursors, so nothing retained describes the new stream.
+   */
+  async function reseedProjection(): Promise<void> {
     seeded = false;
     await seedNow();
     for (const viewer of [...viewers]) {
       viewer.onMessage(snapshot());
     }
+  }
+
+  async function doRestart(): Promise<void> {
+    await child.stop();
+    // The child wrote to the Session file while it ran, so the Projection is rebuilt from the file
+    // rather than trusted: a crash may have persisted an entry no Delta ever carried.
+    await reseedProjection();
   }
 
   /**
@@ -358,6 +376,18 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       viewer.onMessage(message);
     }
   }
+
+  /**
+   * The tree and its Leaf moves read and write pi through the same child the rest of the host uses;
+   * the module owns the confirmation rule, so this host only says where the pieces are.
+   */
+  const leaf = createSessionLeaf({
+    serve: ensureServed,
+    child: () => child.ensure(),
+    leafId: () => machine.projection.leafId,
+    rebuild: reseedProjection,
+    touch,
+  });
 
   /**
    * Fork and clone share one procedure (pi rebinds the child, so this Session has to be rebuilt from
@@ -485,6 +515,8 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
     },
     forkSession: mutations.fork,
     cloneSession: mutations.clone,
+    tree: leaf.tree,
+    moveLeaf: leaf.move,
     evictionDueAt(idleTimeoutMs) {
       // A watched Session is never evicted, and neither is one with work in flight: the child is
       // needed to finish it, and stopping it would lose output the reader is waiting for.

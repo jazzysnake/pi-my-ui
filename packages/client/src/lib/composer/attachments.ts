@@ -21,6 +21,18 @@ export interface ComposerAttachment extends ImageAttachment {
   readonly objectUrl: string;
 }
 
+/**
+ * A source of stable attachment ids. The composer numbers nothing itself, so the identity a list key
+ * and a remove control depend on is produced in one place.
+ */
+export function createAttachmentIds(): () => string {
+  let next = 0;
+  return () => {
+    next += 1;
+    return `attachment-${String(next)}`;
+  };
+}
+
 /** A file the composer refuses, naming the file and the offending value. */
 export class AttachmentRejection extends Error {
   public override readonly name = "AttachmentRejection";

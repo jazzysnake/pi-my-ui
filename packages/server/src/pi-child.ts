@@ -13,6 +13,7 @@ import {
   type RpcCommand,
   type RpcResponse,
   type SessionEntry,
+  type SessionTreeNode,
 } from "@earendil-works/pi-coding-agent";
 import type { ImageContent } from "@earendil-works/pi-ai";
 import type {
@@ -35,6 +36,12 @@ export interface PiChildLaunch extends PiLaunchOptions {
 
 export interface PiEntries {
   readonly entries: readonly SessionEntry[];
+  readonly leafId: string | null;
+}
+
+/** pi's own message tree, with the Leaf the Session is on. */
+export interface PiTree {
+  readonly tree: readonly SessionTreeNode[];
   readonly leafId: string | null;
 }
 
@@ -62,6 +69,14 @@ export interface PiSessionMutation {
 
 export interface PiChild {
   entries(): Promise<PiEntries>;
+  /** The Session's whole message tree, including branches off the active path. */
+  tree(): Promise<PiTree>;
+  /**
+   * Send one prompt pi is expected to consume as a registered command, and report whether it did.
+   * pi answers `handled` only for a command or input handler that took the message, so anything else
+   * means the text went to the model, which for a command invocation is a failure to report.
+   */
+  runExtensionCommand(invocation: string): Promise<boolean>;
   /** Subscribe to pi's live event stream; returns an unsubscribe. */
   onEvent(listener: (event: JsonAgentSessionEvent) => void): () => void;
   prompt(
@@ -280,6 +295,8 @@ export async function startPiChild(
   let stoppedOnPurpose = false;
   return {
     entries: () => client.getEntries(),
+    tree: () => client.getTree(),
+    runExtensionCommand: async (invocation) => (await client.prompt(invocation)) === "handled",
     onEvent: (listener) => client.onEvent(listener),
     onExit: (listener) =>
       exited.subscribe((exit) => {

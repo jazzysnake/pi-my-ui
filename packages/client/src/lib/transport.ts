@@ -87,6 +87,10 @@ export interface Transport {
   cloneSession(): void;
   /** Ask the server to respawn a Session's lost Pi child from its file. Ignored while down. */
   reconnect(): void;
+  /** Ask the server for the Session's message tree. Ignored while the link is down. */
+  getTree(): void;
+  /** Move the Session's Leaf to an existing entry. Ignored while the link is down. */
+  moveLeaf(entryId: string): void;
   /** Ask for one directory of the server's working directory. Ignored while the link is down. */
   listDirectory(path: string): void;
   /** Ask for a bounded text preview of one file. Ignored while the link is down. */
@@ -285,6 +289,12 @@ export function createTransport(options: TransportOptions): Transport {
     },
     reconnect() {
       send({ type: ClientMessageType.Reconnect, sessionId: activeSessionId });
+    },
+    getTree() {
+      send({ type: ClientMessageType.GetTree, sessionId: activeSessionId });
+    },
+    moveLeaf(entryId) {
+      send({ type: ClientMessageType.MoveLeaf, sessionId: activeSessionId, entryId });
     },
     listDirectory(path) {
       send({ type: ClientMessageType.ListDirectory, path });

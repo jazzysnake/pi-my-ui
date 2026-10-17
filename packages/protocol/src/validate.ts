@@ -20,7 +20,9 @@ import type {
   ForkSessionMessage,
   GetForkMessagesMessage,
   GetSessionStatsMessage,
+  GetTreeMessage,
   ListDirectoryMessage,
+  MoveLeafMessage,
   PreviewFileMessage,
   PromptMessage,
   SetAutoCompactionMessage,
@@ -263,6 +265,24 @@ function validateCloneSession(record: Record<string, unknown>): CloneSessionMess
   return { type: ClientMessageType.CloneSession, sessionId: requireSessionId(record) };
 }
 
+function validateGetTree(record: Record<string, unknown>): GetTreeMessage {
+  return { type: ClientMessageType.GetTree, sessionId: requireSessionId(record) };
+}
+
+/** One existing entry, named by id; whether the id resolves is the Session's answer, not this one. */
+function validateMoveLeaf(record: Record<string, unknown>): MoveLeafMessage {
+  const entryId = requireEntryId(record);
+  return { type: ClientMessageType.MoveLeaf, sessionId: requireSessionId(record), entryId };
+}
+
+function requireEntryId(record: Record<string, unknown>): string {
+  const entryId = record["entryId"];
+  if (typeof entryId !== "string" || entryId === "") {
+    malformed('"entryId" must be a non-empty string');
+  }
+  return entryId;
+}
+
 /** Parse one already-decoded client message, or throw a typed {@link ProtocolError}. */
 export function validateClientMessage(value: unknown): ClientMessage {
   const record = asRecord(value);
@@ -307,6 +327,10 @@ export function validateClientMessage(value: unknown): ClientMessage {
       return validateForkSession(record);
     case ClientMessageType.CloneSession:
       return validateCloneSession(record);
+    case ClientMessageType.GetTree:
+      return validateGetTree(record);
+    case ClientMessageType.MoveLeaf:
+      return validateMoveLeaf(record);
     case ClientMessageType.Reconnect:
       return { type: ClientMessageType.Reconnect, sessionId: requireSessionId(record) };
     default:

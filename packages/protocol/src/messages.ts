@@ -24,6 +24,7 @@ import type {
   SessionSummary,
 } from "./model.js";
 import type { ProtocolErrorInfo } from "./errors.js";
+import type { SessionTree } from "./tree.js";
 
 /** List this server's Sessions. A Session-free capability, so it carries no Session and no Cursor. */
 export interface ListSessionsMessage {
@@ -175,6 +176,22 @@ export interface CloneSessionMessage {
   readonly sessionId: string;
 }
 
+/** Read the Session's message tree, including every branch off the active path. */
+export interface GetTreeMessage {
+  readonly type: typeof ClientMessageType.GetTree;
+  readonly sessionId: string;
+}
+
+/**
+ * Move the Session's Leaf to an entry that already exists. A user message moves to its parent, which
+ * is what makes its text editable and resubmittable; any other entry becomes the Leaf itself.
+ */
+export interface MoveLeafMessage {
+  readonly type: typeof ClientMessageType.MoveLeaf;
+  readonly sessionId: string;
+  readonly entryId: string;
+}
+
 export type ClientMessage =
   | ListSessionsMessage
   | CreateSessionMessage
@@ -194,6 +211,8 @@ export type ClientMessage =
   | GetForkMessagesMessage
   | ForkSessionMessage
   | CloneSessionMessage
+  | GetTreeMessage
+  | MoveLeafMessage
   | ReconnectMessage;
 
 /**
@@ -324,6 +343,24 @@ export interface SessionForkedMessage {
   readonly sessionId?: string;
 }
 
+/** One Session's message tree, answering a {@link GetTreeMessage}. */
+export interface SessionTreeMessage {
+  readonly type: typeof ServerMessageType.SessionTree;
+  readonly sessionId: string;
+  readonly tree: SessionTree;
+}
+
+/**
+ * pi confirmed a Leaf move. `entryId` is the entry the client selected; `leafId` is the Leaf pi left
+ * the Session on, which is not the same entry for a user message.
+ */
+export interface LeafMovedMessage {
+  readonly type: typeof ServerMessageType.LeafMoved;
+  readonly sessionId: string;
+  readonly entryId: string;
+  readonly leafId: string | null;
+}
+
 export type ServerMessage =
   | SessionsMessage
   | SessionCreatedMessage
@@ -339,4 +376,6 @@ export type ServerMessage =
   | SessionExportedMessage
   | SessionRenamedMessage
   | ForkMessagesMessage
-  | SessionForkedMessage;
+  | SessionForkedMessage
+  | SessionTreeMessage
+  | LeafMovedMessage;

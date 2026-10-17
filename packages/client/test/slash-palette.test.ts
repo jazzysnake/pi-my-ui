@@ -216,26 +216,6 @@ describe("the slash palette", () => {
     expect(prompt).toHaveBeenCalledWith("/notacommand", [], undefined);
     expect(target.querySelector('[data-testid="composer-error"]')).toBeNull();
   });
-
-  it("reports a built-in whose action has not landed instead of appearing to run it", () => {
-    const store = new ClientStore();
-    const { target, prompt } = mountShell(store);
-    flushSync(() => {
-      store.receive(snapshotOf([]));
-    });
-
-    flushSync(() => {
-      type(target, "/tree");
-    });
-    flushSync(() => {
-      send(target);
-    });
-
-    expect(target.querySelector('[data-testid="command-notice"]')?.textContent).toBe(
-      "/tree is not implemented yet",
-    );
-    expect(prompt).not.toHaveBeenCalled();
-  });
 });
 
 describe("session commands", () => {

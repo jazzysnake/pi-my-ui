@@ -4,7 +4,7 @@
 
 **Blocked by:** 37
 
-**Status:** needs-info
+**Status:** ready-for-agent
 
 **Symptom:** The agent pill renders in the top header, between the truncating wordmark and the Files
 control, where it competes with both for the row and reads as a header badge. Owner: "I'd like the
@@ -24,9 +24,12 @@ but the sidebar toggle, the wordmark, the connection dot and Files
 session state row (`packages/client/src/components/subagent/AgentPill.svelte`), with the same `diamond`
 glyph and derived label.
 
-Open question for the owner, not to be guessed at: this branch's second row also carries the
-run-activity marker on its leading edge, which the previous UI did not have in that row. What happens
-to that marker when the pill takes the slot is the owner's call.
+**Decision (owner):** the pill takes the slot and the `run-activity` marker goes with it — the pill
+replaces it rather than sitting beside it. A live run is then announced by the composer's stop control
+and by the transcript's own growth, which is what the owner reads anyway; no second marker is added
+to the trailing edge. The marker's `run-activity` and `run-activity-label` test ids disappear, so
+whatever asserted them has to move to the control that now carries that meaning rather than lose its
+coverage.
 
 **Done when**
 
@@ -34,4 +37,6 @@ to that marker when the pill takes the slot is the owner's call.
 - [ ] The header holds only the sidebar toggle, the wordmark, connection status and Files
 - [ ] Tapping the pill still opens the agent list, with the same label and count as now
 - [ ] The row fits at 320 px: no wrapping, and the pill truncates before anything is pushed off-screen
+- [ ] The session bar's leading edge is the pill and nothing else; no `run-activity` marker remains, and
+      the tests that asserted it now assert the composer's stop control instead
 - [ ] `npm run verify` green

@@ -8,14 +8,22 @@ import { ProtocolError, ProtocolErrorCode } from "@pi-my-ui/protocol";
 
 import type { ServerConfig } from "./config.js";
 import { systemClock } from "./clock.js";
-import { createSessionHost, type SessionHost } from "./session-host.js";
+import { withBridgeLaunch } from "./bridge/launch.js";
+import { createSessionHost, type BridgeGate, type SessionHost } from "./session-host.js";
 
 export interface SessionPool {
   hostFor(sessionId: string): Promise<SessionHost>;
   close(): Promise<void>;
 }
 
-export function createSessionPool(config: ServerConfig): SessionPool {
+/** Where the pool's children find the bridge, and how a Session waits for its handshake. */
+export interface SessionPoolBridge {
+  readonly socketPath: string;
+  readonly extensionEntry?: string | undefined;
+  readonly gate: BridgeGate;
+}
+
+export function createSessionPool(config: ServerConfig, bridge: SessionPoolBridge): SessionPool {
   const hosts = new Map<string, SessionHost>();
   const pending = new Map<string, Promise<SessionHost>>();
 
@@ -23,7 +31,10 @@ export function createSessionPool(config: ServerConfig): SessionPool {
     const host = createSessionHost({
       sessionId,
       sessionFile,
-      launch: { cwd: config.cwd, ...config.pi },
+      // The extension is resolved here, when a child is actually needed, so a server that never
+      // starts one (the health endpoint, a static check) needs no built bridge.
+      launch: withBridgeLaunch({ cwd: config.cwd, ...config.pi }, bridge),
+      bridge: bridge.gate,
       clock: config.clock ?? systemClock,
     });
     hosts.set(sessionFile, host);

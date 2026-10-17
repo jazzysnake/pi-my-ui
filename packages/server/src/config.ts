@@ -14,6 +14,13 @@ export interface PiLaunchOptions {
   readonly model?: string | undefined;
 }
 
+/** Overrides for the required bridge; every default is derived from the bound port. */
+export interface BridgeOptions {
+  readonly socketPath?: string | undefined;
+  readonly extensionEntry?: string | undefined;
+  readonly connectTimeoutMs?: number | undefined;
+}
+
 export interface ServerConfig {
   /** The project directory the server is started for. */
   readonly cwd: string;
@@ -21,6 +28,8 @@ export interface ServerConfig {
   readonly host?: string | undefined;
   readonly port?: number | undefined;
   readonly pi?: PiLaunchOptions | undefined;
+  /** The required bridge; defaults are derived from the bound port. */
+  readonly bridge?: BridgeOptions | undefined;
   /** Origins allowed on the WebSocket upgrade; empty means the loopback development default. */
   readonly allowedOrigins?: readonly string[] | undefined;
   /** Idle window the launcher carries for Session eviction. */

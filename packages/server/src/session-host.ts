@@ -47,10 +47,16 @@ export interface SessionHost {
   close(): Promise<void>;
 }
 
+/** The bridge a Session's Pi child must connect before the Session is served. */
+export interface BridgeGate {
+  waitForSession(sessionId: string): Promise<void>;
+}
+
 export interface SessionHostOptions {
   readonly sessionId: string;
   readonly sessionFile: string;
   readonly launch: PiChildLaunch;
+  readonly bridge: BridgeGate;
   readonly clock: ServerClock;
 }
 
@@ -159,8 +165,13 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
 
   async function doSeed(): Promise<void> {
     buffering = [];
+    // Registered before the child starts: the extension connects on its own session start, which can
+    // beat the first read from pi, and a handshake that arrives early must not be refused.
+    const bridgeReady = options.bridge.waitForSession(options.sessionId);
+    void bridgeReady.catch(() => undefined);
     try {
       const pi = await ensureChild();
+      await bridgeReady;
       const { entries, leafId } = await pi.entries();
       cursor = machine.seed(entries, leafId);
       seeded = true;

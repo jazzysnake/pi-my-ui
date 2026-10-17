@@ -1,7 +1,46 @@
 /** The backend that owns the Session pool and serves Projections over its WebSocket. */
 
 export { systemClock, type ServerClock } from "./clock.js";
-export { DEFAULT_HOST, DEFAULT_PORT, type PiLaunchOptions, type ServerConfig } from "./config.js";
+export {
+  DEFAULT_HOST,
+  DEFAULT_PORT,
+  type BridgeOptions,
+  type PiLaunchOptions,
+  type ServerConfig,
+} from "./config.js";
+export {
+  BRIDGE_EXTENSION_SPECIFIER,
+  resolveBridgeExtensionEntry,
+  withBridgeLaunch,
+  type BridgeLaunchTarget,
+} from "./bridge/launch.js";
+export {
+  BRIDGE_HELLO_TIMEOUT_MS,
+  BRIDGE_MAX_FRAME_CHARS,
+  DEFAULT_BRIDGE_CONNECT_TIMEOUT_MS,
+  startBridgeListener,
+  type BridgeListener,
+  type BridgeListenerOptions,
+} from "./bridge/listener.js";
+export {
+  BRIDGE_SOCKET_DIR_MODE,
+  BRIDGE_SOCKET_MODE,
+  BRIDGE_STALE_SOCKET_PROBE_TIMEOUT_MS,
+  bindAndSecureSocket,
+  removeBridgeSocket,
+} from "./bridge/socket.js";
+export {
+  BRIDGE_RUNTIME_DIR_PREFIX,
+  BRIDGE_SOCKET_FILENAME,
+  bridgeSocketPath,
+  XDG_RUNTIME_DIR,
+} from "./bridge/socket-path.js";
+export {
+  BridgeConfigurationError,
+  BridgeConnectionError,
+  BridgeError,
+  BridgeSocketError,
+} from "./bridge/errors.js";
 export {
   HEALTHZ_PATH,
   HEALTHZ_SERVICE_NAME,
@@ -23,8 +62,13 @@ export {
   type TrustPolicy,
 } from "./origin.js";
 export { isLoopbackAddress, isLoopbackHostname } from "./loopback.js";
-export { createSessionHost, type SessionHost } from "./session-host.js";
-export { createSessionPool, type SessionPool } from "./session-pool.js";
+export {
+  createSessionHost,
+  type BridgeGate,
+  type SessionHost,
+  type SessionViewer,
+} from "./session-host.js";
+export { createSessionPool, type SessionPool, type SessionPoolBridge } from "./session-pool.js";
 export { startPiChild, type PiChild, type PiEntries } from "./pi-child.js";
 export { projectionBatch, type ProjectionSource } from "./projection.js";
 export {

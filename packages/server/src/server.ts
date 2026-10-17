@@ -22,6 +22,9 @@ import {
 import { WebSocket, WebSocketServer } from "ws";
 
 import { DEFAULT_HOST, DEFAULT_PORT, type ServerConfig } from "./config.js";
+import { BridgeError } from "./bridge/errors.js";
+import { startBridgeListener, type BridgeListener } from "./bridge/listener.js";
+import { bridgeSocketPath } from "./bridge/socket-path.js";
 import { handleFileDownload, isFileDownloadPath } from "./files/route.js";
 import { listDirectory } from "./files/listing.js";
 import { readPreview } from "./files/preview.js";
@@ -98,7 +101,6 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       process.stderr.write(`${line}\n`);
     });
   const trust = createTrustPolicy(config.allowedOrigins ?? []);
-  const pool = createSessionPool(config);
 
   const httpServer = createHttpServer((request, response) => {
     const pathname = pathnameOf(request.url);
@@ -117,21 +119,6 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
 
   const sockets = new WebSocketServer({ noServer: true });
 
-  httpServer.on("upgrade", (request, socket, head) => {
-    const rawOrigin = request.headers.origin;
-    const origin = rawOrigin === undefined || rawOrigin === "" ? undefined : rawOrigin;
-    const decision = trust.decide({ origin, peerAddress: request.socket.remoteAddress });
-    if (!decision.allowed) {
-      log(`refused WebSocket upgrade: ${decision.reason}`);
-      socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
-      socket.destroy();
-      return;
-    }
-    sockets.handleUpgrade(request, socket, head, (websocket) => {
-      sockets.emit("connection", websocket, request);
-    });
-  });
-
   function send(socket: WebSocket, message: ServerMessage): void {
     // A browser can disconnect while its Snapshot is being built; writing to a closed socket would
     // throw out of a detached handler.
@@ -139,6 +126,50 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       socket.send(JSON.stringify(message));
     }
   }
+
+  await new Promise<void>((resolve, reject) => {
+    // A failed `listen` emits `error`; without a listener Node aborts with a raw stack trace.
+    const onError = (error: Error): void => {
+      reject(new ServerBindError(errnoCode(error), bindHost, bindPort, { cause: error }));
+    };
+    httpServer.once("error", onError);
+    httpServer.listen(bindPort, bindHost, () => {
+      httpServer.off("error", onError);
+      resolve();
+    });
+  });
+  const address = httpServer.address() as AddressInfo;
+  const boundPort = address.port;
+
+  const socketPath = config.bridge?.socketPath ?? bridgeSocketPath(boundPort, process.env);
+  let bridge: BridgeListener;
+  try {
+    bridge = await startBridgeListener({
+      socketPath,
+      ...(config.bridge?.connectTimeoutMs === undefined
+        ? {}
+        : { connectTimeoutMs: config.bridge.connectTimeoutMs }),
+      log,
+    });
+  } catch (error) {
+    // A server without its bridge is not a usable server, so a socket that cannot be bound is
+    // reported rather than papered over.
+    await new Promise<void>((resolve) => {
+      httpServer.close(() => {
+        resolve();
+      });
+    });
+    throw error;
+  }
+  // The pool is created once the bound port is known, because the bridge socket's default path is
+  // derived from it, and it is created before any connection is accepted.
+  const pool = createSessionPool(config, {
+    socketPath,
+    ...(config.bridge?.extensionEntry === undefined
+      ? {}
+      : { extensionEntry: config.bridge.extensionEntry }),
+    gate: bridge,
+  });
 
   async function handle(
     socket: WebSocket,
@@ -207,6 +238,11 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       }
       await host.abort();
     } catch (error) {
+      // A bridge that is missing or silent is a server fault the owner must see, not just a browser
+      // that happens to be watching.
+      if (error instanceof BridgeError) {
+        log(`bridge: ${error.message}`);
+      }
       // The failure is tagged with the Session it concerns so the composer can show it against the
       // message it refused rather than dropping it on the floor.
       send(socket, {
@@ -216,6 +252,23 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       });
     }
   }
+
+  // Registered only once the pool exists: an upgrade that arrives before the server is ready is
+  // dropped by Node (and the browser reconnects) instead of being accepted with nowhere to route it.
+  httpServer.on("upgrade", (request, socket, head) => {
+    const rawOrigin = request.headers.origin;
+    const origin = rawOrigin === undefined || rawOrigin === "" ? undefined : rawOrigin;
+    const decision = trust.decide({ origin, peerAddress: request.socket.remoteAddress });
+    if (!decision.allowed) {
+      log(`refused WebSocket upgrade: ${decision.reason}`);
+      socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+    sockets.handleUpgrade(request, socket, head, (websocket) => {
+      sockets.emit("connection", websocket, request);
+    });
+  });
 
   sockets.on("connection", (socket) => {
     const attachment: SocketAttachment = { detach: undefined };
@@ -227,20 +280,6 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       void handle(socket, attachment, data.toString());
     });
   });
-
-  await new Promise<void>((resolve, reject) => {
-    // A failed `listen` emits `error`; without a listener Node aborts with a raw stack trace.
-    const onError = (error: Error): void => {
-      reject(new ServerBindError(errnoCode(error), bindHost, bindPort, { cause: error }));
-    };
-    httpServer.once("error", onError);
-    httpServer.listen(bindPort, bindHost, () => {
-      httpServer.off("error", onError);
-      resolve();
-    });
-  });
-  const address = httpServer.address() as AddressInfo;
-  const boundPort = address.port;
 
   return {
     url: `ws://${bindHost}:${String(boundPort)}`,
@@ -263,6 +302,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
         });
       });
       await pool.close();
+      await bridge.close();
       await new Promise<void>((resolve, reject) => {
         httpServer.close((error) => {
           if (error) {

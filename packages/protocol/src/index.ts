@@ -1,5 +1,6 @@
 /** The one definition of the client↔server WebSocket contract, imported by both ends. */
 
+export * from "./bridge.js";
 export * from "./constants.js";
 export * from "./errors.js";
 export * from "./files.js";

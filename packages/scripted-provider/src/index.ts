@@ -62,8 +62,8 @@ export default function registerScriptedProvider(pi: ExtensionAPI): void {
       {
         id: SCRIPTED_MODEL_ID,
         name: "Scripted model",
-        reasoning: false,
-        input: ["text"],
+        reasoning: true,
+        input: ["text", "image"],
         contextWindow: 200_000,
         maxTokens: 8_192,
       },

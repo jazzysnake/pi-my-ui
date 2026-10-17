@@ -2,19 +2,25 @@
 
 import type { ServerMessage } from "@pi-my-ui/protocol";
 
+import { createComposerSlice, type ComposerSlice } from "./composer.svelte.js";
 import { createFilesSlice, type FilesSlice } from "./files.svelte.js";
 import { createSessionsSlice, type SessionsSlice } from "./sessions.svelte.js";
+import { createSettingsSlice, type SettingsSlice } from "./settings.svelte.js";
 import { createTranscriptSlice, type TranscriptSlice } from "./transcript.svelte.js";
 
 export class ClientStore {
   readonly transcript: TranscriptSlice = createTranscriptSlice();
   readonly files: FilesSlice = createFilesSlice();
   readonly sessions: SessionsSlice = createSessionsSlice();
+  readonly settings: SettingsSlice = createSettingsSlice();
+  readonly composer: ComposerSlice = createComposerSlice();
 
   receive(message: ServerMessage): void {
     this.transcript.receive(message);
     this.files.receive(message);
     this.sessions.receive(message);
+    this.settings.receive(message);
+    this.composer.receive(message);
   }
 
   /**
@@ -24,5 +30,7 @@ export class ClientStore {
   selectSession(sessionId: string): void {
     this.sessions.select(sessionId);
     this.transcript.clear();
+    this.settings.clear();
+    this.composer.clearError();
   }
 }

@@ -18,7 +18,7 @@ import {
   type JsonAgentSessionEvent,
 } from "@earendil-works/pi-coding-agent";
 
-import { textOf } from "./match.js";
+import { imageCountOf, textOf } from "./match.js";
 import {
   ScriptError,
   type Script,
@@ -51,7 +51,7 @@ export const HERMETIC_PI_ARGS = [
 ] as const;
 
 type RecordedPrompt =
-  | { readonly role: "user"; readonly text: string }
+  | { readonly role: "user"; readonly text: string; readonly images?: number }
   | { readonly role: "toolResult"; readonly toolName: string; readonly text: string };
 
 function blockOf(block: AssistantMessage["content"][number]): ScriptedBlock {
@@ -92,15 +92,21 @@ function replyOf(message: AssistantMessage, source: string): ScriptedReply {
 }
 
 function userPrompt(message: UserMessage, source: string): RecordedPrompt {
+  const images = imageCountOf(message.content);
   if (typeof message.content !== "string") {
-    const other = message.content.find((block) => block.type !== "text");
-    if (other !== undefined) {
+    // Blocks pi documents outside text and images cannot be replayed from a flat script.
+    const unknown = (message.content as readonly { readonly type: string }[]).find(
+      (block) => block.type !== "text" && block.type !== "image",
+    );
+    if (unknown !== undefined) {
       throw new ScriptError(
-        `${source}: a ${other.type} block in a user message cannot be recorded`,
+        `${source}: a ${unknown.type} block in a user message cannot be recorded`,
       );
     }
   }
-  return { role: "user", text: textOf(message.content) };
+  const text = textOf(message.content);
+  // The image bytes are not recorded, only how many the model saw, which is what a replay checks.
+  return images === 0 ? { role: "user", text } : { role: "user", text, images };
 }
 
 /** The entries from the Session root to its last message, which is the active conversation. */

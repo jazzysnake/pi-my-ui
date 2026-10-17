@@ -43,8 +43,12 @@
     store.selectSession(sessionId);
     transport?.switchSession(sessionId);
   }}
-  onPrompt={(text) => transport?.prompt(text)}
+  onPrompt={(text, images, behavior) => transport?.prompt(text, images, behavior)}
   onAbort={() => transport?.abort()}
+  onSetModel={(provider, modelId) => transport?.setModel(provider, modelId)}
+  onSetThinkingLevel={(level) => transport?.setThinkingLevel(level)}
+  onSetAutoCompaction={(enabled) => transport?.setAutoCompaction(enabled)}
+  onBranch={() => undefined}
   onListDirectory={(path) => transport?.listDirectory(path)}
   onPreviewFile={(path) => transport?.previewFile(path)}
   onDownloadFile={(path) => startFileDownload(fileDownloadUrl(config.wsUrl, path))}

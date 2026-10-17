@@ -101,6 +101,8 @@ test("an unknown Cursor is answered with a fresh Snapshot", async () => {
       return;
     }
     expect(projectionText(stale.projection.entries)).toContain("Seed text block 3.");
+    // Settings follow the Snapshot, so read them before the next subscribe's answer.
+    expect((await reader.next()).type).toBe("settings");
 
     // A Cursor ahead of the stream is unknown for the same reason.
     reader.send({

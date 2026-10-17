@@ -3,14 +3,22 @@
  * or the parse throws a {@link ProtocolError}; nothing is coerced, defaulted or partly accepted.
  */
 
-import { ClientMessageType } from "./constants.js";
+import { ClientMessageType, StreamingBehavior, ThinkingLevel } from "./constants.js";
 import { ProtocolError, ProtocolErrorCode } from "./errors.js";
-import type { Cursor } from "./model.js";
+import {
+  ALLOWED_IMAGE_MIME_TYPES,
+  MAX_IMAGE_BASE64_LENGTH_CHARS,
+  MAX_IMAGES_PER_MESSAGE,
+} from "./images.js";
+import type { Cursor, ImageAttachment } from "./model.js";
 import type {
   ClientMessage,
   ListDirectoryMessage,
   PreviewFileMessage,
   PromptMessage,
+  SetAutoCompactionMessage,
+  SetModelMessage,
+  SetThinkingLevelMessage,
   SubscribeMessage,
 } from "./messages.js";
 
@@ -52,14 +60,6 @@ function validateSubscribe(record: Record<string, unknown>): SubscribeMessage {
     : { type: ClientMessageType.Subscribe, sessionId, cursor };
 }
 
-function requireText(record: Record<string, unknown>): string {
-  const text = record["text"];
-  if (typeof text !== "string" || text === "") {
-    malformed('"text" must be a non-empty string');
-  }
-  return text;
-}
-
 /** A path relative to the server root. Empty means the root itself, so only the type is checked. */
 function requirePath(record: Record<string, unknown>): string {
   const path = record["path"];
@@ -78,10 +78,119 @@ function validatePreviewFile(record: Record<string, unknown>): PreviewFileMessag
 }
 
 function validatePrompt(record: Record<string, unknown>): PromptMessage {
+  const images = optionalImages(record);
+  const behavior = optionalStreamingBehavior(record);
   return {
     type: ClientMessageType.Prompt,
     sessionId: requireSessionId(record),
-    text: requireText(record),
+    // Text may be empty when the message carries an image; otherwise a blank message is refused.
+    text: requirePromptText(record, images),
+    ...(images === undefined ? {} : { images }),
+    ...(behavior === undefined ? {} : { streamingBehavior: behavior }),
+  };
+}
+
+function requirePromptText(
+  record: Record<string, unknown>,
+  images: readonly ImageAttachment[] | undefined,
+): string {
+  const text = record["text"];
+  if (typeof text !== "string") {
+    malformed('"text" must be a string');
+  }
+  if (text === "" && (images === undefined || images.length === 0)) {
+    malformed('"text" must be a non-empty string when no images are attached');
+  }
+  return text;
+}
+
+/** One image, or a loud failure naming the offending field. */
+function requireImage(value: unknown, index: number): ImageAttachment {
+  const where = `"images[${String(index)}]"`;
+  const record = asRecord(value);
+  const mediaType = record["mediaType"];
+  const data = record["data"];
+  if (
+    typeof mediaType !== "string" ||
+    !(ALLOWED_IMAGE_MIME_TYPES as readonly string[]).includes(mediaType)
+  ) {
+    malformed(`${where}.mediaType must be one of ${ALLOWED_IMAGE_MIME_TYPES.join(", ")}`);
+  }
+  if (typeof data !== "string" || data === "") {
+    malformed(`${where}.data must be a non-empty base64 string`);
+  }
+  if (data.length > MAX_IMAGE_BASE64_LENGTH_CHARS) {
+    malformed(`${where}.data exceeds the maximum image size`);
+  }
+  return { mediaType, data };
+}
+
+function optionalImages(record: Record<string, unknown>): readonly ImageAttachment[] | undefined {
+  const images = record["images"];
+  if (images === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(images)) {
+    malformed('"images" must be an array when present');
+  }
+  if (images.length > MAX_IMAGES_PER_MESSAGE) {
+    malformed(`"images" carries at most ${String(MAX_IMAGES_PER_MESSAGE)} images`);
+  }
+  return images.map((image, index) => requireImage(image, index));
+}
+
+const THINKING_LEVELS: readonly string[] = Object.values(ThinkingLevel);
+const STREAMING_BEHAVIORS: readonly string[] = Object.values(StreamingBehavior);
+
+function optionalStreamingBehavior(record: Record<string, unknown>): StreamingBehavior | undefined {
+  const value = record["streamingBehavior"];
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string" || !STREAMING_BEHAVIORS.includes(value)) {
+    malformed(`"streamingBehavior" must be one of ${STREAMING_BEHAVIORS.join(", ")}`);
+  }
+  return value as StreamingBehavior;
+}
+
+function validateSetModel(record: Record<string, unknown>): SetModelMessage {
+  const provider = record["provider"];
+  const modelId = record["modelId"];
+  if (typeof provider !== "string" || provider === "") {
+    malformed('"provider" must be a non-empty string');
+  }
+  if (typeof modelId !== "string" || modelId === "") {
+    malformed('"modelId" must be a non-empty string');
+  }
+  return {
+    type: ClientMessageType.SetModel,
+    sessionId: requireSessionId(record),
+    provider,
+    modelId,
+  };
+}
+
+function validateSetThinkingLevel(record: Record<string, unknown>): SetThinkingLevelMessage {
+  const level = record["level"];
+  if (typeof level !== "string" || !THINKING_LEVELS.includes(level)) {
+    malformed(`"level" must be one of ${THINKING_LEVELS.join(", ")}`);
+  }
+  return {
+    type: ClientMessageType.SetThinkingLevel,
+    sessionId: requireSessionId(record),
+    level: level as ThinkingLevel,
+  };
+}
+
+function validateSetAutoCompaction(record: Record<string, unknown>): SetAutoCompactionMessage {
+  const enabled = record["enabled"];
+  if (typeof enabled !== "boolean") {
+    malformed('"enabled" must be a boolean');
+  }
+  return {
+    type: ClientMessageType.SetAutoCompaction,
+    sessionId: requireSessionId(record),
+    enabled,
   };
 }
 
@@ -101,6 +210,12 @@ export function validateClientMessage(value: unknown): ClientMessage {
       return validatePrompt(record);
     case ClientMessageType.Abort:
       return { type: ClientMessageType.Abort, sessionId: requireSessionId(record) };
+    case ClientMessageType.SetModel:
+      return validateSetModel(record);
+    case ClientMessageType.SetThinkingLevel:
+      return validateSetThinkingLevel(record);
+    case ClientMessageType.SetAutoCompaction:
+      return validateSetAutoCompaction(record);
     case ClientMessageType.ListDirectory:
       return validateListDirectory(record);
     case ClientMessageType.PreviewFile:

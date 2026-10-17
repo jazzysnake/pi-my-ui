@@ -8,14 +8,18 @@ import {
   ServerMessageType,
   type Cursor,
   type DeltaMessage,
+  type ImageAttachment,
   type ProjectionDelta,
   type ServerMessage,
+  type SettingsMessage,
   type SnapshotMessage,
+  type StreamingBehavior,
+  type ThinkingLevel,
 } from "@pi-my-ui/protocol";
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 
 import type { ServerClock } from "./clock.js";
-import { startPiChild, type PiChild, type PiChildLaunch } from "./pi-child.js";
+import { startPiChild, type PiChild, type PiChildLaunch, type PiSettings } from "./pi-child.js";
 import { createSessionProjectionMachine } from "./session-projection.js";
 
 /** A recipient of one Session's Snapshot and Deltas; the connection implements it over its socket. */
@@ -31,8 +35,15 @@ export interface SessionHost {
    * fresh Snapshot when it is not, and a Snapshot when the viewer has no Cursor. Returns a detach.
    */
   attach(viewer: SessionViewer, from?: Cursor): Promise<() => void>;
-  prompt(text: string): Promise<void>;
+  prompt(
+    text: string,
+    images: readonly ImageAttachment[],
+    behavior?: StreamingBehavior,
+  ): Promise<void>;
   abort(): Promise<void>;
+  setModel(provider: string, modelId: string): Promise<void>;
+  setThinkingLevel(level: ThinkingLevel): Promise<void>;
+  setAutoCompaction(enabled: boolean): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -181,6 +192,19 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
     };
   }
 
+  function settingsMessage(settings: PiSettings): SettingsMessage {
+    return { type: ServerMessageType.Settings, sessionId: options.sessionId, ...settings };
+  }
+
+  /** Re-read pi's settings and hand them to every viewer, so the status strip shows pi's values. */
+  async function broadcastSettings(): Promise<void> {
+    const pi = await ensureChild();
+    const message = settingsMessage(await pi.settings());
+    for (const viewer of [...viewers]) {
+      viewer.onMessage(message);
+    }
+  }
+
   return {
     sessionId: options.sessionId,
     sessionFile: options.sessionFile,
@@ -196,20 +220,42 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       }
       // Registering after the synchronous sends keeps the replayed Deltas ahead of every new one.
       viewers.add(viewer);
+      // Settings are read from pi on every attach rather than replayed, so a browser that was
+      // disconnected when a setting changed still sees pi's current value.
+      try {
+        viewer.onMessage(settingsMessage(await (await ensureChild()).settings()));
+      } catch {
+        // A supplementary read must not fail a subscription that already delivered a Snapshot.
+      }
       return () => {
         viewers.delete(viewer);
       };
     },
-    async prompt(text) {
+    async prompt(text, images, behavior) {
       await ensureSeeded();
       const pi = await ensureChild();
-      await pi.prompt(text);
+      await pi.prompt(text, images, behavior);
     },
     async abort() {
       await ensureSeeded();
       publish(machine.markAborted());
       const pi = await ensureChild();
       await pi.abort();
+    },
+    async setModel(provider, modelId) {
+      await ensureSeeded();
+      await (await ensureChild()).setModel(provider, modelId);
+      await broadcastSettings();
+    },
+    async setThinkingLevel(level) {
+      await ensureSeeded();
+      await (await ensureChild()).setThinkingLevel(level);
+      await broadcastSettings();
+    },
+    async setAutoCompaction(enabled) {
+      await ensureSeeded();
+      await (await ensureChild()).setAutoCompaction(enabled);
+      await broadcastSettings();
     },
     async close() {
       viewers.clear();

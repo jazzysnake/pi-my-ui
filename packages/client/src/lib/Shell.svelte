@@ -1,4 +1,6 @@
 <script lang="ts">
+  import type { ImageAttachment, StreamingBehavior, ThinkingLevel } from "@pi-my-ui/protocol";
+
   import Composer from "./Composer.svelte";
   import ConnectionStatusIndicator from "./ConnectionStatusIndicator.svelte";
   import RunStateRow from "./RunStateRow.svelte";
@@ -15,6 +17,10 @@
     onSelectSession,
     onPrompt,
     onAbort,
+    onSetModel = () => undefined,
+    onSetThinkingLevel = () => undefined,
+    onSetAutoCompaction = () => undefined,
+    onBranch = () => undefined,
     onListDirectory,
     onPreviewFile,
     onDownloadFile,
@@ -22,8 +28,16 @@
     store: ClientStore;
     status: ConnectionStatus;
     onSelectSession: (sessionId: string) => void;
-    onPrompt: (text: string) => void;
+    onPrompt: (
+      text: string,
+      images: readonly ImageAttachment[],
+      behavior?: StreamingBehavior,
+    ) => void;
     onAbort: () => void;
+    onSetModel?: (provider: string, modelId: string) => void;
+    onSetThinkingLevel?: (level: ThinkingLevel) => void;
+    onSetAutoCompaction?: (enabled: boolean) => void;
+    onBranch?: () => void;
     onListDirectory: (path: string) => void;
     onPreviewFile: (path: string) => void;
     onDownloadFile: (path: string) => void;
@@ -31,6 +45,17 @@
 
   let filesOpen = $state(false);
   let sessionsOpen = $state(false);
+
+  // The Shell owns the composer-to-store interaction: every send is recorded before the transport
+  // is asked, so the composer can tell pi's acceptance from a refusal.
+  function handlePrompt(
+    text: string,
+    images: readonly ImageAttachment[],
+    behavior?: StreamingBehavior,
+  ): void {
+    store.composer.noteSend();
+    onPrompt(text, images, behavior);
+  }
 </script>
 
 <div
@@ -69,7 +94,19 @@
   </header>
   <Transcript entries={store.transcript.entries} />
   <RunStateRow runState={store.transcript.runState} />
-  <Composer runState={store.transcript.runState} {status} {onPrompt} {onAbort} />
+  <Composer
+    runState={store.transcript.runState}
+    {status}
+    settings={store.settings.settings}
+    error={store.composer.error}
+    sentCount={store.composer.sentCount}
+    onPrompt={handlePrompt}
+    {onAbort}
+    {onSetModel}
+    {onSetThinkingLevel}
+    {onSetAutoCompaction}
+    {onBranch}
+  />
   {#if sessionsOpen}
     <SessionDrawer
       summaries={store.sessions.summaries}

@@ -165,6 +165,8 @@ test("refuses path traversal, out-of-root reads, and anything that would write",
   try {
     client.send({ type: "subscribe", sessionId: harness.seeded.id });
     expect((await client.next()).type).toBe("snapshot");
+    // Settings follow the Snapshot, so consume them before asserting on capability replies.
+    expect((await client.next()).type).toBe("settings");
 
     // Traversal, an absolute path and a symlink escape are each a typed refusal, never a listing.
     for (const path of ["..", "/etc", "escape-dir"]) {

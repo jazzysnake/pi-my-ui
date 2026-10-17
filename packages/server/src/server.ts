@@ -153,6 +153,10 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       return;
     }
     const viewer: SessionViewer = { onMessage: (outbound) => send(socket, outbound) };
+    const nameSession =
+      "sessionId" in message && typeof message.sessionId === "string"
+        ? { sessionId: message.sessionId }
+        : {};
     try {
       // The list is disk facts about the working directory, not a Session, so it is answered here
       // rather than by a Session host; no Pi child starts to produce it.
@@ -186,12 +190,30 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
         return;
       }
       if (message.type === ClientMessageType.Prompt) {
-        await host.prompt(message.text);
+        await host.prompt(message.text, message.images ?? [], message.streamingBehavior);
+        return;
+      }
+      if (message.type === ClientMessageType.SetModel) {
+        await host.setModel(message.provider, message.modelId);
+        return;
+      }
+      if (message.type === ClientMessageType.SetThinkingLevel) {
+        await host.setThinkingLevel(message.level);
+        return;
+      }
+      if (message.type === ClientMessageType.SetAutoCompaction) {
+        await host.setAutoCompaction(message.enabled);
         return;
       }
       await host.abort();
     } catch (error) {
-      send(socket, { type: ServerMessageType.Error, error: toProtocolErrorInfo(error) });
+      // The failure is tagged with the Session it concerns so the composer can show it against the
+      // message it refused rather than dropping it on the floor.
+      send(socket, {
+        type: ServerMessageType.Error,
+        error: toProtocolErrorInfo(error),
+        ...nameSession,
+      });
     }
   }
 

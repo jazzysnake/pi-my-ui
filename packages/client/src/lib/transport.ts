@@ -12,7 +12,10 @@ import {
   ServerMessageType,
   type ClientMessage,
   type Cursor,
+  type ImageAttachment,
   type ServerMessage,
+  type StreamingBehavior,
+  type ThinkingLevel,
 } from "@pi-my-ui/protocol";
 
 /** The link states the top-bar dot renders. */
@@ -53,9 +56,15 @@ export interface Transport {
   /** Watch another Session without closing the link, from the start of its stream. */
   switchSession(sessionId: string): void;
   /** Send one message to the Session's Pi child. Ignored while the link is down. */
-  prompt(text: string): void;
+  prompt(text: string, images?: readonly ImageAttachment[], behavior?: StreamingBehavior): void;
   /** Cancel the Session's running turn. Ignored while the link is down. */
   abort(): void;
+  /** Switch the Session's model. Ignored while the link is down. */
+  setModel(provider: string, modelId: string): void;
+  /** Set the Session's reasoning level. Ignored while the link is down. */
+  setThinkingLevel(level: ThinkingLevel): void;
+  /** Turn pi's automatic compaction on or off. Ignored while the link is down. */
+  setAutoCompaction(enabled: boolean): void;
   /** Ask for one directory of the server's working directory. Ignored while the link is down. */
   listDirectory(path: string): void;
   /** Ask for a bounded text preview of one file. Ignored while the link is down. */
@@ -176,11 +185,26 @@ export function createTransport(options: TransportOptions): Transport {
       cursor = undefined;
       send(subscription());
     },
-    prompt(text) {
-      send({ type: ClientMessageType.Prompt, sessionId: activeSessionId, text });
+    prompt(text, images, behavior) {
+      send({
+        type: ClientMessageType.Prompt,
+        sessionId: activeSessionId,
+        text,
+        ...(images === undefined || images.length === 0 ? {} : { images }),
+        ...(behavior === undefined ? {} : { streamingBehavior: behavior }),
+      });
     },
     abort() {
       send({ type: ClientMessageType.Abort, sessionId: activeSessionId });
+    },
+    setModel(provider, modelId) {
+      send({ type: ClientMessageType.SetModel, sessionId: activeSessionId, provider, modelId });
+    },
+    setThinkingLevel(level) {
+      send({ type: ClientMessageType.SetThinkingLevel, sessionId: activeSessionId, level });
+    },
+    setAutoCompaction(enabled) {
+      send({ type: ClientMessageType.SetAutoCompaction, sessionId: activeSessionId, enabled });
     },
     listDirectory(path) {
       send({ type: ClientMessageType.ListDirectory, path });

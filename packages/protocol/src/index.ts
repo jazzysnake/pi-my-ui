@@ -3,6 +3,7 @@
 export * from "./constants.js";
 export * from "./errors.js";
 export * from "./files.js";
+export * from "./images.js";
 export * from "./model.js";
 export * from "./messages.js";
 export * from "./validate.js";

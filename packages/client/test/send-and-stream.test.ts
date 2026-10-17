@@ -254,7 +254,7 @@ describe("the composer", () => {
       send.click();
     });
 
-    expect(prompt).toHaveBeenCalledWith("hello agent");
+    expect(prompt).toHaveBeenCalledWith("hello agent", [], undefined);
   });
 
   it("turns send into stop while a run is active and aborts it", () => {

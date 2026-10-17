@@ -11,6 +11,13 @@ import {
   type JsonAgentSessionEvent,
   type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
+import type { ImageContent } from "@earendil-works/pi-ai";
+import type {
+  ImageAttachment,
+  ModelInfo,
+  StreamingBehavior,
+  ThinkingLevel,
+} from "@pi-my-ui/protocol";
 
 import type { PiLaunchOptions } from "./config.js";
 
@@ -23,13 +30,50 @@ export interface PiEntries {
   readonly leafId: string | null;
 }
 
+/** The status strip's facts, read in one call so a viewer sees a consistent set. */
+export interface PiSettings {
+  readonly model: ModelInfo | null;
+  readonly availableModels: readonly ModelInfo[];
+  readonly thinkingLevel: ThinkingLevel;
+  readonly availableThinkingLevels: readonly ThinkingLevel[];
+  readonly autoCompactionEnabled: boolean;
+}
+
 export interface PiChild {
   entries(): Promise<PiEntries>;
   /** Subscribe to pi's live event stream; returns an unsubscribe. */
   onEvent(listener: (event: JsonAgentSessionEvent) => void): () => void;
-  prompt(text: string): Promise<void>;
+  prompt(
+    text: string,
+    images: readonly ImageAttachment[],
+    behavior?: StreamingBehavior,
+  ): Promise<void>;
   abort(): Promise<void>;
+  settings(): Promise<PiSettings>;
+  setModel(provider: string, modelId: string): Promise<void>;
+  setThinkingLevel(level: ThinkingLevel): Promise<void>;
+  setAutoCompaction(enabled: boolean): Promise<void>;
   stop(): Promise<void>;
+}
+
+/** The subset of pi's model record the wire carries. */
+function toModelInfo(model: {
+  readonly provider: string;
+  readonly id: string;
+  readonly name?: string;
+  readonly reasoning?: boolean;
+}): ModelInfo {
+  return {
+    provider: model.provider,
+    id: model.id,
+    name: model.name ?? model.id,
+    reasoning: model.reasoning ?? false,
+  };
+}
+
+/** Pi's `ImageContent` names the type `mimeType`; the contract names it `mediaType`. */
+function toImageContent(image: ImageAttachment): ImageContent {
+  return { type: "image", data: image.data, mimeType: image.mediaType };
 }
 
 /** Start a real `pi --mode rpc` child on `sessionFile` and wait until it is running. */
@@ -46,10 +90,33 @@ export async function startPiChild(sessionFile: string, launch: PiChildLaunch): 
   return {
     entries: () => client.getEntries(),
     onEvent: (listener) => client.onEvent(listener),
-    prompt: async (text) => {
-      await client.prompt(text);
+    prompt: async (text, images, behavior) => {
+      await client.prompt(
+        text,
+        images.length === 0 ? undefined : images.map(toImageContent),
+        behavior,
+      );
     },
     abort: () => client.abort(),
+    async settings() {
+      const state = await client.getState();
+      const [models, levels] = await Promise.all([
+        client.getAvailableModels(),
+        client.getAvailableThinkingLevels(),
+      ]);
+      return {
+        model: state.model === undefined ? null : toModelInfo(state.model),
+        availableModels: models.map(toModelInfo),
+        thinkingLevel: state.thinkingLevel,
+        availableThinkingLevels: levels,
+        autoCompactionEnabled: state.autoCompactionEnabled,
+      };
+    },
+    setModel: async (provider, modelId) => {
+      await client.setModel(provider, modelId);
+    },
+    setThinkingLevel: (level) => client.setThinkingLevel(level),
+    setAutoCompaction: (enabled) => client.setAutoCompaction(enabled),
     stop: () => client.stop(),
   };
 }

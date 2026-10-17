@@ -15,6 +15,25 @@ import {
 /** A position in one Session's ordered stream of Delta batches. */
 export type Cursor = number;
 
+/**
+ * One image the user attached, base64-encoded so it survives JSON. The wire receives a fixed size
+ * bound and a media-type whitelist at the boundary; the client never sends a file path.
+ */
+export interface ImageAttachment {
+  /** The image's IANA media type, e.g. `image/png`. */
+  readonly mediaType: string;
+  /** The image bytes, base64-encoded. */
+  readonly data: string;
+}
+
+/** One model pi can be switched to, as the status strip's picker lists it. */
+export interface ModelInfo {
+  readonly provider: string;
+  readonly id: string;
+  readonly name: string;
+  readonly reasoning: boolean;
+}
+
 /** A block of user/assistant/tool text. */
 export interface TextBlock {
   readonly type: typeof ContentBlockType.Text;

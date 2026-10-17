@@ -33,6 +33,25 @@
       container.scrollTop = current.length > 0 ? container.scrollHeight : 0;
     }
   });
+
+  // The transcript is not the only thing that changes height: the composer above it grows when the
+  // status strip arrives or the on-screen keyboard opens, and a reader pinned to the bottom must
+  // stay pinned rather than drift below the newest output.
+  $effect(() => {
+    const element = container;
+    if (element === null || typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const observer = new ResizeObserver(() => {
+      if (pinned) {
+        element.scrollTop = element.scrollHeight;
+      }
+    });
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  });
 </script>
 
 <main

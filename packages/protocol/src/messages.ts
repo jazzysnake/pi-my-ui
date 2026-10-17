@@ -4,8 +4,16 @@
  */
 
 import { ClientMessageType, ServerMessageType } from "./constants.js";
+import type { StreamingBehavior, ThinkingLevel } from "./constants.js";
 import type { DirectoryEntry } from "./files.js";
-import type { Cursor, DeltaBatch, SessionProjection, SessionSummary } from "./model.js";
+import type {
+  Cursor,
+  DeltaBatch,
+  ImageAttachment,
+  ModelInfo,
+  SessionProjection,
+  SessionSummary,
+} from "./model.js";
 import type { ProtocolErrorInfo } from "./errors.js";
 
 /** List this server's Sessions. A Session-free capability, so it carries no Session and no Cursor. */
@@ -25,6 +33,35 @@ export interface PromptMessage {
   readonly type: typeof ClientMessageType.Prompt;
   readonly sessionId: string;
   readonly text: string;
+  /** Images to send with the message, in the order the composer shows them. */
+  readonly images?: readonly ImageAttachment[];
+  /**
+   * How to deliver the message while a run is active. pi requires one of these to queue during a
+   * run and ignores it otherwise, so it is only present when the composer chose one.
+   */
+  readonly streamingBehavior?: StreamingBehavior;
+}
+
+/** Switch the Session's model. */
+export interface SetModelMessage {
+  readonly type: typeof ClientMessageType.SetModel;
+  readonly sessionId: string;
+  readonly provider: string;
+  readonly modelId: string;
+}
+
+/** Set the Session's reasoning level. */
+export interface SetThinkingLevelMessage {
+  readonly type: typeof ClientMessageType.SetThinkingLevel;
+  readonly sessionId: string;
+  readonly level: ThinkingLevel;
+}
+
+/** Turn pi's automatic compaction on or off. */
+export interface SetAutoCompactionMessage {
+  readonly type: typeof ClientMessageType.SetAutoCompaction;
+  readonly sessionId: string;
+  readonly enabled: boolean;
 }
 
 /** Cancel the Session's running turn. */
@@ -53,6 +90,9 @@ export type ClientMessage =
   | SubscribeMessage
   | PromptMessage
   | AbortMessage
+  | SetModelMessage
+  | SetThinkingLevelMessage
+  | SetAutoCompactionMessage
   | ListDirectoryMessage
   | PreviewFileMessage;
 
@@ -76,10 +116,27 @@ export interface DeltaMessage extends DeltaBatch {
   readonly sessionId: string;
 }
 
+/**
+ * One Session's settings as pi holds them: the status strip's model, reasoning level and automatic
+ * compaction. Settings live beside the Projection rather than inside it because they change without
+ * moving the Cursor, and a reconnect re-reads them from pi rather than replaying them.
+ */
+export interface SettingsMessage {
+  readonly type: typeof ServerMessageType.Settings;
+  readonly sessionId: string;
+  readonly model: ModelInfo | null;
+  readonly availableModels: readonly ModelInfo[];
+  readonly thinkingLevel: ThinkingLevel;
+  readonly availableThinkingLevels: readonly ThinkingLevel[];
+  readonly autoCompactionEnabled: boolean;
+}
+
 /** A typed failure, carrying the code the client branches on. */
 export interface ErrorMessage {
   readonly type: typeof ServerMessageType.Error;
   readonly error: ProtocolErrorInfo;
+  /** The Session the failed request named, when it named one; absent for a malformed frame. */
+  readonly sessionId?: string;
 }
 
 /** One directory's entries, echoing the normalized relative `path` the request named. */
@@ -103,6 +160,7 @@ export type ServerMessage =
   | SessionsMessage
   | SnapshotMessage
   | DeltaMessage
+  | SettingsMessage
   | ErrorMessage
   | DirectoryListingMessage
   | FilePreviewMessage;

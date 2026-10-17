@@ -9,6 +9,9 @@ export const ClientMessageType = {
   Subscribe: "subscribe",
   Prompt: "prompt",
   Abort: "abort",
+  SetModel: "setModel",
+  SetThinkingLevel: "setThinkingLevel",
+  SetAutoCompaction: "setAutoCompaction",
   ListDirectory: "listDirectory",
   PreviewFile: "previewFile",
 } as const;
@@ -20,6 +23,7 @@ export const ServerMessageType = {
   Sessions: "sessions",
   Snapshot: "snapshot",
   Delta: "delta",
+  Settings: "settings",
   Error: "error",
   DirectoryListing: "directoryListing",
   FilePreview: "filePreview",
@@ -86,3 +90,27 @@ export const ToolCallStatus = {
 } as const;
 
 export type ToolCallStatus = (typeof ToolCallStatus)[keyof typeof ToolCallStatus];
+
+/**
+ * How a message submitted during an active run reaches pi: `steer` interrupts at the next step, and
+ * `followUp` waits until the run finishes. The spellings are pi's own RPC values.
+ */
+export const StreamingBehavior = {
+  Steer: "steer",
+  FollowUp: "followUp",
+} as const;
+
+export type StreamingBehavior = (typeof StreamingBehavior)[keyof typeof StreamingBehavior];
+
+/** pi's reasoning levels; `off` disables it. */
+export const ThinkingLevel = {
+  Off: "off",
+  Minimal: "minimal",
+  Low: "low",
+  Medium: "medium",
+  High: "high",
+  XHigh: "xhigh",
+  Max: "max",
+} as const;
+
+export type ThinkingLevel = (typeof ThinkingLevel)[keyof typeof ThinkingLevel];

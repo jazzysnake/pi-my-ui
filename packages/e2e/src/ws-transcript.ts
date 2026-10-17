@@ -49,6 +49,10 @@ export async function readUntilText(
       seen.push(message);
       continue;
     }
+    // Settings are not transcript state, so a run that lands across one still reads cleanly.
+    if (message.type === "settings") {
+      continue;
+    }
     if (message.type === "snapshot") {
       if (projectionText(message.projection.entries).includes(text)) {
         return seen;

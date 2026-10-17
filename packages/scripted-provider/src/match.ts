@@ -13,6 +13,14 @@ export function textOf(content: Message["content"]): string {
     .join("");
 }
 
+/** The number of image blocks a message carries; a string content carries none. */
+export function imageCountOf(content: Message["content"]): number {
+  if (typeof content === "string") {
+    return 0;
+  }
+  return content.filter((block) => block.type === "image").length;
+}
+
 /** The message a model call is answering: the last one pi sends the model, ignoring prompt state. */
 export function lastModelVisibleMessage(messages: readonly Message[]): Message {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -35,9 +43,11 @@ function describe(message: Message): string {
 }
 
 function describeExpectation(expect: ScriptExpectation): string {
-  return expect.role === "user"
-    ? `user ${JSON.stringify(expect.text)}`
-    : `tool result from ${expect.toolName}`;
+  if (expect.role === "user") {
+    const images = expect.images === undefined ? "" : ` with ${String(expect.images)} image(s)`;
+    return `user ${JSON.stringify(expect.text)}${images}`;
+  }
+  return `tool result from ${expect.toolName}`;
 }
 
 /**
@@ -49,6 +59,13 @@ export function assertExpectation(expect: ScriptExpectation, incoming: Message):
     if (incoming.role !== "user" || textOf(incoming.content) !== expect.text) {
       throw new ScriptError(
         `scripted provider: expected ${describeExpectation(expect)} but received ${describe(incoming)}`,
+      );
+    }
+    if (expect.images !== undefined && imageCountOf(incoming.content) !== expect.images) {
+      throw new ScriptError(
+        `scripted provider: expected ${String(expect.images)} image(s) but received ${String(
+          imageCountOf(incoming.content),
+        )}`,
       );
     }
     return;

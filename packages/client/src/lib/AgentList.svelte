@@ -1,7 +1,7 @@
 <script lang="ts">
+  import Icon from "./Icon.svelte";
   import { AgentListRowKind, buildAgentListRows, type AgentListRow } from "./subagents/rows.js";
   import type { ClientStore } from "./store/client-store.svelte.js";
-  import Icon from "./Icon.svelte";
 
   let {
     store,

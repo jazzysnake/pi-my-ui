@@ -11,13 +11,13 @@
   interface Props {
     readonly name: IconName;
     /**
-     * The `<svg>` box and colour. The default consumes the control-glyph size token, so a
-     * glyph-only control has one declared size; a marker sized to its row passes `size-4` instead.
+     * The `<svg>` box and colour. The default consumes the one control-glyph size token, so a
+     * glyph-only control has a single declared size; a marker sized to its row passes `size-4`.
      */
     readonly class?: string;
   }
 
-  let { name, class: className = "size-[var(--text-control-glyph)]" }: Props = $props();
+  let { name, class: className = "size-[var(--control-glyph-size)]" }: Props = $props();
 
   // Widened to the interface so the optional `paths`/`circles`/`rects` are all in view: the record's
   // `as const` value keeps each entry's literal shape (missing keys stay absent).

@@ -90,6 +90,7 @@ describe("a compaction boundary in the transcript", () => {
     expect(target.querySelector('[data-testid="compaction-boundary-label"]')?.textContent).toBe(
       "Context compacted here",
     );
+    expect(boundary?.querySelector("svg")?.getAttribute("data-icon")).toBe("arrow-down-to-line");
     expect(boundary?.textContent).toContain("The agent had already read the API surface.");
     // A boundary is not a message, so it carries no copy control of its own.
     expect(boundary?.querySelector('[data-testid="copy-raw"]')).toBeNull();

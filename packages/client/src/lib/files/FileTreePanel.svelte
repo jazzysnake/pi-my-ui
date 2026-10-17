@@ -10,10 +10,10 @@
    */
   import { FileEntryType, isPreviewableName } from "@pi-my-ui/protocol";
 
+  import Icon from "../Icon.svelte";
   import type { FilesSlice } from "../store/files.svelte.js";
   import FilePreview from "./FilePreview.svelte";
   import { ROOT_PATH, visibleRows } from "./rows.js";
-  import Icon from "../Icon.svelte";
 
   let {
     cwd,

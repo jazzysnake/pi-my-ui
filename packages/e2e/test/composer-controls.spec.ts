@@ -4,6 +4,7 @@ import { startServer, type RunningServer } from "@pi-my-ui/server";
 import type { Script } from "@pi-my-ui/scripted-provider";
 
 import { startClientPageServer, type ClientPageServer } from "../src/client-page-server";
+import { expectComposerSend } from "../src/composer-send";
 import { seedSession, type FixtureSession, type SeedName } from "../src/fixture-builder";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 
@@ -118,11 +119,7 @@ test("steer enters the run at its next step", async ({ page }) => {
   try {
     await openHarness(page, harness);
     await sendMessage(page, "start the long job");
-    await expect(page.getByTestId("composer-send")).toHaveAttribute("aria-label", "Stop");
-    await expect(page.getByTestId("composer-send").locator("svg")).toHaveAttribute(
-      "data-icon",
-      "square",
-    );
+    await expectComposerSend(page, "Stop");
 
     // Steer is the row's default, so the row's Send is the only gesture needed.
     await page.getByTestId("composer-input").fill("steer it now");
@@ -164,11 +161,7 @@ test("follow up waits until the run finishes", async ({ page }) => {
   try {
     await openHarness(page, harness);
     await sendMessage(page, "start the long job");
-    await expect(page.getByTestId("composer-send")).toHaveAttribute("aria-label", "Stop");
-    await expect(page.getByTestId("composer-send").locator("svg")).toHaveAttribute(
-      "data-icon",
-      "square",
-    );
+    await expectComposerSend(page, "Stop");
 
     await page.getByTestId("composer-input").fill("then say bye");
     await page.getByTestId("streaming-choice-follow-up").click();
@@ -261,22 +254,14 @@ test("Escape cancels the running turn", async ({ page }) => {
   try {
     await openHarness(page, harness);
     await sendMessage(page, "start the long job");
-    await expect(page.getByTestId("composer-send")).toHaveAttribute("aria-label", "Stop");
-    await expect(page.getByTestId("composer-send").locator("svg")).toHaveAttribute(
-      "data-icon",
-      "square",
-    );
+    await expectComposerSend(page, "Stop");
 
     const input = page.getByTestId("composer-input");
     await input.click();
     await input.press("Escape");
 
     await expect(page.getByTestId("run-state")).toHaveAttribute("data-run-state", "aborted");
-    await expect(page.getByTestId("composer-send")).toHaveAttribute("aria-label", "Send");
-    await expect(page.getByTestId("composer-send").locator("svg")).toHaveAttribute(
-      "data-icon",
-      "arrow-up",
-    );
+    await expectComposerSend(page, "Send");
   } finally {
     await disposeHarness(harness);
   }
@@ -294,19 +279,41 @@ test("send is the row's last control in the thumb corner at a full touch size", 
       .evaluateAll((buttons) => buttons.map((button) => button.getAttribute("data-testid")));
     expect(labels).toEqual(["composer-attach", "composer-branch", "composer-send"]);
 
-    const glyphs = await page
+    // Each action is a glyph and nothing else, drawn inside the 44 px target rather than clipped by
+    // it, on the pack's grid and stroke.
+    const actions = await page
       .getByTestId("composer")
-      .locator("textarea ~ button svg")
-      .evaluateAll((icons) =>
-        icons.map((icon) => {
-          const box = icon.getBoundingClientRect();
-          return { icon: icon.getAttribute("data-icon"), width: box.width, height: box.height };
+      .locator("textarea ~ button")
+      .evaluateAll((buttons) =>
+        buttons.map((button) => {
+          const icon = button.querySelector("svg");
+          const glyph = icon?.getBoundingClientRect();
+          const target = button.getBoundingClientRect();
+          return {
+            id: button.getAttribute("data-testid"),
+            text: (button.textContent ?? "").trim(),
+            icon: icon?.getAttribute("data-icon") ?? null,
+            viewBox: icon?.getAttribute("viewBox") ?? null,
+            stroke: icon?.getAttribute("stroke-width") ?? null,
+            width: glyph?.width ?? 0,
+            height: glyph?.height ?? 0,
+            contained:
+              glyph !== undefined &&
+              glyph.left >= target.left - 0.5 &&
+              glyph.right <= target.right + 0.5 &&
+              glyph.top >= target.top - 0.5 &&
+              glyph.bottom <= target.bottom + 0.5,
+          };
         }),
       );
-    expect(glyphs).toHaveLength(3);
-    for (const glyph of glyphs) {
-      expect(glyph.width).toBeCloseTo(20, 1);
-      expect(glyph.height).toBeCloseTo(20, 1);
+    expect(actions.map((action) => action.icon)).toEqual(["paperclip", "git-branch", "arrow-up"]);
+    for (const action of actions) {
+      expect(action.text, action.id ?? "").toBe("");
+      expect(action.viewBox).toBe("0 0 24 24");
+      expect(action.stroke).toBe("2");
+      expect(action.width).toBeCloseTo(20, 1);
+      expect(action.height).toBeCloseTo(20, 1);
+      expect(action.contained, `${action.id ?? ""} must not clip its glyph`).toBe(true);
     }
 
     const send = page.getByTestId("composer-send");

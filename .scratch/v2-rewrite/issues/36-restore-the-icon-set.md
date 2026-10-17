@@ -37,12 +37,12 @@ row's kind to its glyph. Icons in use there: composer `paperclip` / `git-branch`
 
 **Done when**
 
-- [ ] Tree rows lead with the glyph for their kind, and a user row carries the fork control
-- [ ] The composer shows icons for attach, branch, send and stop, none of them clipped or showing text
-- [ ] The agent pill and the header's two controls still show their icons
-- [ ] Side by side with the previous UI at 393 px and 320 px, the chosen glyphs, stroke weight and
+- [x] Tree rows lead with the glyph for their kind, and a user row carries the fork control
+- [x] The composer shows icons for attach, branch, send and stop, none of them clipped or showing text
+- [x] The agent pill and the header's two controls still show their icons
+- [x] Side by side with the previous UI at 393 px and 320 px, the chosen glyphs, stroke weight and
       optical size match and nothing reads as squished
-- [ ] `npm run verify` green
+- [x] `npm run verify` green
 
 ## Comments
 
@@ -62,3 +62,32 @@ end-to-end tests across 2 shards in ~46 s. New coverage: `test/icon-set.test.ts`
 each control draws, that none of them renders a word, and that every glyph shares the pack's grid,
 stroke and sizing; the e2e specs measure the rendered boxes (20 px in the composer, 16 px in the
 tree) so a squished glyph fails the gate.
+
+Review follow-up. The gate's own rules reshaped the first cut rather than its behaviour:
+
+- **Comments** — the history narration is gone. `rows.ts`'s kind comment, the `paths.ts` header, the
+  test docblock and the e2e comment now state the constraint (or nothing) instead of what the
+  previous UI did.
+- **Hygiene** — the eighteen per-icon doc lines in `paths.ts` restated their keys and were dropped.
+  The 40 % warning that remains is the ISC/MIT notice the licence requires, not prose.
+- **Colour** — Attach, Branch, Stop and the attachment's remove control are back to the inherited ink.
+  `app.css` reserves red for a failure and blue for links and commands, and a deliberate abort is
+  neither; only the send side keeps the green the palette defines for a send.
+- **One kind table** — `entryGlyph` and `entryKindLabel` were two parallel role cascades; they now
+  read one `ROW_PRESENTATION` keyed by a single `RowKind`, so a new kind cannot land in one and not
+  the other. `icons/index.ts` exports only `ICONS`, `IconGeometry` and `IconName`, and the size token
+  is `--control-glyph-size`, out of Tailwind's `--text-*` font-size namespace.
+- **Compaction boundary** — the transcript's boundary row now draws `arrow-down-to-line` (16 px),
+  which was the one control the previous UI drew as a glyph and this one still did not.
+- **Evidence** — `phone-layout.spec.ts` now asserts the glyph boxes (20 px control, 16 px marker),
+  the pack's `viewBox` and `stroke-width="2"` at 320, 360, 393 and 430 px; the tree spec asserts the
+  per-kind glyph of four named rows instead of only "more than one icon"; the composer spec asserts
+  each action is contained inside its 44 px target with no text. `expectComposerSend` in
+  `packages/e2e/src/composer-send.ts` is the one assertion for the send/stop pair, replacing eight
+  copies.
+
+Known limit, pinned by a test rather than papered over: a compaction or branch-summary *message*
+arrives role-less with `entryType: "message"` (`packages/server/src/session-tree.ts`), so the tree
+cannot tell it from any other unprojected role and draws `dot`. The previous UI could draw `layers`
+there only because its `MessageRole` carried those roles; giving this one the same glyphs needs the
+protocol's role union to grow, which is a wire change outside this ticket.

@@ -7,8 +7,8 @@
    */
   import { PREVIEW_MAX_BYTES } from "@pi-my-ui/protocol";
 
-  import type { FilesSlice } from "../store/files.svelte.js";
   import Icon from "../Icon.svelte";
+  import type { FilesSlice } from "../store/files.svelte.js";
 
   let {
     path,

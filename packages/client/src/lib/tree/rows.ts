@@ -199,54 +199,72 @@ export function isForkable(node: TreeNode): boolean {
 }
 
 /**
- * The glyph that leads a row: one icon per kind, from the client's one pack.
- *
- * This is a presentational choice, not a wire value — pi's entries carry roles and types, not icons —
- * so it lives beside the row model and the modal renders it rather than naming a glyph inline. A
- * non-message entry is drawn by the kind of entry the transcript would show for it, and a `dot` when
- * it has no row of its own (a model change, a label).
+ * What a row is, as far as its presentation goes: one value that both its glyph and its label read,
+ * so the two cannot drift apart when a kind is added.
  */
-export function entryGlyph(node: TreeNode): IconName {
+type RowKind =
+  | "user"
+  | "assistant"
+  | "toolResult"
+  | "bash"
+  | "notification"
+  | "compaction"
+  | "branchSummary"
+  | "other";
+
+function rowKindOf(node: TreeNode): RowKind {
   switch (node.entry.role) {
     case MessageRole.User:
       return "user";
     case MessageRole.Assistant:
-      return "bot";
-    case MessageRole.ToolResult:
-      return "hammer";
-    case MessageRole.Bash:
-      return "terminal";
-    // pi's `custom` role is an extension's own message, which the previous UI drew as a pencil.
-    case MessageRole.Notification:
-      return "pencil";
-    case null:
-      switch (node.entry.entryType) {
-        case "compaction":
-          return "layers";
-        case "branch_summary":
-          return "git-branch";
-        default:
-          return "dot";
-      }
-    default:
-      return "dot";
-  }
-}
-
-/** A short label for what a row is: its transcript role, or pi's entry type when it has none. */
-export function entryKindLabel(node: TreeNode): string {
-  switch (node.entry.role) {
-    case MessageRole.User:
-      return "you";
-    case MessageRole.Assistant:
       return "assistant";
     case MessageRole.ToolResult:
-      return "tool result";
+      return "toolResult";
     case MessageRole.Bash:
       return "bash";
     case MessageRole.Notification:
       return "notification";
+    case null:
+      // A non-message entry carries no role, so pi's entry type is what tells its kind apart. A
+      // compaction or branch-summary *message* also arrives role-less with entryType "message",
+      // indistinguishable from any other unprojected role, so it draws as "other" until the wire
+      // carries those roles.
+      switch (node.entry.entryType) {
+        case "compaction":
+          return "compaction";
+        case "branch_summary":
+          return "branchSummary";
+        default:
+          return "other";
+      }
     default:
-      return node.entry.entryType;
+      return "other";
   }
+}
+
+/** One row kind's glyph and label; `other` has no label of its own, so pi's entry type names it. */
+interface RowPresentation {
+  readonly glyph: IconName;
+  readonly label?: string;
+}
+
+const ROW_PRESENTATION: Readonly<Record<RowKind, RowPresentation>> = {
+  user: { glyph: "user", label: "you" },
+  assistant: { glyph: "bot", label: "assistant" },
+  toolResult: { glyph: "hammer", label: "tool result" },
+  bash: { glyph: "terminal", label: "bash" },
+  notification: { glyph: "pencil", label: "notification" },
+  compaction: { glyph: "layers" },
+  branchSummary: { glyph: "git-branch" },
+  other: { glyph: "dot" },
+};
+
+/** The glyph that leads a row, from the client's one pack. */
+export function entryGlyph(node: TreeNode): IconName {
+  return ROW_PRESENTATION[rowKindOf(node)].glyph;
+}
+
+/** A short label for what a row is, falling back to pi's entry type when the kind has none. */
+export function entryKindLabel(node: TreeNode): string {
+  return ROW_PRESENTATION[rowKindOf(node)].label ?? node.entry.entryType;
 }

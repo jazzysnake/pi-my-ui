@@ -208,6 +208,7 @@ test("a Session pi already compacted shows its boundary straight from the Sessio
     await expect(page.getByTestId("compaction-boundary-label")).toHaveText(
       "Context compacted here",
     );
+    await expect(boundary.locator("svg")).toHaveAttribute("data-icon", "arrow-down-to-line");
 
     // The figure is pi's measurement of the compacted session, so the readout is a percentage.
     await expect(readout(page)).toHaveAttribute("data-state", "normal");

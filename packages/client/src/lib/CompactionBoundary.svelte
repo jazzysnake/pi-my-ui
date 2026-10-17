@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { CompactionBoundaryEntry } from "@pi-my-ui/protocol";
 
+  import Icon from "./Icon.svelte";
+
   let { entry }: { entry: CompactionBoundaryEntry } = $props();
 </script>
 
@@ -14,6 +16,7 @@
   data-tokens-before={entry.tokensBefore}
 >
   <div class="flex items-center gap-2">
+    <Icon name="arrow-down-to-line" class="size-4 shrink-0 text-dim" />
     <span class="tracking-wider text-warning uppercase" data-testid="compaction-boundary-label">
       Context compacted here
     </span>

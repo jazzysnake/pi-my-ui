@@ -4,6 +4,7 @@ import { startServer, type RunningServer } from "@pi-my-ui/server";
 import type { Script } from "@pi-my-ui/scripted-provider";
 
 import { startClientPageServer, type ClientPageServer } from "../src/client-page-server";
+import { expectComposerSend } from "../src/composer-send";
 import { seedSession, type FixtureSession, type SeedName } from "../src/fixture-builder";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 
@@ -94,11 +95,7 @@ test("sends a message and renders the streamed scripted reply and its thinking",
     // Reasoning stays collapsed while it streams.
     await expect(reasoning).not.toHaveAttribute("open", "");
     // The run settled server-side: the control is a Send button again, not a Stop button.
-    await expect(page.getByTestId("composer-send")).toHaveAttribute("aria-label", "Send");
-    await expect(page.getByTestId("composer-send").locator("svg")).toHaveAttribute(
-      "data-icon",
-      "arrow-up",
-    );
+    await expectComposerSend(page, "Send");
   } finally {
     await disposeHarness(harness);
   }
@@ -153,15 +150,13 @@ test("turns send into stop while a run is active and stop aborts it", async ({ p
     const control = page.getByTestId("composer-send");
 
     await sendMessage(page, "run the slow command");
-    await expect(control).toHaveAttribute("aria-label", "Stop");
-    await expect(control.locator("svg")).toHaveAttribute("data-icon", "square");
+    await expectComposerSend(page, "Stop");
     await expect(page.getByTestId("transcript")).toContainText("starting the slow command");
 
     await control.click();
     await expect(page.getByTestId("run-state")).toHaveAttribute("data-run-state", "aborted");
     await expect(page.getByTestId("run-state-label")).toHaveText("Aborted");
-    await expect(control).toHaveAttribute("aria-label", "Send");
-    await expect(control.locator("svg")).toHaveAttribute("data-icon", "arrow-up");
+    await expectComposerSend(page, "Send");
   } finally {
     await disposeHarness(harness);
   }
@@ -181,11 +176,7 @@ test("renders an errored run with the failure text", async ({ page }) => {
     await expect(page.getByTestId("run-state")).toHaveAttribute("data-run-state", "errored");
     await expect(page.getByTestId("run-state-label")).toHaveText("Error");
     await expect(page.getByTestId("run-state-detail")).toHaveText("the model exploded");
-    await expect(page.getByTestId("composer-send")).toHaveAttribute("aria-label", "Send");
-    await expect(page.getByTestId("composer-send").locator("svg")).toHaveAttribute(
-      "data-icon",
-      "arrow-up",
-    );
+    await expectComposerSend(page, "Send");
   } finally {
     await disposeHarness(harness);
   }
@@ -215,11 +206,7 @@ test("renders the retry attempt count and recovers", async ({ page }) => {
     await expect(page.getByTestId("transcript")).toContainText("recovered on the retry");
     // The recovered run leaves no status row behind.
     await expect(page.getByTestId("run-state")).toHaveCount(0);
-    await expect(page.getByTestId("composer-send")).toHaveAttribute("aria-label", "Send");
-    await expect(page.getByTestId("composer-send").locator("svg")).toHaveAttribute(
-      "data-icon",
-      "arrow-up",
-    );
+    await expectComposerSend(page, "Send");
   } finally {
     await disposeHarness(harness);
   }

@@ -4,6 +4,7 @@ import { startServer, type RunningServer } from "@pi-my-ui/server";
 import type { Script } from "@pi-my-ui/scripted-provider";
 
 import { startClientPageServer, type ClientPageServer } from "../src/client-page-server";
+import { expectComposerSend } from "../src/composer-send";
 import { seedSession, type FixtureSession, type SeedName } from "../src/fixture-builder";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 import { expectEveryControlMeetsTouchTarget } from "../src/touch-targets";
@@ -104,11 +105,7 @@ test("every control the composer's own states put on screen meets the minimum", 
     await expectEveryControlMeetsTouchTarget(page, "a reasoning block expanded");
 
     await page.getByTestId("composer-send").click();
-    await expect(page.getByTestId("composer-send")).toHaveAttribute("aria-label", "Send");
-    await expect(page.getByTestId("composer-send").locator("svg")).toHaveAttribute(
-      "data-icon",
-      "arrow-up",
-    );
+    await expectComposerSend(page, "Send");
 
     await page.getByTestId("model-picker-toggle").click();
     await expect(page.getByTestId("model-option").first()).toBeVisible();

@@ -7,9 +7,9 @@
    */
   import type { SessionRow } from "./store/sessions.svelte.js";
 
+  import Icon from "./Icon.svelte";
   import { RELATIVE_TIME_REFRESH_MS, formatRelativeTime } from "./sessions/relative-time.js";
   import { sessionDisplayName } from "./store/sessions.svelte.js";
-  import Icon from "./Icon.svelte";
 
   let {
     rows,

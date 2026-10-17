@@ -4,6 +4,7 @@ import { startServer, type RunningServer } from "@pi-my-ui/server";
 import type { Script } from "@pi-my-ui/scripted-provider";
 
 import { startClientPageServer, type ClientPageServer } from "../src/client-page-server";
+import { expectComposerSend } from "../src/composer-send";
 import { seedSession, type FixtureSession, type SeedName } from "../src/fixture-builder";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 
@@ -169,11 +170,7 @@ test("reduced motion stops the pulse and loses no text", async ({ page }) => {
     await expect(toolStatus).toHaveText("Running");
     await expect(marker.getByTestId("run-activity-label")).toHaveText("Streaming");
     await page.getByTestId("composer-send").click();
-    await expect(page.getByTestId("composer-send")).toHaveAttribute("aria-label", "Send");
-    await expect(page.getByTestId("composer-send").locator("svg")).toHaveAttribute(
-      "data-icon",
-      "arrow-up",
-    );
+    await expectComposerSend(page, "Send");
   } finally {
     await disposeHarness(harness);
   }

@@ -352,7 +352,7 @@
             }}
           >
             <span
-              class="grid size-6 place-items-center rounded-full border border-hairline-strong bg-panel text-danger"
+              class="grid size-6 place-items-center rounded-full border border-hairline-strong bg-panel"
               aria-hidden="true"><Icon name="x" class="size-4" /></span
             >
           </button>
@@ -398,7 +398,7 @@
       onkeydown={handleKeydown}></textarea>
     <button
       type="button"
-      class="grid size-11 shrink-0 place-items-center rounded border border-hairline-strong text-accent"
+      class="grid size-11 shrink-0 place-items-center rounded border border-hairline-strong"
       aria-label="Attach image"
       data-testid="composer-attach"
       onclick={() => {
@@ -409,7 +409,7 @@
     </button>
     <button
       type="button"
-      class="grid size-11 shrink-0 place-items-center rounded-[14px] border border-hairline-strong text-accent"
+      class="grid size-11 shrink-0 place-items-center rounded-[14px] border border-hairline-strong"
       aria-label="Branch"
       data-testid="composer-branch"
       onclick={onBranch}
@@ -419,7 +419,7 @@
     {#if running}
       <button
         type="button"
-        class="grid size-11 shrink-0 place-items-center rounded-full border border-hairline-strong text-danger"
+        class="grid size-11 shrink-0 place-items-center rounded-full border border-hairline-strong"
         aria-label="Stop"
         data-testid="composer-send"
         onclick={onAbort}

@@ -128,19 +128,34 @@ test("both entry points open one modal that collapses alternatives and searches 
     await expect(row(page, KEPT_BEFORE_EDIT)).toHaveAttribute("data-active", "true");
     await expect(row(page, "Seed text block 2.")).toHaveAttribute("data-active", "false");
 
-    // Every row leads with the glyph for its kind, drawn at the row's own size (16 px, not the
-    // control glyph), and a user row carries the fork control that the previous UI offered.
+    // Every row leads with the glyph for its kind, and a user row carries the fork control.
+    const glyphOf = (text: string) =>
+      row(page, text).locator('[data-testid="message-tree-select"] svg');
+    await expect(glyphOf(EDIT_TEXT)).toHaveAttribute("data-icon", "user");
+    await expect(glyphOf(KEPT_BEFORE_EDIT)).toHaveAttribute("data-icon", "bot");
+    await expect(glyphOf("Seed text block 16.")).toHaveAttribute("data-icon", "hammer");
+    await expect(glyphOf(SYSTEM_TEXT)).toHaveAttribute("data-icon", "dot");
+
+    // Row markers size to their row (16 px) rather than to a control, on the pack's grid and stroke.
     const glyphs = await modal(page)
       .locator('[data-testid="message-tree-select"] svg')
       .evaluateAll((icons) =>
         icons.map((icon) => {
           const box = icon.getBoundingClientRect();
-          return { icon: icon.getAttribute("data-icon"), width: box.width, height: box.height };
+          return {
+            icon: icon.getAttribute("data-icon"),
+            viewBox: icon.getAttribute("viewBox"),
+            stroke: icon.getAttribute("stroke-width"),
+            width: box.width,
+            height: box.height,
+          };
         }),
       );
-    expect(new Set(glyphs.map((glyph) => glyph.icon)).size).toBeGreaterThan(1);
+    expect(glyphs.length).toBeGreaterThan(1);
     for (const glyph of glyphs) {
       expect(glyph.icon).not.toBeNull();
+      expect(glyph.viewBox).toBe("0 0 24 24");
+      expect(glyph.stroke).toBe("2");
       expect(glyph.width).toBeCloseTo(16, 1);
       expect(glyph.height).toBeCloseTo(16, 1);
     }

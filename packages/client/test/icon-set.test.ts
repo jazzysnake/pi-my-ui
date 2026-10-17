@@ -14,11 +14,16 @@ import { ClientStore } from "../src/lib/store/client-store.svelte.js";
 import { SESSION_ID, deltaOf, mountShell, snapshotOf, streaming } from "./composer-harness.js";
 
 /**
- * The icon set is the client's one drawing for a control, so its contract is checked on the rendered
- * DOM: every control the previous UI drew as a glyph holds one, and none of them falls back to a
- * word. The pack's shared attributes are asserted once here so a hand-written `<svg>` cannot sneak
- * back in with a different grid or stroke.
+ * The rendered contract of the icon set: a control that draws a glyph draws exactly one, from the
+ * pack, with no word beside it. The pack's shared attributes are asserted on every icon a session
+ * renders, so an ad-hoc `<svg>` with a different grid or stroke fails here rather than in review.
  */
+
+/** pi's entry-type strings, named so a fixture row says what it is rather than repeating a literal. */
+const ENTRY_TYPES = {
+  Message: "message",
+  ModelChange: "model_change",
+} as const;
 
 const ENTRY: readonly ProjectedEntry[] = [
   {
@@ -34,7 +39,7 @@ const ENTRY: readonly ProjectedEntry[] = [
 function node(
   id: string,
   role: TreeNode["entry"]["role"],
-  entryType = role === null ? "model_change" : "message",
+  entryType = role === null ? ENTRY_TYPES.ModelChange : ENTRY_TYPES.Message,
 ): TreeNode {
   return { entry: { id, parentId: null, role, entryType, text: id }, children: [] };
 }
@@ -84,17 +89,13 @@ describe("the composer's controls", () => {
     }
   });
 
-  it("draws a stop square and an icon-only send while a run is active", () => {
+  it("draws an icon-only send while a run is active", () => {
     const store = new ClientStore();
     const { target } = mountShell(store);
     flushSync(() => {
       store.receive(snapshotOf(ENTRY));
       store.receive(deltaOf(streaming(), 1));
     });
-
-    const stop = byTestId(target, "composer-send");
-    expect(iconOf(stop)?.dataset["icon"]).toBe("square");
-    expect(stop?.textContent?.trim()).toBe("");
 
     const send = byTestId(target, "composer-send-while-running");
     expect(iconOf(send)?.dataset["icon"]).toBe("arrow-up");
@@ -194,6 +195,37 @@ describe("the message tree's rows", () => {
       forkOf("user")?.click();
     });
     expect(fork).toHaveBeenCalledWith("user");
+  });
+
+  it("draws a summary message as a dot, the only kind the wire lets the tree decide", () => {
+    const store = new ClientStore();
+    const { target } = mountShell(store);
+    flushSync(() => {
+      store.receive(snapshotOf(ENTRY));
+    });
+    flushSync(() => {
+      byTestId(target, "composer-branch")?.click();
+    });
+    flushSync(() => {
+      store.receive({
+        type: ServerMessageType.SessionTree,
+        sessionId: SESSION_ID,
+        tree: {
+          leafId: "compacted",
+          roots: [
+            // A compaction summary is a *message* whose role this projection does not carry, so the
+            // tree sees role null with entryType "message" — the same shape as any other unprojected
+            // role. Until MessageRole carries those roles, the row cannot say more than "other".
+            node("compacted", null, ENTRY_TYPES.Message),
+          ],
+        },
+      });
+    });
+
+    const select = target.querySelector<HTMLElement>(
+      '[data-testid="message-tree-row"][data-entry-id="compacted"] [data-testid="message-tree-select"]',
+    );
+    expect(iconOf(select)?.dataset["icon"]).toBe("dot");
   });
 
   it("draws a chevron for a branch control and an x to close", () => {

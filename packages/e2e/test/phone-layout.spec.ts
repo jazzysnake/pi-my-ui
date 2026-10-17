@@ -149,6 +149,39 @@ test("wide content scrolls inside itself and never widens the page at any phone 
         measured.transcriptScrollWidth,
         `at ${String(width)}px: the transcript must not scroll horizontally`,
       ).toBeLessThanOrEqual(measured.transcriptClientWidth);
+      // The glyphs keep their declared boxes and the pack's stroke at every width, not just the
+      // profile's default: 20 px on a control, 16 px on a tree marker.
+      const actionGlyphs = await page
+        .getByTestId("composer")
+        .locator("textarea ~ button svg")
+        .evaluateAll((icons) =>
+          icons.map((icon) => {
+            const box = icon.getBoundingClientRect();
+            return {
+              viewBox: icon.getAttribute("viewBox"),
+              stroke: icon.getAttribute("stroke-width"),
+              width: box.width,
+              height: box.height,
+            };
+          }),
+        );
+      expect(actionGlyphs).toHaveLength(3);
+      for (const glyph of actionGlyphs) {
+        expect(glyph.viewBox).toBe("0 0 24 24");
+        expect(glyph.stroke).toBe("2");
+        expect(glyph.width).toBeCloseTo(20, 1);
+        expect(glyph.height).toBeCloseTo(20, 1);
+      }
+
+      await page.getByTestId("composer-branch").click();
+      await expect(page.getByTestId("message-tree-row").first()).toBeVisible();
+      const markerBox = await page
+        .locator('[data-testid="message-tree-select"] svg')
+        .first()
+        .evaluate((icon) => icon.getBoundingClientRect().width);
+      expect(markerBox).toBeCloseTo(16, 1);
+      await page.getByTestId("message-tree-close").click();
+
       process.stderr.write(
         `[e2e] ${String(width)}px: page ${String(measured.documentScrollWidth)}/` +
           `${String(measured.documentClientWidth)}, transcript ` +

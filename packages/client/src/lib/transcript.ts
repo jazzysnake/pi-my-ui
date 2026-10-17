@@ -25,11 +25,22 @@ function decodeXmlEntities(value: string): string {
   return decoded;
 }
 
-/** A message's concatenated text blocks, which is the raw source a copy control puts on the clipboard. */
+/**
+ * A message's clipboard text: its concatenated text blocks, with a bash card contributing its command
+ * and output so its copy control is not inert.
+ */
 export function entryText(entry: ProjectedEntry): string {
   return entry.blocks
-    .filter((block) => block.type === ContentBlockType.Text)
-    .map((block) => block.text)
+    .map((block) => {
+      if (block.type === ContentBlockType.Text) {
+        return block.text;
+      }
+      if (block.type === ContentBlockType.BashExecution) {
+        return [`$ ${block.command}`, block.output].filter((part) => part !== "").join("\n");
+      }
+      return "";
+    })
+    .filter((part) => part !== "")
     .join("\n\n");
 }
 

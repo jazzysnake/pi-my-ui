@@ -12,6 +12,7 @@ import {
 } from "./images.js";
 import type { Cursor, ImageAttachment } from "./model.js";
 import type {
+  BashMessage,
   ClientMessage,
   ExportSessionMessage,
   GetSessionStatsMessage,
@@ -156,6 +157,23 @@ function optionalStreamingBehavior(record: Record<string, unknown>): StreamingBe
   return value as StreamingBehavior;
 }
 
+function validateBash(record: Record<string, unknown>): BashMessage {
+  const command = record["command"];
+  if (typeof command !== "string" || command.trim() === "") {
+    malformed('"command" must be a non-empty string');
+  }
+  const excludeFromContext = record["excludeFromContext"];
+  if (typeof excludeFromContext !== "boolean") {
+    malformed('"excludeFromContext" must be a boolean');
+  }
+  return {
+    type: ClientMessageType.Bash,
+    sessionId: requireSessionId(record),
+    command,
+    excludeFromContext,
+  };
+}
+
 function validateSetModel(record: Record<string, unknown>): SetModelMessage {
   const provider = record["provider"];
   const modelId = record["modelId"];
@@ -229,6 +247,8 @@ export function validateClientMessage(value: unknown): ClientMessage {
       return validateSubscribe(record);
     case ClientMessageType.Prompt:
       return validatePrompt(record);
+    case ClientMessageType.Bash:
+      return validateBash(record);
     case ClientMessageType.Abort:
       return { type: ClientMessageType.Abort, sessionId: requireSessionId(record) };
     case ClientMessageType.SetModel:

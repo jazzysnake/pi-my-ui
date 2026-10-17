@@ -75,6 +75,7 @@ export function userEntry(id: string, text: string): ProjectedEntry {
 export interface Mounted {
   readonly target: HTMLElement;
   readonly prompt: ReturnType<typeof vi.fn>;
+  readonly bash: ReturnType<typeof vi.fn>;
   readonly abort: ReturnType<typeof vi.fn>;
   readonly setModel: ReturnType<typeof vi.fn>;
   readonly setThinking: ReturnType<typeof vi.fn>;
@@ -89,6 +90,7 @@ export interface Mounted {
 
 export function mountShell(store: ClientStore, status = ConnectionStatus.Connected): Mounted {
   const prompt = vi.fn();
+  const bash = vi.fn();
   const abort = vi.fn();
   const setModel = vi.fn();
   const setThinking = vi.fn();
@@ -109,6 +111,7 @@ export function mountShell(store: ClientStore, status = ConnectionStatus.Connect
         status,
         onSelectSession: () => undefined,
         onPrompt: prompt,
+        onBash: bash,
         onAbort: abort,
         onSetModel: setModel,
         onSetThinkingLevel: setThinking,
@@ -127,6 +130,7 @@ export function mountShell(store: ClientStore, status = ConnectionStatus.Connect
   return {
     target,
     prompt,
+    bash,
     abort,
     setModel,
     setThinking,

@@ -257,6 +257,10 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
         await host.prompt(message.text, message.images ?? [], message.streamingBehavior);
         return;
       }
+      if (message.type === ClientMessageType.Bash) {
+        await host.bash(message.command, message.excludeFromContext);
+        return;
+      }
       if (message.type === ClientMessageType.SetModel) {
         await host.setModel(message.provider, message.modelId);
         return;

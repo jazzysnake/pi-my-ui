@@ -9,6 +9,8 @@
     type ThinkingLevel,
   } from "@pi-my-ui/protocol";
 
+  import BashModeIndicator from "./bash/BashModeIndicator.svelte";
+  import * as bash from "./bash/mode.js";
   import CommandPalette from "./CommandPalette.svelte";
   import StatusStrip from "./composer/StatusStrip.svelte";
   import {
@@ -32,6 +34,7 @@
     error,
     sentCount,
     onPrompt,
+    onBash,
     onAbort,
     onCommand,
     onSetModel,
@@ -53,6 +56,8 @@
       behavior?: StreamingBehavior,
     ) => void;
     onAbort: () => void;
+    /** Run a `!`/`!!` shell command; `excludeFromContext` keeps `!!` output out of the model's context. */
+    onBash: (command: string, excludeFromContext: boolean) => void;
     /** Run a built-in whose action lives outside the composer, with the text after its name. */
     onCommand: (command: BuiltinCommand, args: string) => void;
     onSetModel: (provider: string, modelId: string) => void;
@@ -124,9 +129,7 @@
   });
 
   function releaseAll(): void {
-    for (const attachment of attachments) {
-      releaseAttachment(attachment);
-    }
+    attachments.forEach((attachment) => releaseAttachment(attachment));
     attachments = [];
     text = "";
   }
@@ -186,6 +189,16 @@
    */
   function submit(behavior?: StreamingBehavior): void {
     if (!canSend) {
+      return;
+    }
+    // A shell command is intercepted before the slash router: `!/foo` is a shell command, not a
+    // built-in, and the command is sent verbatim once the glyph is stripped.
+    const bashFailure = bash.submitBashCommand(text, attachments.length, (command, exclude) => {
+      releaseAll();
+      onBash(command, exclude);
+    });
+    if (bashFailure !== undefined) {
+      localError = bashFailure;
       return;
     }
     const route = routeComposerSubmission(text);
@@ -359,6 +372,8 @@
       {/each}
     </ul>
   {/if}
+
+  <BashModeIndicator {text} />
 
   {#if visibleError !== null}
     <p class="text-xs text-red-400" role="alert" data-testid="composer-error">{visibleError}</p>

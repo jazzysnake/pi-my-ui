@@ -59,6 +59,7 @@ describe("the shell over the store's ServerMessage input", () => {
       status: ConnectionStatus.Connected,
       onSelectSession: () => undefined,
       onPrompt: () => undefined,
+      onBash: () => undefined,
       onAbort: () => undefined,
       onListDirectory: () => undefined,
       onPreviewFile: () => undefined,

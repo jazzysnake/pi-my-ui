@@ -9,6 +9,7 @@ import {
   MessageRole,
   ProjectionDeltaKind,
   ToolCallStatus,
+  type BashExecutionBlock,
   type ContentBlock,
   type DeltaBatch,
   type ProjectedEntry,
@@ -22,6 +23,7 @@ import type {
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
 
 type AgentMessage = SessionMessageEntry["message"];
+type BashMessage = Extract<AgentMessage, { readonly role: "bashExecution" }>;
 
 /** What a tool result contributes to its call's card. */
 export interface ToolResultInfo {
@@ -152,21 +154,56 @@ export function blocksFromMessage(
   return blocks;
 }
 
+/** How a message's role maps to the transcript; roles with no row return `undefined`. */
+export function roleOf(message: AgentMessage): MessageRole | undefined {
+  switch (message.role) {
+    case "user":
+      return MessageRole.User;
+    case "assistant":
+      return MessageRole.Assistant;
+    case "toolResult":
+      return MessageRole.ToolResult;
+    case "bashExecution":
+      return MessageRole.Bash;
+    case "custom":
+      return message.display === false ? undefined : MessageRole.Notification;
+    default:
+      return undefined;
+  }
+}
+
+/** A durable shell command is always finished, so its card carries pi's result, not a live state. */
+function bashBlock(entryId: string, message: BashMessage): BashExecutionBlock {
+  return {
+    type: ContentBlockType.BashExecution,
+    commandId: entryId,
+    command: message.command,
+    excludeFromContext: message.excludeFromContext === true,
+    output: message.output,
+    result: {
+      exitCode: message.exitCode ?? null,
+      cancelled: message.cancelled,
+      truncated: message.truncated,
+      ...(message.fullOutputPath === undefined ? {} : { fullOutputPath: message.fullOutputPath }),
+    },
+  };
+}
+
 function projectMessage(
   entry: SessionMessageEntry,
   lookup: ToolResultLookup,
 ): ProjectedEntry | undefined {
   const message = entry.message;
-  const role =
-    message.role === "user"
-      ? MessageRole.User
-      : message.role === "assistant"
-        ? MessageRole.Assistant
-        : message.role === "toolResult"
-          ? MessageRole.ToolResult
-          : message.role === "custom" && message.display !== false
-            ? MessageRole.Notification
-            : undefined;
+  if (message.role === "bashExecution") {
+    return {
+      id: entry.id,
+      parentId: entry.parentId,
+      role: MessageRole.Bash,
+      timestamp: Date.parse(entry.timestamp),
+      blocks: [bashBlock(entry.id, message)],
+    };
+  }
+  const role = roleOf(message);
   if (role === undefined) {
     return undefined;
   }

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { ContentBlockType, MessageRole, type ProjectedEntry } from "@pi-my-ui/protocol";
 
+  import BashCard from "./BashCard.svelte";
   import Markdown from "./Markdown.svelte";
   import NotificationCard from "./NotificationCard.svelte";
   import ToolCallCard from "./ToolCallCard.svelte";
@@ -105,6 +106,8 @@
                 </details>
               {:else if block.type === ContentBlockType.ToolCall}
                 <ToolCallCard {block} />
+              {:else if block.type === ContentBlockType.BashExecution}
+                <BashCard {block} />
               {/if}
             {/each}
           </div>

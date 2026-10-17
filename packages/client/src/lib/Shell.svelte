@@ -18,6 +18,7 @@
     status,
     onSelectSession,
     onPrompt,
+    onBash,
     onAbort,
     onSetModel = () => undefined,
     onSetThinkingLevel = () => undefined,
@@ -40,6 +41,7 @@
       behavior?: StreamingBehavior,
     ) => void;
     onAbort: () => void;
+    onBash: (command: string, excludeFromContext: boolean) => void;
     onSetModel?: (provider: string, modelId: string) => void;
     onSetThinkingLevel?: (level: ThinkingLevel) => void;
     onSetAutoCompaction?: (enabled: boolean) => void;
@@ -202,6 +204,7 @@
     error={store.composer.error}
     sentCount={store.composer.sentCount}
     onPrompt={handlePrompt}
+    {onBash}
     {onAbort}
     onCommand={runBuiltin}
     {onSetModel}

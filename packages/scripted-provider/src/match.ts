@@ -51,11 +51,30 @@ function describeExpectation(expect: ScriptExpectation): string {
 }
 
 /**
- * Fail unless `incoming` is the message the script bound to this call. Refusing here is the point:
- * a replay that improvised around a prompt the recording never saw would hide a changed transcript.
+ * The text a model call received across every model-visible message, for a context-wide assertion
+ * that is not about the message being answered.
  */
-export function assertExpectation(expect: ScriptExpectation, incoming: Message): void {
+function contextText(messages: readonly Message[]): string {
+  return messages.map((message) => textOf(message.content)).join("\n");
+}
+
+/**
+ * Fail unless the call's context matches what the script bound to it. Refusing here is the point: a
+ * replay that improvised around a prompt the recording never saw would hide a changed transcript.
+ */
+export function assertExpectation(expect: ScriptExpectation, messages: readonly Message[]): void {
+  const incoming = lastModelVisibleMessage(messages);
   if (expect.role === "user") {
+    if (
+      expect.contextExcludes !== undefined &&
+      contextText(messages).includes(expect.contextExcludes)
+    ) {
+      throw new ScriptError(
+        `scripted provider: the model context contains ${JSON.stringify(
+          expect.contextExcludes,
+        )}, which the script says it must not`,
+      );
+    }
     if (incoming.role !== "user" || textOf(incoming.content) !== expect.text) {
       throw new ScriptError(
         `scripted provider: expected ${describeExpectation(expect)} but received ${describe(incoming)}`,

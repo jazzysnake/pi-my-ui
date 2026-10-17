@@ -177,6 +177,7 @@ describe("Escape in the composer", () => {
           error: null,
           sentCount: 0,
           onPrompt: () => undefined,
+          onBash: () => undefined,
           onAbort,
           onCommand: () => undefined,
           onSetModel: () => undefined,

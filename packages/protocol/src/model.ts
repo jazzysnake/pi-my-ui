@@ -95,8 +95,34 @@ export interface ToolCallBlock {
   readonly output?: string;
 }
 
+/** How a finished shell command ended, as pi reports it. */
+export interface BashExecutionResult {
+  /** The command's exit code, or `null` when pi could not report one (a signal ended it). */
+  readonly exitCode: number | null;
+  readonly cancelled: boolean;
+  readonly truncated: boolean;
+  /** pi's own spill file for output past its truncation bound, in pi's temporary directory. */
+  readonly fullOutputPath?: string;
+}
+
+/**
+ * One direct shell command (`!`/`!!`) as a bash card shows it. `commandId` is stable across the live
+ * stream and a resync, so the card keeps its identity instead of being re-created per chunk.
+ */
+export interface BashExecutionBlock {
+  readonly type: typeof ContentBlockType.BashExecution;
+  readonly commandId: string;
+  readonly command: string;
+  /** `true` for `!!`: the output stays out of the model's context. */
+  readonly excludeFromContext: boolean;
+  /** The accumulated output; it grows while the command runs. */
+  readonly output: string;
+  /** Absent while the command runs; present once pi reports how it ended. */
+  readonly result?: BashExecutionResult;
+}
+
 /** Any projected content block. */
-export type ContentBlock = TextBlock | ReasoningBlock | ToolCallBlock;
+export type ContentBlock = TextBlock | ReasoningBlock | ToolCallBlock | BashExecutionBlock;
 
 /** One message in a transcript. */
 export interface ProjectedEntry {

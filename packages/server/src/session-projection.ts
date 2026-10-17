@@ -25,7 +25,8 @@ import {
 } from "@pi-my-ui/protocol";
 import type { JsonAgentSessionEvent, SessionEntry } from "@earendil-works/pi-coding-agent";
 
-import { blocksFromMessage, projectionBatch, toolResultOutput } from "./projection.js";
+import { createLiveBash, type LiveBash } from "./live-bash.js";
+import { blocksFromMessage, projectionBatch, roleOf, toolResultOutput } from "./projection.js";
 
 type AgentMessage = Extract<JsonAgentSessionEvent, { readonly type: "message_start" }>["message"];
 type MessageStartEvent = Extract<JsonAgentSessionEvent, { readonly type: "message_start" }>;
@@ -35,25 +36,10 @@ type AgentEndEvent = Extract<JsonAgentSessionEvent, { readonly type: "agent_end"
 
 const IDLE_RUN_STATE: RunState = { kind: RunStateKind.Idle };
 
-/** How a message's role maps to the transcript; roles with no row return `undefined`. */
-function roleOf(message: AgentMessage): MessageRole | undefined {
-  if (message.role === "user") {
-    return MessageRole.User;
-  }
-  if (message.role === "assistant") {
-    return MessageRole.Assistant;
-  }
-  if (message.role === "toolResult") {
-    return MessageRole.ToolResult;
-  }
-  if (message.role === "custom") {
-    return message.display === false ? undefined : MessageRole.Notification;
-  }
-  return undefined;
-}
-
 export interface SessionProjectionMachine {
   readonly projection: SessionProjection;
+  /** The live `!`/`!!` card; its deltas are applied through the same reducer as any other. */
+  readonly bash: LiveBash;
   /** Seed from pi's durable entries; returns the Cursor the seeded Projection sits at. */
   seed(entries: readonly SessionEntry[], leafId: string | null): number;
   applyEvent(event: JsonAgentSessionEvent): readonly ProjectionDelta[];
@@ -74,6 +60,16 @@ export function createSessionProjectionMachine(
   let streamingEntryId: string | null = null;
   let pendingId = 0;
   let abortRequested = false;
+
+  const bash = createLiveBash({
+    nextId,
+    entry: entryById,
+    leafId: () => projection.leafId,
+    emit,
+    upsert,
+    setLeaf,
+    remove: (entryId) => ({ kind: ProjectionDeltaKind.EntryRemoved, entryId }),
+  });
 
   function nextId(): string {
     pendingId += 1;
@@ -369,7 +365,9 @@ export function createSessionProjectionMachine(
     get projection() {
       return projection;
     },
+    bash,
     seed(entries, leafId) {
+      bash.reset();
       const batch = projectionBatch({ entries, leafId, fromCursor: 0 });
       projection = reduceDeltaBatch(
         { sessionId, cwd, leafId: null, entries: [], runState: IDLE_RUN_STATE },
@@ -418,6 +416,8 @@ export function createSessionProjectionMachine(
           return onMessageEnd(event);
         case "agent_end":
           return onAgentEnd(event);
+        case "bash_execution_update":
+          return bash.append(event.delta);
         default:
           return [];
       }

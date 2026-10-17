@@ -4,7 +4,7 @@ import type { AssistantMessage, TranscriptContext } from "@earendil-works/pi-ai"
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { assertExpectation, lastModelVisibleMessage } from "./match.js";
+import { assertExpectation } from "./match.js";
 import { ScriptError, parseScript, type Script, type ScriptStep } from "./script.js";
 
 export {
@@ -38,7 +38,7 @@ function loadScript(): LoadedScript {
 }
 
 function replyFor(step: ScriptStep, context: TranscriptContext): AssistantMessage {
-  assertExpectation(step.expect, lastModelVisibleMessage(context.messages));
+  assertExpectation(step.expect, context.messages);
   return fauxAssistantMessage([...step.reply.content], {
     stopReason: step.reply.stopReason,
     ...(step.reply.errorMessage === undefined ? {} : { errorMessage: step.reply.errorMessage }),

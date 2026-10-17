@@ -49,6 +49,7 @@ function mountShell(store: ClientStore): HTMLElement {
         status: ConnectionStatus.Connected,
         onSelectSession: () => undefined,
         onPrompt: () => undefined,
+        onBash: () => undefined,
         onAbort: () => undefined,
         onListDirectory: () => undefined,
         onPreviewFile: () => undefined,

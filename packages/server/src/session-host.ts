@@ -51,6 +51,8 @@ export interface SessionHost {
     images: readonly ImageAttachment[],
     behavior?: StreamingBehavior,
   ): Promise<void>;
+  /** Run a `!`/`!!` shell command; `!!` keeps its output out of the model's context. */
+  bash(command: string, excludeFromContext: boolean): Promise<void>;
   abort(): Promise<void>;
   setModel(provider: string, modelId: string): Promise<void>;
   setThinkingLevel(level: ThinkingLevel): Promise<void>;
@@ -298,6 +300,19 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       await ensureSeeded();
       const pi = await ensureChild();
       await pi.prompt(text, images, behavior);
+    },
+    async bash(command, excludeFromContext) {
+      await ensureSeeded();
+      publish(machine.bash.begin(command, excludeFromContext));
+      try {
+        const pi = await ensureChild();
+        const outcome = await pi.bash(command, excludeFromContext);
+        publish(machine.bash.end(outcome.output, outcome));
+      } catch (error) {
+        // A command that never reached pi must not leave a card that looks like it ran.
+        publish(machine.bash.discard());
+        throw error;
+      }
     },
     async abort() {
       await ensureSeeded();

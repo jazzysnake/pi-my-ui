@@ -69,7 +69,7 @@ export {
   type SessionViewer,
 } from "./session-host.js";
 export { createSessionPool, type SessionPool, type SessionPoolBridge } from "./session-pool.js";
-export { startPiChild, type PiChild, type PiEntries } from "./pi-child.js";
+export { startPiChild, type PiBashResult, type PiChild, type PiEntries } from "./pi-child.js";
 export { projectionBatch, type ProjectionSource } from "./projection.js";
 export {
   EXIT_FAILURE,

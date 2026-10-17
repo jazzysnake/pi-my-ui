@@ -10,7 +10,13 @@ import type { JsonValue } from "@earendil-works/pi-ai";
 
 /** The message one scripted model call answers. */
 export type ScriptExpectation =
-  | { readonly role: "user"; readonly text: string; readonly images?: number }
+  | {
+      readonly role: "user";
+      readonly text: string;
+      readonly images?: number;
+      /** Text the whole model context must not contain; the way an excluded command is proven. */
+      readonly contextExcludes?: string;
+    }
   | { readonly role: "toolResult"; readonly toolName: string; readonly text?: string };
 
 /** An assistant turn as a session file stores it: content blocks plus how the turn ended. */
@@ -69,7 +75,19 @@ function parseExpectation(value: unknown, source: string, where: string): Script
     if (images !== undefined && (typeof images !== "number" || !Number.isSafeInteger(images))) {
       fail(source, where, '"images" must be a whole number when present');
     }
-    return images === undefined ? { role: "user", text } : { role: "user", text, images };
+    const contextExcludes = record["contextExcludes"];
+    if (
+      contextExcludes !== undefined &&
+      (typeof contextExcludes !== "string" || contextExcludes === "")
+    ) {
+      fail(source, where, '"contextExcludes" must be a non-empty string when present');
+    }
+    return {
+      role: "user",
+      text,
+      ...(images === undefined ? {} : { images }),
+      ...(contextExcludes === undefined ? {} : { contextExcludes }),
+    };
   }
   if (role === "toolResult") {
     const toolName = record["toolName"];

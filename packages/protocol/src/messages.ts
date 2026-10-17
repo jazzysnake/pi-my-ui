@@ -49,6 +49,17 @@ export interface PromptMessage {
   readonly streamingBehavior?: StreamingBehavior;
 }
 
+/**
+ * Run one shell command in the Session's working directory. `excludeFromContext` is `true` for `!!`,
+ * the one boolean that keeps the output out of the model's context on the next prompt.
+ */
+export interface BashMessage {
+  readonly type: typeof ClientMessageType.Bash;
+  readonly sessionId: string;
+  readonly command: string;
+  readonly excludeFromContext: boolean;
+}
+
 /** Switch the Session's model. */
 export interface SetModelMessage {
   readonly type: typeof ClientMessageType.SetModel;
@@ -120,6 +131,7 @@ export type ClientMessage =
   | CreateSessionMessage
   | SubscribeMessage
   | PromptMessage
+  | BashMessage
   | AbortMessage
   | SetModelMessage
   | SetThinkingLevelMessage

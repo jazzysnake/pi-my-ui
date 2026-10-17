@@ -61,6 +61,8 @@ export interface Transport {
   createSession(): void;
   /** Send one message to the Session's Pi child. Ignored while the link is down. */
   prompt(text: string, images?: readonly ImageAttachment[], behavior?: StreamingBehavior): void;
+  /** Run a `!`/`!!` shell command. Ignored while the link is down. */
+  bash(command: string, excludeFromContext: boolean): void;
   /** Cancel the Session's running turn. Ignored while the link is down. */
   abort(): void;
   /** Switch the Session's model. Ignored while the link is down. */
@@ -215,6 +217,14 @@ export function createTransport(options: TransportOptions): Transport {
         text,
         ...(images === undefined || images.length === 0 ? {} : { images }),
         ...(behavior === undefined ? {} : { streamingBehavior: behavior }),
+      });
+    },
+    bash(command, excludeFromContext) {
+      send({
+        type: ClientMessageType.Bash,
+        sessionId: activeSessionId,
+        command,
+        excludeFromContext,
       });
     },
     abort() {

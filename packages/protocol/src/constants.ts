@@ -18,6 +18,7 @@ export const ClientMessageType = {
   GetSessionStats: "getSessionStats",
   SetSessionName: "setSessionName",
   ExportSession: "exportSession",
+  Bash: "bash",
 } as const;
 
 export type ClientMessageType = (typeof ClientMessageType)[keyof typeof ClientMessageType];
@@ -80,6 +81,8 @@ export const MessageRole = {
   ToolResult: "toolResult",
   /** An extension-injected message (pi's `custom` role), rendered as a notification card. */
   Notification: "notification",
+  /** A direct shell command (pi's `bashExecution` role), rendered as a bash card. */
+  Bash: "bash",
 } as const;
 
 export type MessageRole = (typeof MessageRole)[keyof typeof MessageRole];
@@ -99,6 +102,7 @@ export const ContentBlockType = {
   Text: "text",
   Reasoning: "reasoning",
   ToolCall: "toolCall",
+  BashExecution: "bashExecution",
 } as const;
 
 export type ContentBlockType = (typeof ContentBlockType)[keyof typeof ContentBlockType];

@@ -9,10 +9,13 @@ import {
   getPackageDir,
   RpcClient,
   type JsonAgentSessionEvent,
+  type RpcCommand,
+  type RpcResponse,
   type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import type { ImageContent } from "@earendil-works/pi-ai";
 import type {
+  BashExecutionResult,
   CommandInfo,
   ImageAttachment,
   ModelInfo,
@@ -30,6 +33,11 @@ export interface PiChildLaunch extends PiLaunchOptions {
 export interface PiEntries {
   readonly entries: readonly SessionEntry[];
   readonly leafId: string | null;
+}
+
+/** A finished shell command: pi's result plus the output, which the live stream may have outpaced. */
+export interface PiBashResult extends BashExecutionResult {
+  readonly output: string;
 }
 
 /** The status strip's facts, read in one call so a viewer sees a consistent set. */
@@ -50,6 +58,8 @@ export interface PiChild {
     images: readonly ImageAttachment[],
     behavior?: StreamingBehavior,
   ): Promise<void>;
+  /** Run a shell command in the Session's working directory. */
+  bash(command: string, excludeFromContext: boolean): Promise<PiBashResult>;
   abort(): Promise<void>;
   settings(): Promise<PiSettings>;
   setModel(provider: string, modelId: string): Promise<void>;
@@ -154,6 +164,49 @@ function toSessionStats(stats: {
   };
 }
 
+type PiRawBashResult = Awaited<ReturnType<RpcClient["bash"]>>;
+
+/**
+ * pi's `RpcClient.bash` sends its own `bash` command without the published `excludeFromContext`
+ * field, so a `!!` command would enter the model's context. The command shape and its response are
+ * both exported by pi; use them through the same request path the client's own methods use.
+ */
+interface RawRpcClient {
+  send(command: RpcCommand): Promise<RpcResponse>;
+}
+
+function toBashResult(result: PiRawBashResult): PiBashResult {
+  return {
+    output: result.output,
+    exitCode: result.exitCode ?? null,
+    cancelled: result.cancelled,
+    truncated: result.truncated,
+    ...(result.fullOutputPath === undefined ? {} : { fullOutputPath: result.fullOutputPath }),
+  };
+}
+
+async function runBash(
+  client: RpcClient,
+  command: string,
+  excludeFromContext: boolean,
+): Promise<PiBashResult> {
+  if (!excludeFromContext) {
+    return toBashResult(await client.bash(command));
+  }
+  const response = await (client as unknown as RawRpcClient).send({
+    type: "bash",
+    command,
+    excludeFromContext: true,
+  });
+  if (!response.success) {
+    throw new Error(response.error);
+  }
+  if (response.command !== "bash") {
+    throw new Error(`expected a bash response but received ${response.command}`);
+  }
+  return toBashResult(response.data);
+}
+
 /** Start a real `pi --mode rpc` child on an existing Session file or a fresh Session id. */
 export async function startPiChild(
   target: PiSessionTarget,
@@ -180,6 +233,7 @@ export async function startPiChild(
         behavior,
       );
     },
+    bash: (command, excludeFromContext) => runBash(client, command, excludeFromContext),
     abort: () => client.abort(),
     async settings() {
       const state = await client.getState();

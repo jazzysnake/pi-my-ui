@@ -13,7 +13,7 @@ const STEPS = [
   { label: "lint and format", scripts: ["lint", "format:check"] },
   { label: "store and component tests", scripts: ["test"] },
   { label: "build", scripts: ["build"] },
-  { label: "end-to-end tests", scripts: ["test:e2e"] },
+  { label: "sharded end-to-end tests", scripts: ["test:e2e:sharded"] },
 ];
 
 /** npm is a shell script on POSIX and `npm.cmd` on Windows. */

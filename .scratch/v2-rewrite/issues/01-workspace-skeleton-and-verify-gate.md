@@ -4,9 +4,13 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] `npm ci && npm run verify` passes from clean
 - [ ] One trivial passing test exists in each of the two test layers (ADR 0005)
 - [ ] A comment containing a ticket ID or date makes verify fail; an oversize file or high comment ratio only warns
 - [ ] pi is pinned to an exact version and tests use that one, not whatever is on PATH
+
+## Comments
+
+Resolved on `v2-rewrite`. `npm run verify` is green: typecheck, lint/format, store and component tests, build, and 112 end-to-end tests across 2 shards in ~47 s. The spec and the branch commits are the detail; tickets 34 and 35 remain with the owner.

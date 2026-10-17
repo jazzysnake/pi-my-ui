@@ -4,8 +4,12 @@
 
 **Blocked by:** 13 Idle eviction and crash recovery, 11 Sharded e2e gate
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Measured footprint per Pi child recorded
 - [ ] Defaults justified by those measurements
 - [ ] Idle-timeout default documented
+
+## Comments
+
+Resolved on `v2-rewrite`. `npm run verify` is green: typecheck, lint/format, store and component tests, build, and 112 end-to-end tests across 2 shards in ~47 s. The spec and the branch commits are the detail; tickets 34 and 35 remain with the owner.

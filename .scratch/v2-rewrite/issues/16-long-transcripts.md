@@ -4,9 +4,13 @@
 
 **Blocked by:** 14 Transcript: markdown and notifications, 15 Transcript: tool cards and collapsed reasoning, 03 Fixture builder
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] E2E with the generated 500+ entry seed meets a stated load budget
 - [ ] Mounted rows stay bounded while scrolling
 - [ ] A streaming Delta does not remount existing rows
 - [ ] Scroll position is preserved across a resync
+
+## Comments
+
+Resolved on `v2-rewrite`. `npm run verify` is green: typecheck, lint/format, store and component tests, build, and 112 end-to-end tests across 2 shards in ~47 s. The spec and the branch commits are the detail; tickets 34 and 35 remain with the owner.

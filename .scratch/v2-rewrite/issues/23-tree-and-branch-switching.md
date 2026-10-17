@@ -4,10 +4,14 @@
 
 **Blocked by:** 22 Bridge required, 18 Slash palette and session commands, 03 Fixture builder
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] E2E: both entry points open one modal
 - [ ] Alternatives collapsed by default with counts
 - [ ] Search expands and highlights a result
 - [ ] Leaf move confirmed by the server before the UI shows it; refusal shown honestly
 - [ ] 100-deep seed navigable
+
+## Comments
+
+Resolved on `v2-rewrite`. `npm run verify` is green: typecheck, lint/format, store and component tests, build, and 112 end-to-end tests across 2 shards in ~47 s. The spec and the branch commits are the detail; tickets 34 and 35 remain with the owner.

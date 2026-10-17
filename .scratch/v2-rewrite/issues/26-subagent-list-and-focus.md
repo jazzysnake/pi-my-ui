@@ -4,8 +4,12 @@
 
 **Blocked by:** 25 Subagents: the pill
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] E2E: list shows rows with type, name, status and elapsed time
 - [ ] Focus changes the pill and returning to main works
 - [ ] Workflow run appears as its own row
+
+## Comments
+
+Resolved on `v2-rewrite`. `npm run verify` is green: typecheck, lint/format, store and component tests, build, and 112 end-to-end tests across 2 shards in ~47 s. The spec and the branch commits are the detail; tickets 34 and 35 remain with the owner.

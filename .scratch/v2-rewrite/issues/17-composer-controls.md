@@ -4,10 +4,14 @@
 
 **Blocked by:** 06 Send a message and stream the reply
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] E2E for each control above
 - [ ] Attachment sent with a message reaches pi
 - [ ] Steer and Follow up behave per their captions
 - [ ] Refusal shows an error line and nothing is sent
 - [ ] Layout holds with a shrunk (keyboard) viewport and after rotation
+
+## Comments
+
+Resolved on `v2-rewrite`. `npm run verify` is green: typecheck, lint/format, store and component tests, build, and 112 end-to-end tests across 2 shards in ~47 s. The spec and the branch commits are the detail; tickets 34 and 35 remain with the owner.

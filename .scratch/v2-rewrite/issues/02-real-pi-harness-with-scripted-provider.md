@@ -4,9 +4,13 @@
 
 **Blocked by:** 01 Workspace skeleton and verify gate
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] A test sends a prompt to real pi and receives the scripted reply
 - [ ] A scripted tool call is executed by real pi in the hermetic workspace and its real result is fed back
 - [ ] An unexpected prompt fails the test loudly
 - [ ] Each test gets its own hermetic pi home and port namespace; no access to the user's real ~/.pi
+
+## Comments
+
+Resolved on `v2-rewrite`. `npm run verify` is green: typecheck, lint/format, store and component tests, build, and 112 end-to-end tests across 2 shards in ~47 s. The spec and the branch commits are the detail; tickets 34 and 35 remain with the owner.

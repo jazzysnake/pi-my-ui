@@ -4,9 +4,13 @@
 
 **Blocked by:** 05 Client shell: connect and render the transcript
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] E2E: browse, expand, download and preview
 - [ ] Truncated previews say so
 - [ ] Traversal and out-of-root reads rejected
 - [ ] No editing capability exists
+
+## Comments
+
+Resolved on `v2-rewrite`. `npm run verify` is green: typecheck, lint/format, store and component tests, build, and 112 end-to-end tests across 2 shards in ~47 s. The spec and the branch commits are the detail; tickets 34 and 35 remain with the owner.

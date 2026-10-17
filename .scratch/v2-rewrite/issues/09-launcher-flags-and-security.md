@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 Protocol and server: a Session's Snapshot over the WebSocket
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] `--help` lists every flag
 - [ ] Origin allowlist enforced on the WebSocket upgrade with a logged refusal
@@ -12,3 +12,7 @@
 - [ ] Shutdown leaves no orphan pi processes
 - [ ] Health endpoint answers and the server serves no pages
 - [ ] Dev setup reaches real pi from a browser
+
+## Comments
+
+Resolved on `v2-rewrite`. `npm run verify` is green: typecheck, lint/format, store and component tests, build, and 112 end-to-end tests across 2 shards in ~47 s. The spec and the branch commits are the detail; tickets 34 and 35 remain with the owner.

@@ -4,9 +4,13 @@
 
 **Blocked by:** 12 Sessions: new and parallel, 07 Reconnect and resync
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Eviction and respawn tested with the injected clock
 - [ ] Starting… is shown and not styled as an error
 - [ ] Keep-alive flag disables eviction
 - [ ] Crash shows exit code/signal and Reconnect/Resume restores the Session
+
+## Comments
+
+Resolved on `v2-rewrite`. `npm run verify` is green: typecheck, lint/format, store and component tests, build, and 112 end-to-end tests across 2 shards in ~47 s. The spec and the branch commits are the detail; tickets 34 and 35 remain with the owner.

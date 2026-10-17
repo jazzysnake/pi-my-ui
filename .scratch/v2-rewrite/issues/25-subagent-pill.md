@@ -4,9 +4,13 @@
 
 **Blocked by:** 22 Bridge required, 15 Transcript: tool cards and collapsed reasoning
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] E2E: scripted `Agent` call spawns a real subagent and the pill appears
 - [ ] `+N` counts other active agents on `main` and when focused
 - [ ] New ADR records the reversal of v1's main-shows-no-count decision
 - [ ] Without pi-subagents, no pill is shown
+
+## Comments
+
+Resolved on `v2-rewrite`. `npm run verify` is green: typecheck, lint/format, store and component tests, build, and 112 end-to-end tests across 2 shards in ~47 s. The spec and the branch commits are the detail; tickets 34 and 35 remain with the owner.

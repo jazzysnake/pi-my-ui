@@ -4,9 +4,13 @@
 
 **Blocked by:** 31 Phone fit and design, 25 Subagents: the pill, 09 Launcher, flags and security
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Guide, README, Caddy + Tailscale and service guides describe v2 as built
 - [ ] No mention of subagents-limited mode or protocol versioning
 - [ ] Troubleshooting entries are what-you-see / why / what-to-do
 - [ ] docs/drafts is removed
+
+## Comments
+
+Resolved on `v2-rewrite`. `npm run verify` is green: typecheck, lint/format, store and component tests, build, and 112 end-to-end tests across 2 shards in ~47 s. The spec and the branch commits are the detail; tickets 34 and 35 remain with the owner.

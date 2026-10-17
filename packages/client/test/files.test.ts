@@ -27,6 +27,7 @@ function snapshotOf(entries: readonly ProjectedEntry[]): SnapshotMessage {
       leafId: null,
       entries,
       runState: { kind: "idle" },
+      subagents: [],
     },
   };
 }

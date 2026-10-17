@@ -13,6 +13,7 @@ import {
   SessionActivity,
   ToolCallStatus,
 } from "./constants.js";
+import type { SubagentAgent } from "./subagents.js";
 
 /** A position in one Session's ordered stream of Delta batches. */
 export type Cursor = number;
@@ -138,7 +139,8 @@ export type ProjectionDelta =
   | { readonly kind: typeof ProjectionDeltaKind.EntryUpsert; readonly entry: ProjectedEntry }
   | { readonly kind: typeof ProjectionDeltaKind.EntryRemoved; readonly entryId: string }
   | { readonly kind: typeof ProjectionDeltaKind.LeafChanged; readonly leafId: string | null }
-  | { readonly kind: typeof ProjectionDeltaKind.RunState; readonly runState: RunState };
+  | { readonly kind: typeof ProjectionDeltaKind.RunState; readonly runState: RunState }
+  | { readonly kind: typeof ProjectionDeltaKind.SubagentUpsert; readonly agent: SubagentAgent };
 
 /** What a Session's run is doing. `aborted` and `errored` linger until the next run starts. */
 export type RunState =
@@ -193,4 +195,6 @@ export interface SessionProjection {
   readonly leafId: string | null;
   readonly entries: readonly ProjectedEntry[];
   readonly runState: RunState;
+  /** The agents this Session started, in the order pi reported them; empty when none ran. */
+  readonly subagents: readonly SubagentAgent[];
 }

@@ -7,6 +7,7 @@ import { createCommandsSlice, type CommandsSlice } from "./commands.svelte.js";
 import { createFilesSlice, type FilesSlice } from "./files.svelte.js";
 import { createSessionsSlice, type SessionsSlice } from "./sessions.svelte.js";
 import { createSettingsSlice, type SettingsSlice } from "./settings.svelte.js";
+import { createSubagentsSlice, type SubagentsSlice } from "./subagents.svelte.js";
 import { createTranscriptSlice, type TranscriptSlice } from "./transcript.svelte.js";
 
 export class ClientStore {
@@ -16,6 +17,7 @@ export class ClientStore {
   readonly settings: SettingsSlice = createSettingsSlice();
   readonly composer: ComposerSlice = createComposerSlice();
   readonly commands: CommandsSlice = createCommandsSlice();
+  readonly subagents: SubagentsSlice = createSubagentsSlice();
 
   receive(message: ServerMessage): void {
     this.transcript.receive(message);
@@ -24,6 +26,7 @@ export class ClientStore {
     this.settings.receive(message);
     this.composer.receive(message);
     this.commands.receive(message);
+    this.subagents.receive(message);
   }
 
   /**
@@ -36,5 +39,6 @@ export class ClientStore {
     this.settings.clear();
     this.composer.clearError();
     this.commands.clear();
+    this.subagents.clear();
   }
 }

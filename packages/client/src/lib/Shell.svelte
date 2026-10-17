@@ -2,6 +2,7 @@
   import type { ImageAttachment, StreamingBehavior, ThinkingLevel } from "@pi-my-ui/protocol";
 
   import Composer from "./Composer.svelte";
+  import AgentPill from "./AgentPill.svelte";
   import ConnectionStatusIndicator from "./ConnectionStatusIndicator.svelte";
   import RunStateRow from "./RunStateRow.svelte";
   import SessionDrawer from "./SessionDrawer.svelte";
@@ -146,6 +147,7 @@
     >
       Files
     </button>
+    <AgentPill {store} />
     <div class="ml-auto">
       <ConnectionStatusIndicator {status} />
     </div>

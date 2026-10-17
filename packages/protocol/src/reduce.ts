@@ -5,6 +5,7 @@
 
 import { ProjectionDeltaKind } from "./constants.js";
 import type { DeltaBatch, ProjectedEntry, ProjectionDelta, SessionProjection } from "./model.js";
+import type { SubagentAgent } from "./subagents.js";
 
 /** Replace the entry with the same id, or append it. Idempotent by entry id. */
 function upsertEntry(
@@ -16,6 +17,18 @@ function upsertEntry(
     return [...entries, entry];
   }
   return entries.map((existing, position) => (position === index ? entry : existing));
+}
+
+/** Replace the agent with the same id, or append it, keeping the order pi first reported it. */
+function upsertSubagent(
+  agents: readonly SubagentAgent[],
+  agent: SubagentAgent,
+): readonly SubagentAgent[] {
+  const index = agents.findIndex((existing) => existing.id === agent.id);
+  if (index === -1) {
+    return [...agents, agent];
+  }
+  return agents.map((existing, position) => (position === index ? agent : existing));
 }
 
 /** Apply one Delta. Exhaustive over {@link ProjectionDeltaKind}; the compiler enforces it. */
@@ -35,6 +48,8 @@ export function applyDelta(
       return { ...projection, leafId: delta.leafId };
     case ProjectionDeltaKind.RunState:
       return { ...projection, runState: delta.runState };
+    case ProjectionDeltaKind.SubagentUpsert:
+      return { ...projection, subagents: upsertSubagent(projection.subagents, delta.agent) };
   }
 }
 

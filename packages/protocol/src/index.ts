@@ -9,3 +9,4 @@ export * from "./model.js";
 export * from "./messages.js";
 export * from "./validate.js";
 export * from "./reduce.js";
+export * from "./subagents.js";

@@ -22,11 +22,13 @@ import {
   type ProjectionDelta,
   type RunState,
   type SessionProjection,
+  type SubagentAgent,
 } from "@pi-my-ui/protocol";
 import type { JsonAgentSessionEvent, SessionEntry } from "@earendil-works/pi-coding-agent";
 
 import { createLiveBash, type LiveBash } from "./live-bash.js";
 import { blocksFromMessage, projectionBatch, roleOf, toolResultOutput } from "./projection.js";
+import { appendBlock, setBlock } from "./streaming-blocks.js";
 
 type AgentMessage = Extract<JsonAgentSessionEvent, { readonly type: "message_start" }>["message"];
 type MessageStartEvent = Extract<JsonAgentSessionEvent, { readonly type: "message_start" }>;
@@ -43,6 +45,8 @@ export interface SessionProjectionMachine {
   /** Seed from pi's durable entries; returns the Cursor the seeded Projection sits at. */
   seed(entries: readonly SessionEntry[], leafId: string | null): number;
   applyEvent(event: JsonAgentSessionEvent): readonly ProjectionDelta[];
+  /** Apply one subagent record from the bridge; a repeat of the same state is not re-published. */
+  applySubagent(agent: SubagentAgent): readonly ProjectionDelta[];
   markAborted(): readonly ProjectionDelta[];
 }
 
@@ -56,6 +60,7 @@ export function createSessionProjectionMachine(
     leafId: null,
     entries: [],
     runState: IDLE_RUN_STATE,
+    subagents: [],
   };
   let streamingEntryId: string | null = null;
   let pendingId = 0;
@@ -146,32 +151,6 @@ export function createSessionProjectionMachine(
         setLeaf(newId),
       ],
     };
-  }
-
-  function setBlock(
-    blocks: readonly ContentBlock[],
-    index: number,
-    block: ContentBlock,
-  ): readonly ContentBlock[] {
-    const next = [...blocks];
-    while (next.length < index) {
-      next.push({ type: ContentBlockType.Text, text: "" });
-    }
-    next[index] = block;
-    return next;
-  }
-
-  function appendBlock(
-    blocks: readonly ContentBlock[],
-    index: number,
-    type: typeof ContentBlockType.Text | typeof ContentBlockType.Reasoning,
-    delta: string,
-  ): readonly ContentBlock[] {
-    const existing = blocks[index];
-    if (existing !== undefined && existing.type === type) {
-      return setBlock(blocks, index, { type, text: existing.text + delta });
-    }
-    return setBlock(blocks, index, { type, text: delta });
   }
 
   function withStreamingBlocks(
@@ -369,12 +348,32 @@ export function createSessionProjectionMachine(
     seed(entries, leafId) {
       bash.reset();
       const batch = projectionBatch({ entries, leafId, fromCursor: 0 });
+      // The bridge can report an agent before pi's entries finish reading; those records outlive the
+      // reseed, since the seed describes the transcript and not who is working on it.
       projection = reduceDeltaBatch(
-        { sessionId, cwd, leafId: null, entries: [], runState: IDLE_RUN_STATE },
+        {
+          sessionId,
+          cwd,
+          leafId: null,
+          entries: [],
+          runState: IDLE_RUN_STATE,
+          subagents: projection.subagents,
+        },
         batch,
       );
       streamingEntryId = null;
       return batch.cursor;
+    },
+    applySubagent(agent) {
+      const existing = projection.subagents.find((candidate) => candidate.id === agent.id);
+      if (
+        existing !== undefined &&
+        existing.handle === agent.handle &&
+        existing.status === agent.status
+      ) {
+        return [];
+      }
+      return emit([{ kind: ProjectionDeltaKind.SubagentUpsert, agent }]);
     },
     applyEvent(event) {
       switch (event.type) {

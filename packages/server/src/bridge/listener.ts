@@ -18,8 +18,11 @@ import {
   BridgeProtocolError,
   BridgeRecordType,
   encodeBridgeRecord,
+  parseBridgeAgent,
   parseBridgeHello,
+  type BridgeAgentRecord,
   type BridgeErrorInfo,
+  type SubagentAgent,
 } from "@pi-my-ui/protocol";
 
 import { BridgeConfigurationError, BridgeConnectionError, errorText } from "./errors.js";
@@ -35,11 +38,16 @@ export const BRIDGE_MAX_FRAME_CHARS = 1024 * 1024;
  */
 export const DEFAULT_BRIDGE_CONNECT_TIMEOUT_MS = 10_000;
 
+/** A subscriber to the agent records a child's bridge sends, keyed by the child's Session. */
+export type BridgeAgentListener = (sessionId: string, agent: SubagentAgent) => void;
+
 /** Start a Session's child, then wait on this before serving the Session. */
 export interface BridgeListener {
   readonly socketPath: string;
   /** Resolve once the child for `sessionId` has completed the handshake. */
   waitForSession(sessionId: string): Promise<void>;
+  /** Subscribe to subagent records; returns an unsubscribe. */
+  onAgent(listener: BridgeAgentListener): () => void;
   /** Stop accepting, drop connections, and remove the socket. Idempotent. */
   close(): Promise<void>;
 }
@@ -87,6 +95,7 @@ export async function startBridgeListener(options: BridgeListenerOptions): Promi
   const pendingWaits = new Map<string, PendingWait>();
   const liveConnections = new Map<string, Socket>();
   const connections = new Set<Connection>();
+  const agentListeners = new Set<BridgeAgentListener>();
   let closed = false;
 
   const failWait = (sessionId: string, message: string): void => {
@@ -172,9 +181,25 @@ export async function startBridgeListener(options: BridgeListenerOptions): Promi
       onHello(connection, hello.sessionId, hello.pid);
       return;
     }
-    // No post-handshake records exist on this wire yet, so anything here is a peer fault.
-    log("bridge: dropping a connection that sent a record after its handshake");
-    connection.socket.destroy();
+    const sessionId = connection.sessionId;
+    let agent: BridgeAgentRecord;
+    try {
+      agent = parseBridgeAgent(value);
+    } catch (error) {
+      log(
+        `bridge: dropping session ${quoted(sessionId)} after a bad record: ` +
+          (error instanceof BridgeProtocolError ? error.message : errorText(error)),
+      );
+      connection.socket.destroy();
+      return;
+    }
+    // Records for a Session this server no longer serves have no Projection to advance.
+    if (!known.has(sessionId)) {
+      return;
+    }
+    for (const listener of agentListeners) {
+      listener(sessionId, agent);
+    }
   };
 
   const onData = (connection: Connection, chunk: string): void => {
@@ -272,11 +297,18 @@ export async function startBridgeListener(options: BridgeListenerOptions): Promi
       pendingWaits.set(sessionId, { promise, resolve: resolveWait, reject: rejectWait, timer });
       return promise;
     },
+    onAgent(listener: BridgeAgentListener): () => void {
+      agentListeners.add(listener);
+      return () => {
+        agentListeners.delete(listener);
+      };
+    },
     async close(): Promise<void> {
       if (closed) {
         return;
       }
       closed = true;
+      agentListeners.clear();
       for (const sessionId of [...pendingWaits.keys()]) {
         failWait(sessionId, "the bridge listener stopped before the handshake");
       }

@@ -8,8 +8,10 @@
 
 import { BRIDGE_SOCKET_ENV_VAR } from "@pi-my-ui/protocol";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { BridgeRecordType, type SubagentAgent } from "@pi-my-ui/protocol";
 
 import { BRIDGE_LOG_PREFIX, BridgeClient, type BridgeLog } from "./client.js";
+import { SUBAGENTS_LIFECYCLE_CHANNELS, lifecycleAgent, subagentManager } from "./subagents.js";
 
 export {
   BRIDGE_HANDSHAKE_TIMEOUT_MS,
@@ -17,6 +19,14 @@ export {
   BRIDGE_RECONNECT_DELAYS_MS,
 } from "./client.js";
 export { BridgeClient, type BridgeClientOptions, type BridgeLog } from "./client.js";
+export {
+  SUBAGENTS_CREATED_CHANNEL,
+  SUBAGENTS_LIFECYCLE_CHANNELS,
+  SUBAGENT_MANAGER_SYMBOL_KEY,
+  lifecycleAgent,
+  subagentManager,
+} from "./subagents.js";
+export type { SubagentLifecycleChannel, SubagentManager } from "./subagents.js";
 
 function defaultLog(line: string): void {
   // RPC mode reserves stdout for protocol records, so every diagnostic goes to stderr.
@@ -29,6 +39,24 @@ function defaultLog(line: string): void {
  */
 export function registerBridge(pi: ExtensionAPI, log: BridgeLog = defaultLog): void {
   let client: BridgeClient | undefined;
+  let agents = new Map<string, SubagentAgent>();
+
+  // Subscribed at factory time, so a pi-subagents activation that runs its own `session_start`
+  // handler first is already discoverable here.
+  for (const channel of SUBAGENTS_LIFECYCLE_CHANNELS) {
+    pi.events.on(channel, (data) => {
+      const active = client;
+      if (active === undefined) {
+        return;
+      }
+      const agent = lifecycleAgent(channel, data, (id) => agents.get(id), subagentManager(), log);
+      if (agent === undefined) {
+        return;
+      }
+      agents.set(agent.id, agent);
+      active.send({ type: BridgeRecordType.Agent, ...agent });
+    });
+  }
 
   pi.on("session_start", (_event, ctx) => {
     const socketPath = process.env[BRIDGE_SOCKET_ENV_VAR];
@@ -37,6 +65,9 @@ export function registerBridge(pi: ExtensionAPI, log: BridgeLog = defaultLog): v
       return;
     }
     client?.stop();
+    // A previous session in this process reported agents that this one has not; keeping them would
+    // attribute another Session's runs to this one.
+    agents = new Map();
     client = new BridgeClient({
       socketPath,
       sessionId: ctx.sessionManager.getSessionId(),
@@ -49,6 +80,7 @@ export function registerBridge(pi: ExtensionAPI, log: BridgeLog = defaultLog): v
   pi.on("session_shutdown", () => {
     client?.stop();
     client = undefined;
+    agents = new Map();
   });
 }
 

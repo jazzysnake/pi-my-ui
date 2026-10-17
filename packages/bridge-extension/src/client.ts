@@ -16,6 +16,7 @@ import {
   BridgeRecordType,
   encodeBridgeRecord,
   parseBridgeHelloAck,
+  type BridgeChildRecord,
   type BridgeHelloAckRecord,
 } from "@pi-my-ui/protocol";
 
@@ -26,6 +27,13 @@ export const BRIDGE_RECONNECT_DELAYS_MS: readonly number[] = [50, 100, 250, 500,
 
 /** How long one connect plus `helloAck` round trip may take before it counts as a failed attempt. */
 export const BRIDGE_HANDSHAKE_TIMEOUT_MS = 2_000;
+
+/**
+ * How many records may wait for the handshake. Only the connect window queues, so this bound is
+ * reached only by a peer that never answers; dropping the oldest keeps the newest agent state and
+ * reports the loss instead of growing without limit.
+ */
+export const BRIDGE_MAX_QUEUED_RECORDS = 256;
 
 export type BridgeLog = (line: string) => void;
 export type CancelSchedule = () => void;
@@ -47,6 +55,8 @@ export class BridgeClient {
   #attempt = 0;
   #stopped = false;
   #disabled = false;
+  #handshakeDone = false;
+  #queue: BridgeChildRecord[] = [];
   #cancelHandshake: CancelSchedule | undefined;
   #cancelReconnect: CancelSchedule | undefined;
 
@@ -72,12 +82,45 @@ export class BridgeClient {
     }
     this.#stopped = true;
     this.#cancelTimers();
+    this.#queue = [];
     this.#socket?.destroy();
     this.#socket = undefined;
   }
 
+  /**
+   * Send one post-handshake record. A record produced before the server's `helloAck` waits in a
+   * bounded queue: an agent that appears the instant a Session starts must not be lost because the
+   * handshake was a millisecond late.
+   */
+  public send(record: BridgeChildRecord): void {
+    if (this.#stopped || this.#disabled) {
+      return;
+    }
+    if (this.#queue.length >= BRIDGE_MAX_QUEUED_RECORDS) {
+      const dropped = this.#queue.shift();
+      this.#log(
+        `${BRIDGE_LOG_PREFIX} dropping a queued ${dropped?.type ?? "record"} record after ` +
+          `${String(BRIDGE_MAX_QUEUED_RECORDS)} unacknowledged records`,
+      );
+    }
+    this.#queue.push(record);
+    this.#flush();
+  }
+
+  #flush(): void {
+    const socket = this.#socket;
+    if (!this.#handshakeDone || socket === undefined || socket.destroyed) {
+      return;
+    }
+    for (const record of this.#queue) {
+      socket.write(encodeBridgeRecord(record));
+    }
+    this.#queue = [];
+  }
+
   #open(): void {
     this.#buffer = "";
+    this.#handshakeDone = false;
     let socket: Socket;
     try {
       socket = createConnection({ path: this.#socketPath });
@@ -155,9 +198,11 @@ export class BridgeClient {
     this.#cancelHandshake?.();
     this.#cancelHandshake = undefined;
     this.#attempt = 0;
+    this.#handshakeDone = true;
     this.#log(
       `${BRIDGE_LOG_PREFIX} connected to ${this.#socketPath} as session ${this.#sessionId}`,
     );
+    this.#flush();
   }
 
   #onClose(socket: Socket): void {
@@ -165,6 +210,7 @@ export class BridgeClient {
       return;
     }
     this.#socket = undefined;
+    this.#handshakeDone = false;
     this.#cancelHandshake?.();
     this.#cancelHandshake = undefined;
     if (this.#stopped || this.#disabled) {
@@ -195,6 +241,8 @@ export class BridgeClient {
 
   #disable(reason: string): void {
     this.#disabled = true;
+    this.#handshakeDone = false;
+    this.#queue = [];
     this.#cancelTimers();
     this.#socket?.destroy();
     this.#socket = undefined;

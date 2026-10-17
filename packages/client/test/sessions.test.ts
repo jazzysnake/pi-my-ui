@@ -43,6 +43,7 @@ function snapshotOf(sessionId: string, entries: readonly ProjectedEntry[]): Serv
       leafId: entries.at(-1)?.id ?? null,
       entries,
       runState: { kind: IDLE },
+      subagents: [],
     },
   };
 }

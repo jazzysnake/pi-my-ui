@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { createServer, type AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -28,6 +29,15 @@ const DEFAULT_PROMPT_TIMEOUT_MS = 60_000;
  */
 const SCRIPTED_PROVIDER_EXTENSION = fileURLToPath(
   new URL("../../scripted-provider/dist/index.js", import.meta.url),
+);
+
+/**
+ * The workspace-pinned pi-subagents extension, loaded the way a real session has it. Tests that need
+ * the subagent surface opt in; every other spec runs without it, which is also the state of a user
+ * who has not installed the extension.
+ */
+export const PI_SUBAGENTS_EXTENSION = createRequire(import.meta.url).resolve(
+  "@tintinweb/pi-subagents/dist/index.js",
 );
 
 /**
@@ -174,6 +184,16 @@ export interface StartScriptedPiOptions {
   readonly script: Script;
   /** Keep a Session file in the hermetic home; tests that inspect Sessions leave this on. */
   readonly session?: boolean;
+  /** Load pi-subagents as a real session has it; a test proving its absence turns this off. */
+  readonly piSubagents?: boolean;
+  /** Further pi extensions to load beside the scripted provider. */
+  readonly extensions?: readonly string[];
+}
+
+/** The extension options a hermetic launch accepts. */
+export interface ScriptedLaunchOptions {
+  readonly piSubagents?: boolean;
+  readonly extensions?: readonly string[];
 }
 
 /** What a hermetic pi child needs: its workspace, its private environment, and its model. */
@@ -193,14 +213,20 @@ export interface ScriptedPiLaunch {
 export async function scriptedPiLaunch(
   home: HermeticHome,
   script: Script,
+  options: ScriptedLaunchOptions = {},
 ): Promise<ScriptedPiLaunch> {
   await mkdir(home.sessionsDir, { recursive: true });
   const scriptPath = join(home.root, "script.json");
   await writeFile(scriptPath, `${JSON.stringify(script, null, 2)}\n`, "utf8");
+  const installed = options.piSubagents === false ? [] : [PI_SUBAGENTS_EXTENSION];
+  const extra = [...installed, ...(options.extensions ?? [])].flatMap((entry) => [
+    "--extension",
+    entry,
+  ]);
   return {
     cwd: home.workspace,
     env: hermeticEnv(home, scriptPath),
-    args: [...HERMETIC_PI_ARGS, "--extension", SCRIPTED_PROVIDER_EXTENSION],
+    args: [...HERMETIC_PI_ARGS, "--extension", SCRIPTED_PROVIDER_EXTENSION, ...extra],
     provider: SCRIPTED_PROVIDER_ID,
     model: SCRIPTED_MODEL_ID,
   };
@@ -220,7 +246,10 @@ export async function startScriptedPi(options: StartScriptedPiOptions): Promise<
   }
 
   const { home } = options;
-  const launch = await scriptedPiLaunch(home, options.script);
+  const launch = await scriptedPiLaunch(home, options.script, {
+    ...(options.piSubagents === undefined ? {} : { piSubagents: options.piSubagents }),
+    ...(options.extensions === undefined ? {} : { extensions: options.extensions }),
+  });
   const args = [...launch.args];
   if (options.session === false) {
     args.push("--no-session");

@@ -18,6 +18,7 @@ import {
   type SettingsMessage,
   type SnapshotMessage,
   type StreamingBehavior,
+  type SubagentAgent,
   type ThinkingLevel,
 } from "@pi-my-ui/protocol";
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
@@ -69,6 +70,8 @@ export interface SessionHost {
 /** The bridge a Session's Pi child must connect before the Session is served. */
 export interface BridgeGate {
   waitForSession(sessionId: string): Promise<void>;
+  /** Subscribe to the agent records the child's bridge sends; returns an unsubscribe. */
+  onAgent(listener: (sessionId: string, agent: SubagentAgent) => void): () => void;
 }
 
 export interface SessionHostOptions {
@@ -186,6 +189,19 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
     }
     publish(machine.applyEvent(event));
   }
+
+  /**
+   * Agent records arrive on the bridge, not pi's RPC. They are applied to the Projection even before
+   * the transcript is seeded, so a bridge record that beats pi's first read still reaches the
+   * Snapshot; publishing waits for seeding so no viewer receives a Delta against a Projection it
+   * has not been sent.
+   */
+  const unsubscribeAgents = options.bridge.onAgent((sessionId, agent) => {
+    if (sessionId !== options.sessionId) {
+      return;
+    }
+    publish(machine.applySubagent(agent));
+  });
 
   function ensureChild(): Promise<PiChild> {
     // A child that failed to start must not be remembered: the next request retries rather than
@@ -348,6 +364,7 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       return await (await ensureChild()).exportHtml();
     },
     async close() {
+      unsubscribeAgents();
       viewers.clear();
       unsubscribe?.();
       unsubscribe = undefined;

@@ -8,6 +8,8 @@
  * commit.
  */
 
+import { SubagentStatus } from "./subagents.js";
+
 /**
  * Environment variable the server sets on each spawned child; the bridge extension reads it to find
  * the socket. Defined here so the setter and the reader cannot drift.
@@ -18,6 +20,7 @@ export const BRIDGE_SOCKET_ENV_VAR = "PI_MY_UI_BRIDGE_SOCKET";
 export const BridgeRecordType = {
   Hello: "hello",
   HelloAck: "helloAck",
+  Agent: "agent",
 } as const;
 
 export type BridgeRecordType = (typeof BridgeRecordType)[keyof typeof BridgeRecordType];
@@ -72,7 +75,7 @@ export interface BridgeHelloAckRecord {
 }
 
 /** Every record a child's bridge sends. */
-export type BridgeChildRecord = BridgeHelloRecord;
+export type BridgeChildRecord = BridgeHelloRecord | BridgeAgentRecord;
 
 /** Every record the server sends. */
 export type BridgeServerRecord = BridgeHelloAckRecord;
@@ -140,4 +143,39 @@ function requireError(value: unknown): BridgeErrorInfo {
     malformed('"error.message" must be a non-empty string');
   }
   return { code, message };
+}
+
+/**
+ * One subagent's current state, sent whenever pi-subagents reports a transition. The record carries
+ * the whole agent rather than a patch, so a receiver that missed an earlier record still converges.
+ */
+export interface BridgeAgentRecord {
+  readonly type: typeof BridgeRecordType.Agent;
+  readonly id: string;
+  /** The handle the user types to address the agent; never empty. */
+  readonly handle: string;
+  readonly status: SubagentStatus;
+}
+
+const SUBAGENT_STATUSES: readonly string[] = Object.values(SubagentStatus);
+
+/** Parse one post-handshake agent record. */
+export function parseBridgeAgent(value: unknown): BridgeAgentRecord {
+  const record = asRecord(value);
+  if (record["type"] !== BridgeRecordType.Agent) {
+    malformed(`expected a ${BridgeRecordType.Agent} record`);
+  }
+  const id = record["id"];
+  if (typeof id !== "string" || id === "") {
+    malformed('"id" must be a non-empty string');
+  }
+  const handle = record["handle"];
+  if (typeof handle !== "string" || handle === "") {
+    malformed('"handle" must be a non-empty string');
+  }
+  const status = record["status"];
+  if (typeof status !== "string" || !SUBAGENT_STATUSES.includes(status)) {
+    malformed('"status" must be a known subagent status');
+  }
+  return { type: BridgeRecordType.Agent, id, handle, status: status as SubagentStatus };
 }

@@ -66,7 +66,17 @@ export function registerBridge(pi: ExtensionAPI, log: BridgeLog = defaultLog): v
         return;
       }
       agents.set(agent.id, agent);
-      active.send({ type: BridgeRecordType.Agent, ...agent });
+      // `type` is the record's discriminant on this wire, so the agent's own type travels as
+      // `agentType` and cannot collide with it.
+      active.send({
+        type: BridgeRecordType.Agent,
+        id: agent.id,
+        handle: agent.handle,
+        agentType: agent.type,
+        status: agent.status,
+        ...(agent.startedAt === undefined ? {} : { startedAt: agent.startedAt }),
+        ...(agent.finishedAt === undefined ? {} : { finishedAt: agent.finishedAt }),
+      });
     });
   }
 

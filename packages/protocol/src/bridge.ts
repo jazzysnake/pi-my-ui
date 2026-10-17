@@ -8,7 +8,7 @@
  * commit.
  */
 
-import { SubagentStatus } from "./subagents.js";
+import { SubagentRunKind, SubagentStatus, type SubagentAgent } from "./subagents.js";
 
 /**
  * Environment variable the server sets on each spawned child; the bridge extension reads it to find
@@ -154,10 +154,25 @@ export interface BridgeAgentRecord {
   readonly id: string;
   /** The handle the user types to address the agent; never empty. */
   readonly handle: string;
+  /** pi's agent type; the row shows it beside the handle. */
+  readonly agentType: string;
   readonly status: SubagentStatus;
+  readonly startedAt?: number;
+  readonly finishedAt?: number;
 }
 
 const SUBAGENT_STATUSES: readonly string[] = Object.values(SubagentStatus);
+
+function optionalTimestamp(record: Record<string, unknown>, field: string): number | undefined {
+  const value = record[field];
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    malformed(`"${field}" must be a non-negative number when present`);
+  }
+  return value;
+}
 
 /** Parse one post-handshake agent record. */
 export function parseBridgeAgent(value: unknown): BridgeAgentRecord {
@@ -173,9 +188,42 @@ export function parseBridgeAgent(value: unknown): BridgeAgentRecord {
   if (typeof handle !== "string" || handle === "") {
     malformed('"handle" must be a non-empty string');
   }
+  const agentType = record["agentType"];
+  if (typeof agentType !== "string" || agentType === "") {
+    malformed('"agentType" must be a non-empty string');
+  }
   const status = record["status"];
   if (typeof status !== "string" || !SUBAGENT_STATUSES.includes(status)) {
     malformed('"status" must be a known subagent status');
   }
-  return { type: BridgeRecordType.Agent, id, handle, status: status as SubagentStatus };
+  const startedAt = optionalTimestamp(record, "startedAt");
+  const finishedAt = optionalTimestamp(record, "finishedAt");
+  return {
+    type: BridgeRecordType.Agent,
+    id,
+    handle,
+    agentType,
+    status: status as SubagentStatus,
+    ...(startedAt === undefined ? {} : { startedAt }),
+    ...(finishedAt === undefined ? {} : { finishedAt }),
+  };
+}
+
+/** The run kind every record on this wire is: the bridge observes agents, never workflow runs. */
+export const BRIDGE_AGENT_RUN_KIND = SubagentRunKind.Agent;
+
+/**
+ * The Projection row for one bridge record: an agent, never a workflow run, because the bridge only
+ * ever observes agents.
+ */
+export function subagentAgentFromBridge(record: BridgeAgentRecord): SubagentAgent {
+  return {
+    id: record.id,
+    handle: record.handle,
+    type: record.agentType,
+    status: record.status,
+    runKind: BRIDGE_AGENT_RUN_KIND,
+    ...(record.startedAt === undefined ? {} : { startedAt: record.startedAt }),
+    ...(record.finishedAt === undefined ? {} : { finishedAt: record.finishedAt }),
+  };
 }

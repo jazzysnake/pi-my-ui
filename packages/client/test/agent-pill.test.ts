@@ -5,6 +5,7 @@ import {
   EntryKind,
   ProjectionDeltaKind,
   ServerMessageType,
+  SubagentRunKind,
   SubagentStatus,
   type DeltaMessage,
   type ProjectedEntry,
@@ -55,7 +56,7 @@ function agentDelta(agent: SubagentAgent, fromCursor: number): DeltaMessage {
 }
 
 function agent(id: string, handle: string, status: SubagentStatus): SubagentAgent {
-  return { id, handle, status };
+  return { id, handle, type: "general-purpose", status, runKind: SubagentRunKind.Agent };
 }
 
 interface MountedPill {

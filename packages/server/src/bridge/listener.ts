@@ -20,6 +20,7 @@ import {
   encodeBridgeRecord,
   parseBridgeAgent,
   parseBridgeHello,
+  subagentAgentFromBridge,
   type BridgeAgentRecord,
   type BridgeErrorInfo,
   type SubagentAgent,
@@ -198,7 +199,7 @@ export async function startBridgeListener(options: BridgeListenerOptions): Promi
       return;
     }
     for (const listener of agentListeners) {
-      listener(sessionId, agent);
+      listener(sessionId, subagentAgentFromBridge(agent));
     }
   };
 

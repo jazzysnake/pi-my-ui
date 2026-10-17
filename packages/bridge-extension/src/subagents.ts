@@ -6,7 +6,12 @@
  * untouched, because the bridge observes agents and never drives them.
  */
 
-import { SubagentStatus, subagentStatusFromPi, type SubagentAgent } from "@pi-my-ui/protocol";
+import {
+  SubagentRunKind,
+  SubagentStatus,
+  subagentStatusFromPi,
+  type SubagentAgent,
+} from "@pi-my-ui/protocol";
 
 /** pi-subagents' announcement that a record exists; it carries no status of its own. */
 export const SUBAGENTS_CREATED_CHANNEL = "subagents:created";
@@ -71,7 +76,10 @@ export function subagentManager(): SubagentManager | undefined {
 interface ManagerRecord {
   readonly handle: string | undefined;
   readonly alias: string | undefined;
+  readonly type: string | undefined;
   readonly status: string | undefined;
+  readonly startedAt: number | undefined;
+  readonly completedAt: number | undefined;
 }
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
@@ -82,28 +90,44 @@ function stringOf(value: unknown): string | undefined {
   return typeof value === "string" && value !== "" ? value : undefined;
 }
 
+function timestampOf(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+const EMPTY_RECORD: ManagerRecord = {
+  handle: undefined,
+  alias: undefined,
+  type: undefined,
+  status: undefined,
+  startedAt: undefined,
+  completedAt: undefined,
+};
+
 function readManagerRecord(
   manager: SubagentManager | undefined,
   id: string,
   log: (line: string) => void,
 ): ManagerRecord {
   if (manager === undefined) {
-    return { handle: undefined, alias: undefined, status: undefined };
+    return EMPTY_RECORD;
   }
   let record: unknown;
   try {
     record = manager.getRecord(id);
   } catch (error) {
     log(`${BRIDGE_LOG_SCOPE} reading the record for ${id} failed: ${errorText(error)}`);
-    return { handle: undefined, alias: undefined, status: undefined };
+    return EMPTY_RECORD;
   }
   if (!isRecord(record)) {
-    return { handle: undefined, alias: undefined, status: undefined };
+    return EMPTY_RECORD;
   }
   return {
     handle: stringOf(record["handle"]),
     alias: stringOf(record["alias"]),
+    type: stringOf(record["type"]),
     status: stringOf(record["status"]),
+    startedAt: timestampOf(record["startedAt"]),
+    completedAt: timestampOf(record["completedAt"]),
   };
 }
 
@@ -146,9 +170,15 @@ export function lifecycleAgent(
     log(`${BRIDGE_LOG_SCOPE} deferring ${channel} for ${id}: no source reported a status`);
     return undefined;
   }
+  const startedAt = record.startedAt ?? before?.startedAt;
+  const finishedAt = record.completedAt;
   return {
     id,
     handle: record.handle ?? record.alias ?? before?.handle ?? stringOf(data["type"]) ?? id,
+    type: record.type ?? before?.type ?? stringOf(data["type"]) ?? id,
     status,
+    runKind: SubagentRunKind.Agent,
+    ...(startedAt === undefined ? {} : { startedAt }),
+    ...(finishedAt === undefined ? {} : { finishedAt }),
   };
 }

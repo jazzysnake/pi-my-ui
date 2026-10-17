@@ -1,7 +1,4 @@
-/**
- * Subagents as the pill and the agent list read them. The status mapping lives here so the bridge
- * extension and the server cannot report two spellings of the same state.
- */
+/** Subagents as the pill and the agent list read them: one spelling of each state and of each row. */
 
 /** The lifecycle states a subagent shows in the UI. */
 export const SubagentStatus = {
@@ -9,7 +6,6 @@ export const SubagentStatus = {
   Queued: "queued",
   Running: "running",
   Completed: "completed",
-  /** Ended in an error or was aborted at its turn limit. */
   Failed: "failed",
   Stopped: "stopped",
 } as const;
@@ -32,14 +28,34 @@ const PI_SUBAGENT_STATUS_MAP: Readonly<Record<string, SubagentStatus>> = {
 export function subagentStatusFromPi(raw: string | undefined): SubagentStatus | undefined {
   return raw === undefined ? undefined : PI_SUBAGENT_STATUS_MAP[raw];
 }
-
 /** Whether an agent counts as active: its run has not settled, and queued work is about to run. */
 export function isActiveSubagent(status: SubagentStatus): boolean {
   return status === SubagentStatus.Queued || status === SubagentStatus.Running;
 }
 
+/**
+ * What kind of run a row is. A workflow owns the agents it starts and reports nothing about itself
+ * on pi-subagents' lifecycle bus, so it is a row of its own rather than an agent.
+ */
+export const SubagentRunKind = {
+  Agent: "agent",
+  Workflow: "workflow",
+} as const;
+
+export type SubagentRunKind = (typeof SubagentRunKind)[keyof typeof SubagentRunKind];
+
+/** The `type` a workflow run's row carries: a workflow is not an agent type. */
+export const WORKFLOW_RUN_TYPE = "workflow";
+
 export interface SubagentAgent {
   readonly id: string;
   readonly handle: string;
+  /** pi's agent type (`general-purpose`, `Explore`), or {@link WORKFLOW_RUN_TYPE} for a run. */
+  readonly type: string;
   readonly status: SubagentStatus;
+  readonly runKind: SubagentRunKind;
+  /** When the run started, so a row can state how long it has been going; epoch ms. */
+  readonly startedAt?: number;
+  /** When the run settled; absent while it is still going. */
+  readonly finishedAt?: number;
 }

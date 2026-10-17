@@ -2,6 +2,7 @@
   import type { ImageAttachment, StreamingBehavior, ThinkingLevel } from "@pi-my-ui/protocol";
 
   import Composer from "./Composer.svelte";
+  import AgentList from "./AgentList.svelte";
   import AgentPill from "./AgentPill.svelte";
   import ConnectionStatusIndicator from "./ConnectionStatusIndicator.svelte";
   import ContextUsageMeter from "./ContextUsageMeter.svelte";
@@ -74,6 +75,7 @@
   let filesOpen = $state(false);
   let sessionsOpen = $state(false);
   let forkOpen = $state(false);
+  let agentsOpen = $state(false);
   /** The composer's draft, so the message tree can hand one of the user's messages back to it. */
   let composerText = $state("");
 
@@ -204,7 +206,12 @@
     >
       Files
     </button>
-    <AgentPill {store} />
+    <AgentPill
+      {store}
+      onOpen={() => {
+        agentsOpen = true;
+      }}
+    />
     <div class="ml-auto flex min-w-0 items-center gap-2">
       {#if store.context.usage !== undefined}
         <ContextUsageMeter usage={store.context.usage} />
@@ -304,6 +311,18 @@
       }}
       onClose={() => {
         store.tree.close();
+      }}
+    />
+  {/if}
+  {#if agentsOpen}
+    <AgentList
+      {store}
+      onSelect={(agentId) => {
+        store.subagents.focus(agentId);
+        agentsOpen = false;
+      }}
+      onClose={() => {
+        agentsOpen = false;
       }}
     />
   {/if}

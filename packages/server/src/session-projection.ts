@@ -21,6 +21,7 @@ import {
   type ContentBlock,
   type PiChildExit,
   type ProjectedEntry,
+  type ProjectedMessageEntry,
   type ProjectionDelta,
   type RunState,
   type SessionProjection,
@@ -32,6 +33,8 @@ import { createLiveBash, type LiveBash } from "./live-bash.js";
 import { createLiveCompaction } from "./live-compaction.js";
 import { blocksFromMessage, projectionBatch, roleOf, toolResultOutput } from "./projection.js";
 import { blockEditOf } from "./streaming-blocks.js";
+import { workflowRunsFromEntries } from "./workflow-runs.js";
+import { createLiveWorkflow } from "./live-workflow.js";
 
 type AgentMessage = Extract<JsonAgentSessionEvent, { readonly type: "message_start" }>["message"];
 type MessageStartEvent = Extract<JsonAgentSessionEvent, { readonly type: "message_start" }>;
@@ -40,6 +43,22 @@ type MessageUpdateEvent = Extract<JsonAgentSessionEvent, { readonly type: "messa
 type AgentEndEvent = Extract<JsonAgentSessionEvent, { readonly type: "agent_end" }>;
 
 const IDLE_RUN_STATE: RunState = { kind: RunStateKind.Idle };
+
+/**
+ * Whether two reports describe the same agent state. A repeat carries news only when a field the row
+ * shows has moved, so an unchanged re-report is dropped rather than re-published to every browser.
+ */
+function sameAgent(left: SubagentAgent, right: SubagentAgent): boolean {
+  return (
+    left.id === right.id &&
+    left.handle === right.handle &&
+    left.type === right.type &&
+    left.status === right.status &&
+    left.runKind === right.runKind &&
+    left.startedAt === right.startedAt &&
+    left.finishedAt === right.finishedAt
+  );
+}
 
 export interface SessionProjectionMachine {
   readonly projection: SessionProjection;
@@ -81,6 +100,12 @@ export function createSessionProjectionMachine(
     setRunState,
   });
 
+  const workflow = createLiveWorkflow({
+    toolCall: toolCallOf,
+    agents: () => projection.subagents,
+    applySubagent,
+  });
+
   const bash = createLiveBash({
     nextId,
     entry: entryById,
@@ -114,6 +139,23 @@ export function createSessionProjectionMachine(
 
   function setRunState(runState: RunState): ProjectionDelta {
     return { kind: ProjectionDeltaKind.RunState, runState };
+  }
+
+  /**
+   * The delta one agent report needs, or none when it repeats the state already projected. Shared by
+   * the bridge's reports and the workflow rows this machine derives itself, so both are de-duplicated
+   * the same way.
+   */
+  function applySubagent(agent: SubagentAgent): readonly ProjectionDelta[] {
+    return emit(subagentDeltas(agent));
+  }
+
+  function subagentDeltas(agent: SubagentAgent): readonly ProjectionDelta[] {
+    const existing = projection.subagents.find((candidate) => candidate.id === agent.id);
+    if (existing !== undefined && sameAgent(existing, agent)) {
+      return [];
+    }
+    return [{ kind: ProjectionDeltaKind.SubagentUpsert, agent }];
   }
 
   /** Every message row this machine builds, in one place. */
@@ -206,35 +248,51 @@ export function createSessionProjectionMachine(
   function onToolResult(
     message: Extract<AgentMessage, { readonly role: "toolResult" }>,
   ): readonly ProjectionDelta[] {
+    const call = toolCallOf(message.toolCallId);
+    if (call === undefined) {
+      return [];
+    }
+    const { entry, index } = call;
+    const block = entry.blocks[index];
+    if (block === undefined || block.type !== ContentBlockType.ToolCall) {
+      return [];
+    }
+    const blocks = [...entry.blocks];
+    const output = toolResultOutput(message);
+    blocks[index] = {
+      ...block,
+      status: message.isError ? ToolCallStatus.Error : ToolCallStatus.Success,
+      ...(output === "" ? {} : { output }),
+    };
+    return emit([upsert({ ...entry, blocks })]);
+  }
+
+  /** The assistant row and block a tool result answers, wherever the call sits on the path. */
+  function toolCallOf(
+    toolCallId: string,
+  ): { readonly entry: ProjectedMessageEntry; readonly index: number } | undefined {
     for (const entry of projection.entries) {
       if (entry.kind !== EntryKind.Message || entry.role !== MessageRole.Assistant) {
         continue;
       }
       const index = entry.blocks.findIndex(
-        (block) => block.type === ContentBlockType.ToolCall && block.id === message.toolCallId,
+        (block) => block.type === ContentBlockType.ToolCall && block.id === toolCallId,
       );
-      const block = entry.blocks[index];
-      if (block === undefined || block.type !== ContentBlockType.ToolCall) {
-        continue;
+      if (index !== -1) {
+        return { entry, index };
       }
-      const blocks = [...entry.blocks];
-      const output = toolResultOutput(message);
-      blocks[index] = {
-        ...block,
-        status: message.isError ? ToolCallStatus.Error : ToolCallStatus.Success,
-        ...(output === "" ? {} : { output }),
-      };
-      return emit([upsert({ ...entry, blocks })]);
     }
-    return [];
+    return undefined;
   }
 
   function onMessageEnd(event: MessageEndEvent): readonly ProjectionDelta[] {
     const message = event.message;
     if (message.role === "toolResult") {
+      const launched = workflow.launch(message);
       const folded = onToolResult(message);
       // A result whose call is not on the path (an abandoned branch) keeps its own row.
-      return folded.length > 0 ? folded : appendMessage(message);
+      const transcript = folded.length > 0 ? folded : appendMessage(message);
+      return [...launched, ...transcript];
     }
     if (roleOf(message) !== MessageRole.Assistant) {
       return appendMessage(message);
@@ -309,8 +367,11 @@ export function createSessionProjectionMachine(
     seed(entries, leafId) {
       bash.reset();
       const batch = projectionBatch({ entries, leafId, fromCursor: 0 });
-      // The bridge can report an agent before pi's entries finish reading; those records outlive the
-      // reseed, since the seed describes the transcript and not who is working on it.
+      // The bridge can report an agent before pi's entries finish reading, and those records outlive
+      // the reseed, since the seed describes the transcript and not who is working on it. Workflow
+      // runs are the opposite: nothing live reports them, so the reseed re-derives them from the same
+      // entries a launch and a settle leave behind.
+      const live = projection.subagents.filter((agent) => agent.runKind !== "workflow");
       projection = reduceDeltaBatch(
         {
           sessionId,
@@ -318,7 +379,7 @@ export function createSessionProjectionMachine(
           leafId: null,
           entries: [],
           runState: IDLE_RUN_STATE,
-          subagents: projection.subagents,
+          subagents: [...live, ...workflowRunsFromEntries(entries)],
         },
         batch,
       );
@@ -326,17 +387,7 @@ export function createSessionProjectionMachine(
       compaction.reset();
       return batch.cursor;
     },
-    applySubagent(agent) {
-      const existing = projection.subagents.find((candidate) => candidate.id === agent.id);
-      if (
-        existing !== undefined &&
-        existing.handle === agent.handle &&
-        existing.status === agent.status
-      ) {
-        return [];
-      }
-      return emit([{ kind: ProjectionDeltaKind.SubagentUpsert, agent }]);
-    },
+    applySubagent,
     applyEvent(event) {
       switch (event.type) {
         case "agent_start":
@@ -377,6 +428,8 @@ export function createSessionProjectionMachine(
           return onMessageEnd(event);
         case "agent_end":
           return onAgentEnd(event);
+        case "entry_appended":
+          return workflow.settled(event.entry);
         case "bash_execution_update":
           return bash.append(event.delta);
         case "compaction_start":

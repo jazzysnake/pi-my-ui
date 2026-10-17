@@ -183,8 +183,9 @@ entirely.
   caption explaining both, and its own **Send**. *Steer* feeds the message into the run at its next
   step; *Follow up* waits until the run finishes. Type in the box, choose one, tap Send.
 - The **status strip** above the input shows the **model** and the **thinking level**, each a button
-  that opens a picker, and the **Auto-compact** toggle. Every value shown is pi's own; a change you
-  make is confirmed by pi reporting it back, so a refused change cannot look like it worked.
+  that opens a picker, and the **Auto-compact** toggle, which reads green while it is on. Every value
+  shown is pi's own; a change you make is confirmed by pi reporting it back, so a refused change
+  cannot look like it worked.
 - When pi refuses a message, the composer keeps your text and images and shows an error line. Sending
   is disabled while the link is down.
 

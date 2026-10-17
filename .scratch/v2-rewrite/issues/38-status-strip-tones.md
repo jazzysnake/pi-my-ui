@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 **Symptom:** The three controls above the input render as borderless grey text, so the row reads as a
 caption rather than three controls and the auto-compact toggle never shows that it is on. Owner: "the
@@ -27,8 +27,42 @@ state is readable without reading the word.
 
 **Done when**
 
-- [ ] Model and effort read in the accent tone, visually distinct from the auto-compact toggle
-- [ ] Auto-compact shows the green highlight while on and no green while off
-- [ ] The row still fits at 320 px without horizontal scroll, and no label is cut off
-- [ ] Side by side with the previous UI at 393 px and 320 px
-- [ ] `npm run verify` green
+- [x] Model and effort read in the accent tone, visually distinct from the auto-compact toggle
+- [x] Auto-compact shows the green highlight while on and no green while off
+- [x] The row still fits at 320 px without horizontal scroll, and no label is cut off
+- [x] Side by side with the previous UI at 393 px and 320 px
+- [x] `npm run verify` green
+
+## Comments
+
+Resolved on `v2-rewrite`. `lib/composer/StatusStrip.svelte` had lost every tone the previous UI
+carried: the model and thinking buttons painted the strip's inherited `text-dim` with no border, and
+the toggle had no on/off colour at all. They now read from the palette it already defines — the two
+choosers take `text-accent` inside a `border-hairline-strong` hairline (the previous UI's shape, and
+the reason the row reads as controls rather than a caption), and the toggle takes `border-success`
+plus `text-success` while on, `text-dim` plus the hairline while off. No token was added or invented:
+accent for a command, green for a thing that is on, and the plain tone for off were all present, and
+the palette's red-for-failure convention is untouched.
+
+The 320 px fit was not what it looked like. Measuring the rendered row showed that the shipped
+fixture's model name ("Scripted model") clears the narrowest phone by 18 px, while a name of the
+length pi actually reports ("DeepSeek V4.1 Flash", the name in the evidence crop) needed 319 px of
+the 304 px available and pushed the toggle 15 px past the row's edge. The model control therefore
+gives way as it did in the previous UI: it shrinks (its 44 px floor stays) and ellipsizes, so the row
+stays one row and the toggle stays reachable. `docs/guide.md`'s composer entry now says the toggle
+reads green while on.
+
+New coverage lives in its own spec, `packages/e2e/test/composer-status-strip.spec.ts`, measured in
+Chromium because jsdom resolves neither custom properties nor layout: one test resolves `--color-accent`,
+`--color-success`, `--color-dim` and `--color-hairline-strong` through the page and compares the
+painted `color` and `borderTopColor` of each control against them, driving the toggle through its own
+clicks so each state measured is the one pi reported back; the other measures the strip at 320 and
+393 px (no horizontal scroll, every control inside the row, no clipped label) and injects the long
+model name to prove the row still folds. The colour test failed before the fix with
+`rgb(125, 136, 150)` received against `rgb(121, 192, 255)` expected, and the fit test failed before
+the shrink with the strip's `scrollWidth` at 319 against a 304 px client width.
+
+`npm run verify` is green: typecheck, lint/format, 134 client and store tests, build, and 115
+end-to-end tests across 2 shards in ~47 s. The strip's own two tests are the ones that would have
+caught this: the tone test compares against the palette the page resolves, and the fit test measures
+the row rather than trusting the fixture's short model name.

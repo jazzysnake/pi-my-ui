@@ -37,14 +37,19 @@
 <!--
   Every value here is pi's, read back from the server: a tap sends a change and the strip keeps
   showing the last value pi reported, so a refused change cannot look like it worked.
+
+  The model name is the one label whose length is pi's to choose, so it is the one that gives way: it
+  shrinks and ellipsizes, which keeps the toggle on the row at 320 px instead of scrolling the strip.
+  A name as long as the ones pi reports ("DeepSeek V4.1 Flash") otherwise pushes the toggle 15 px
+  past the row's edge.
 -->
 <div
-  class="flex min-w-0 items-center gap-1 overflow-x-auto text-meta text-dim"
+  class="flex min-w-0 items-center gap-1 overflow-x-auto text-meta"
   data-testid="composer-status"
 >
   <button
     type="button"
-    class="min-h-11 min-w-11 shrink-0 rounded px-2 text-left"
+    class="min-h-11 min-w-11 truncate rounded border border-hairline-strong px-2 text-left text-accent"
     aria-haspopup="listbox"
     aria-expanded={open === "model"}
     aria-label="Model"
@@ -57,7 +62,7 @@
   </button>
   <button
     type="button"
-    class="min-h-11 min-w-11 shrink-0 rounded px-2 text-left"
+    class="min-h-11 min-w-11 shrink-0 rounded border border-hairline-strong px-2 text-left text-accent"
     aria-haspopup="listbox"
     aria-expanded={open === "thinking"}
     aria-label="Thinking level"
@@ -68,9 +73,15 @@
   >
     <span data-testid="status-thinking">{levelLabel(settings.thinkingLevel)}</span>
   </button>
+  <!-- Green is the palette's tone for a thing that is on, and only while it is on: an off toggle
+       keeps the plain tone, so the state is readable without reading the word. -->
   <button
     type="button"
-    class="min-h-11 min-w-11 shrink-0 rounded px-2"
+    class="ml-auto min-h-11 min-w-11 shrink-0 rounded border px-2"
+    class:border-hairline-strong={!settings.autoCompactionEnabled}
+    class:text-dim={!settings.autoCompactionEnabled}
+    class:border-success={settings.autoCompactionEnabled}
+    class:text-success={settings.autoCompactionEnabled}
     aria-pressed={settings.autoCompactionEnabled}
     data-testid="auto-compaction-toggle"
     data-auto-compaction={settings.autoCompactionEnabled}

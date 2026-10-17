@@ -13,14 +13,11 @@ import { randomUUID } from "node:crypto";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { ProtocolError, ProtocolErrorCode, type SessionActivity } from "@pi-my-ui/protocol";
 
-import type { ServerConfig } from "./config.js";
+import { DEFAULT_IDLE_TIMEOUT_MS, type ServerConfig } from "./config.js";
 import { systemClock, type ServerClock, type ServerTimer } from "./clock.js";
 import { withBridgeLaunch } from "./bridge/launch.js";
 import { createSessionHost, type BridgeGate, type SessionHost } from "./session-host.js";
 import type { PiSessionTarget } from "./pi-child.js";
-
-/** How long a Session's child is kept with no viewer, no run and no request. */
-export const DEFAULT_IDLE_TIMEOUT_MS = 300_000;
 
 export interface SessionPool {
   hostFor(sessionId: string): Promise<SessionHost>;

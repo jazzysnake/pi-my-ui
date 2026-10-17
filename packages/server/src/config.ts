@@ -4,6 +4,9 @@ import type { ServerClock } from "./clock.js";
 
 export const DEFAULT_HOST = "127.0.0.1";
 export const DEFAULT_PORT = 8787;
+/** Idle window for an unwatched Session; `docs/adr/0007-idle-window-and-pool-footprint.md` has the numbers. */
+export const DEFAULT_IDLE_TIMEOUT_SECONDS = 120;
+export const DEFAULT_IDLE_TIMEOUT_MS = DEFAULT_IDLE_TIMEOUT_SECONDS * 1_000;
 
 /** How the server launches the Pi children it owns. */
 export interface PiLaunchOptions {

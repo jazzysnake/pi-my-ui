@@ -5,12 +5,11 @@
  */
 
 import { ALLOWED_ORIGIN_FLAG_NAME } from "../origin.js";
+import { DEFAULT_IDLE_TIMEOUT_SECONDS } from "../config.js";
 
 /** Loopback binding is the default; a deliberate `--host` is required to expose the server. */
 export const DEFAULT_LAUNCH_HOST = "127.0.0.1";
 export const DEFAULT_LAUNCH_PORT = 8787;
-/** How long an idle, unwatched Session's Pi child is kept before eviction. */
-export const DEFAULT_IDLE_TIMEOUT_SECONDS = 300;
 
 /** The executable name as the user types it, used in help and error messages. */
 export const LAUNCHER_COMMAND_NAME = "pi-my-ui";

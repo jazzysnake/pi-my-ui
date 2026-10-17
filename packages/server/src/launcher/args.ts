@@ -5,10 +5,10 @@
 
 import { parseArgs } from "node:util";
 
+import { DEFAULT_IDLE_TIMEOUT_SECONDS } from "../config.js";
 import { allowedOriginError, validateAllowedOrigin } from "../origin.js";
 import { LauncherArgumentError } from "./errors.js";
 import {
-  DEFAULT_IDLE_TIMEOUT_SECONDS,
   DEFAULT_LAUNCH_HOST,
   DEFAULT_LAUNCH_PORT,
   FLAG,

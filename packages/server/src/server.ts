@@ -66,9 +66,14 @@ function errnoCode(error: unknown): string {
   return UNKNOWN_BIND_ERROR_CODE;
 }
 
-/** The one Session a socket has attached to, so a later frame can detach it on close. */
+/**
+ * The one Session a socket is attached to, so a later frame can detach it on close. `generation`
+ * identifies the subscription a detach belongs to: subscribing twice before the first attach has
+ * finished would otherwise latch a detach nobody calls and leave that Session watched for good.
+ */
 interface SocketAttachment {
   detach: (() => void) | undefined;
+  generation: number;
 }
 
 export interface RunningServer {
@@ -251,7 +256,18 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       const host = await pool.hostFor(message.sessionId);
       if (message.type === ClientMessageType.Subscribe) {
         attachment.detach?.();
-        attachment.detach = await host.attach(viewer, message.cursor);
+        attachment.detach = undefined;
+        attachment.generation += 1;
+        const generation = attachment.generation;
+        const detach = await host.attach(viewer, message.cursor);
+        // A browser can close its socket, or subscribe somewhere else, while its Snapshot is still
+        // being built. A detach that is latched after that would never be called, and the Session
+        // it belongs to stays watched, so it is never evicted: nothing can reclaim it.
+        if (attachment.generation !== generation || socket.readyState !== WebSocket.OPEN) {
+          detach();
+          return;
+        }
+        attachment.detach = detach;
         return;
       }
       if (message.type === ClientMessageType.Prompt) {
@@ -394,7 +410,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
   });
 
   sockets.on("connection", (socket) => {
-    const attachment: SocketAttachment = { detach: undefined };
+    const attachment: SocketAttachment = { detach: undefined, generation: 0 };
     socket.on("close", () => {
       attachment.detach?.();
       attachment.detach = undefined;

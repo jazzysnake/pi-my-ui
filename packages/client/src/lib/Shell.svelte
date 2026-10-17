@@ -3,14 +3,12 @@
 
   import Composer from "./Composer.svelte";
   import AgentList from "./AgentList.svelte";
-  import AgentPill from "./AgentPill.svelte";
-  import ConnectionStatusIndicator from "./ConnectionStatusIndicator.svelte";
-  import ContextUsageMeter from "./ContextUsageMeter.svelte";
   import ForkPicker from "./ForkPicker.svelte";
   import MessageTreeModal from "./MessageTreeModal.svelte";
   import RunStateRow from "./RunStateRow.svelte";
   import SessionDrawer from "./SessionDrawer.svelte";
   import SessionStatsPanel from "./SessionStatsPanel.svelte";
+  import TopBar from "./TopBar.svelte";
   import Transcript from "./Transcript.svelte";
   import { BuiltinCommand } from "./commands/builtins.js";
   import FileTreePanel from "./files/FileTreePanel.svelte";
@@ -236,49 +234,26 @@
 </script>
 
 <div
-  class="relative flex h-dvh flex-col overflow-hidden bg-neutral-950 text-neutral-100"
+  class="relative flex h-dvh flex-col overflow-hidden bg-canvas text-ink"
   data-testid="app-shell"
   data-session-id={store.sessions.activeSessionId ?? undefined}
 >
-  <header class="flex items-center gap-2 border-b border-neutral-800 px-3 py-1">
-    <span class="text-sm font-semibold tracking-wide uppercase">pi-my-ui</span>
-    <button
-      type="button"
-      class="min-h-11 rounded px-2 text-xs text-neutral-300"
-      aria-label="Toggle sessions sidebar"
-      data-testid="sessions-toggle"
-      onclick={() => {
-        sessionsOpen = !sessionsOpen;
-      }}
-    >
-      Sessions
-    </button>
-    <button
-      type="button"
-      class="min-h-11 rounded px-2 text-xs text-neutral-300"
-      data-testid="files-toggle"
-      onclick={() => {
-        filesOpen = !filesOpen;
-        if (filesOpen) {
-          onListDirectory(ROOT_PATH);
-        }
-      }}
-    >
-      Files
-    </button>
-    <AgentPill
-      {store}
-      onOpen={() => {
-        agentsOpen = true;
-      }}
-    />
-    <div class="ml-auto flex min-w-0 items-center gap-2">
-      {#if store.context.usage !== undefined}
-        <ContextUsageMeter usage={store.context.usage} />
-      {/if}
-      <ConnectionStatusIndicator {status} />
-    </div>
-  </header>
+  <TopBar
+    {store}
+    {status}
+    onToggleSessions={() => {
+      sessionsOpen = !sessionsOpen;
+    }}
+    onToggleFiles={() => {
+      filesOpen = !filesOpen;
+      if (filesOpen) {
+        onListDirectory(ROOT_PATH);
+      }
+    }}
+    onOpenAgents={() => {
+      agentsOpen = true;
+    }}
+  />
   <Transcript entries={shownEntries} empty={shownEmpty} />
   <RunStateRow
     runState={store.transcript.runState}
@@ -287,25 +262,25 @@
   />
   {#if store.commands.notice !== null || store.commands.stats !== null || store.commands.exportedPath !== null}
     <section
-      class="border-t border-neutral-800 px-3 py-2 text-xs"
+      class="border-t border-hairline px-3 py-2 text-meta"
       aria-label="Command result"
       data-testid="command-result"
     >
       <div class="flex items-start gap-2">
         <div class="min-w-0 flex-1">
           {#if store.commands.notice !== null}
-            <p class="text-neutral-300" data-testid="command-notice">{store.commands.notice}</p>
+            <p class="text-dim" data-testid="command-notice">{store.commands.notice}</p>
           {/if}
           {#if store.commands.stats !== null}
             <SessionStatsPanel stats={store.commands.stats} />
           {/if}
           {#if store.commands.exportedPath !== null}
-            <p class="text-neutral-400" data-testid="session-export-path">
+            <p class="text-dim" data-testid="session-export-path">
               {store.commands.exportedPath}
             </p>
             <button
               type="button"
-              class="mt-1 min-h-11 rounded border border-neutral-700 px-3"
+              class="mt-1 min-h-11 rounded border border-hairline-strong px-3"
               data-testid="session-export-download"
               onclick={() => {
                 onDownloadFile(store.commands.exportedPath ?? "");
@@ -317,7 +292,7 @@
         </div>
         <button
           type="button"
-          class="grid size-11 shrink-0 place-items-center text-neutral-400"
+          class="grid size-11 shrink-0 place-items-center text-dim"
           aria-label="Dismiss command result"
           data-testid="command-result-dismiss"
           onclick={() => {

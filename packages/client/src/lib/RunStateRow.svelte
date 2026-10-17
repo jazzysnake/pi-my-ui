@@ -16,10 +16,10 @@
   const display = $derived(starting ? STARTING_DISPLAY : runStateDisplay(runState));
 
   const TONES: Readonly<Record<string, string>> = {
-    retrying: "text-amber-400",
-    aborted: "text-amber-400",
-    errored: "text-red-400",
-    crashed: "text-red-400",
+    retrying: "text-warning",
+    aborted: "text-warning",
+    errored: "text-danger",
+    crashed: "text-danger",
   };
 </script>
 
@@ -29,25 +29,25 @@
     doing. The row is removed for idle, so a recovered run leaves no stale error styling.
   -->
   <div
-    class="flex min-h-11 items-center gap-2 border-t border-neutral-800 px-3 py-1 text-xs"
+    class="flex min-h-11 items-center gap-2 border-t border-hairline px-3 py-1 text-meta"
     role="status"
     aria-live="polite"
     data-testid="run-state"
     data-run-state={display.kind}
   >
     <span
-      class={`shrink-0 tracking-wider uppercase ${TONES[display.kind] ?? "text-neutral-400"}`}
+      class={`shrink-0 tracking-wider uppercase ${TONES[display.kind] ?? "text-dim"}`}
       data-testid="run-state-label">{display.label}</span
     >
     {#if display.detail !== null}
-      <span class="min-w-0 flex-1 truncate text-neutral-400" data-testid="run-state-detail"
+      <span class="min-w-0 flex-1 truncate text-dim" data-testid="run-state-detail"
         >{display.detail}</span
       >
     {/if}
     {#if display.reconnect}
       <button
         type="button"
-        class="min-h-11 shrink-0 rounded border border-neutral-700 px-3 text-neutral-200"
+        class="min-h-11 shrink-0 rounded border border-hairline-strong px-3 text-ink"
         data-testid="session-reconnect"
         onclick={onReconnect}>Reconnect</button
       >

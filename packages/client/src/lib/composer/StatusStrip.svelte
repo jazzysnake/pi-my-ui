@@ -39,12 +39,12 @@
   showing the last value pi reported, so a refused change cannot look like it worked.
 -->
 <div
-  class="flex min-w-0 items-center gap-1 overflow-x-auto text-xs text-neutral-400"
+  class="flex min-w-0 items-center gap-1 overflow-x-auto text-meta text-dim"
   data-testid="composer-status"
 >
   <button
     type="button"
-    class="min-h-11 shrink-0 rounded px-2 text-left"
+    class="min-h-11 min-w-11 shrink-0 rounded px-2 text-left"
     aria-haspopup="listbox"
     aria-expanded={open === "model"}
     aria-label="Model"
@@ -57,7 +57,7 @@
   </button>
   <button
     type="button"
-    class="min-h-11 shrink-0 rounded px-2 text-left"
+    class="min-h-11 min-w-11 shrink-0 rounded px-2 text-left"
     aria-haspopup="listbox"
     aria-expanded={open === "thinking"}
     aria-label="Thinking level"
@@ -70,7 +70,7 @@
   </button>
   <button
     type="button"
-    class="min-h-11 shrink-0 rounded px-2"
+    class="min-h-11 min-w-11 shrink-0 rounded px-2"
     aria-pressed={settings.autoCompactionEnabled}
     data-testid="auto-compaction-toggle"
     data-auto-compaction={settings.autoCompactionEnabled}
@@ -82,7 +82,7 @@
   </button>
   {#if open === "model"}
     <ul
-      class="absolute bottom-24 left-2 z-10 max-h-64 w-64 overflow-y-auto rounded border border-neutral-700 bg-neutral-900 py-1"
+      class="absolute bottom-24 left-2 z-10 max-h-64 w-64 overflow-y-auto rounded border border-hairline-strong bg-panel py-1"
       role="listbox"
       aria-label="Models"
       data-testid="model-options"
@@ -108,7 +108,7 @@
   {/if}
   {#if open === "thinking"}
     <ul
-      class="absolute bottom-24 left-2 z-10 max-h-64 w-40 overflow-y-auto rounded border border-neutral-700 bg-neutral-900 py-1"
+      class="absolute bottom-24 left-2 z-10 max-h-64 w-40 overflow-y-auto rounded border border-hairline-strong bg-panel py-1"
       role="listbox"
       aria-label="Thinking levels"
       data-testid="thinking-options"

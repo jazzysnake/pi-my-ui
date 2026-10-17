@@ -73,11 +73,11 @@
   onscroll={handleScroll}
 >
   {#if entries.length === 0 && empty !== null}
-    <p class="text-sm text-neutral-400" data-testid="transcript-empty">{empty}</p>
+    <p class="text-body text-dim" data-testid="transcript-empty">{empty}</p>
   {/if}
   {#if mounted.hiddenCount > 0}
     <p
-      class="mb-3 text-xs text-neutral-500"
+      class="mb-3 text-meta text-faint"
       data-testid="hidden-older"
       data-hidden-count={mounted.hiddenCount}
     >
@@ -103,17 +103,14 @@
                 {#if entry.role === MessageRole.Assistant}
                   <Markdown text={block.text} />
                 {:else}
-                  <p class="text-sm break-words whitespace-pre-wrap">{block.text}</p>
+                  <p class="text-body break-words whitespace-pre-wrap">{block.text}</p>
                 {/if}
               {:else if block.type === ContentBlockType.Reasoning}
-                <details
-                  class="mb-1 rounded border border-neutral-800"
-                  data-testid="reasoning-block"
-                >
-                  <summary class="cursor-pointer px-2 py-1 text-xs text-neutral-400"
+                <details class="mb-1 rounded border border-hairline" data-testid="reasoning-block">
+                  <summary class="flex min-h-11 cursor-pointer items-center px-2 text-meta text-dim"
                     >Thinking</summary
                   >
-                  <p class="px-2 pb-2 text-xs break-words whitespace-pre-wrap text-neutral-400">
+                  <p class="px-2 pb-2 text-meta break-words whitespace-pre-wrap text-dim">
                     {block.text}
                   </p>
                 </details>
@@ -126,7 +123,7 @@
           </div>
           <button
             type="button"
-            class="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded text-neutral-500"
+            class="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded text-faint"
             aria-label="Copy raw markdown"
             data-testid="copy-raw"
             onclick={() => copyRaw(entry)}

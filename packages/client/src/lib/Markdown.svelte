@@ -46,12 +46,12 @@
   }
   .md :global(blockquote) {
     margin: 0.5rem 0;
-    border-left: 3px solid #404040;
+    border-left: 3px solid var(--color-hairline-strong);
     padding-left: 0.75rem;
-    color: #a3a3a3;
+    color: var(--color-dim);
   }
   .md :global(a) {
-    color: #60a5fa;
+    color: var(--color-accent);
     text-decoration: underline;
   }
   /* A wide code block scrolls inside itself; the transcript and the page never widen for it. */
@@ -59,9 +59,9 @@
     max-width: 100%;
     overflow-x: auto;
     margin: 0.5rem 0;
-    border: 1px solid #262626;
+    border: 1px solid var(--color-hairline);
     border-radius: 0.25rem;
-    background: #171717;
+    background: var(--color-panel-raised);
     padding: 0.5rem;
     font-size: 0.75rem;
   }
@@ -77,7 +77,7 @@
   }
   .md :global(th),
   .md :global(td) {
-    border: 1px solid #404040;
+    border: 1px solid var(--color-hairline-strong);
     padding: 0.25rem 0.5rem;
     text-align: left;
   }

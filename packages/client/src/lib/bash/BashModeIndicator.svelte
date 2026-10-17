@@ -9,12 +9,12 @@
 
 {#if prefix !== null && presentation !== null}
   <p
-    class="flex items-center gap-2 text-xs"
+    class="flex items-center gap-2 text-meta"
     data-testid="bash-mode-indicator"
     data-bash-mode={prefix.mode}
   >
-    <span class="shrink-0 font-bold text-emerald-400" aria-hidden="true">{presentation.glyph}</span>
-    <span class="shrink-0 text-neutral-200">{presentation.label}</span>
-    <span class="min-w-0 text-neutral-500">{presentation.description}</span>
+    <span class="shrink-0 font-bold text-success" aria-hidden="true">{presentation.glyph}</span>
+    <span class="shrink-0 text-ink">{presentation.label}</span>
+    <span class="min-w-0 text-faint">{presentation.description}</span>
   </p>
 {/if}

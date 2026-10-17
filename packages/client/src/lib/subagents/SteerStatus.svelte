@@ -16,7 +16,7 @@
 
 {#if refusal !== null}
   <p
-    class="text-xs text-amber-400"
+    class="text-meta text-warning"
     role="status"
     data-testid="steer-refusal"
     data-agent-status={target?.status}
@@ -27,7 +27,7 @@
 
 {#if inFlight !== null}
   <p
-    class="flex min-w-0 items-center gap-2 text-xs text-sky-300"
+    class="flex min-w-0 items-center gap-2 text-meta text-accent"
     role="status"
     data-testid="steer-pending"
     data-steer-agent-id={inFlight.agentId}

@@ -37,8 +37,8 @@
 
 <dl class="grid grid-cols-2 gap-x-3 gap-y-1" data-testid="session-stats-panel">
   {#each rows as row (row.key)}
-    <dt class="text-neutral-500" data-stat={row.key}>{row.label}</dt>
-    <dd class="text-neutral-200" data-stat={row.key}>
+    <dt class="text-faint" data-stat={row.key}>{row.label}</dt>
+    <dd class="text-ink" data-stat={row.key}>
       <span data-testid="session-stats-value">{row.value}</span>
     </dd>
   {/each}

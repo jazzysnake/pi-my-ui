@@ -1,1 +1,69 @@
 @import "tailwindcss";
+
+/*
+ * The one dark theme: the console palette and type ramp, defined here once as Tailwind theme tokens
+ * so markup names a token (`bg-panel`, `text-dim`, `border-hairline`) and never a hex. A phone
+ * screen holds less than a desktop's, so the ramp is monospace-led and small — a 12.5px body with an
+ * 11px meta range — and the density is the point: more output per screenful, hairline separation
+ * instead of cards.
+ *
+ * The accents carry meaning and are not interchangeable: green for a successful send or a finished
+ * tool, amber for a wait or a warning, red for a failure, blue for links and commands.
+ */
+@theme {
+  /* Surfaces */
+  --color-canvas: #0b0d10;
+  --color-panel: #111418;
+  --color-panel-raised: #161b21;
+  --color-scrim: rgb(0 0 0 / 55%);
+
+  /* Hairlines */
+  --color-hairline: #232a31;
+  --color-hairline-strong: #2d353d;
+
+  /* Text */
+  --color-ink: #c9d1d9;
+  --color-dim: #7d8896;
+  --color-faint: #5a636e;
+
+  /* Semantic accents */
+  --color-accent: #79c0ff;
+  --color-success: #7ee787;
+  --color-warning: #e3b341;
+  --color-danger: #ff7b72;
+
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --text-body: 12.5px;
+  --text-body--line-height: 1.5;
+  --text-meta: 11px;
+}
+
+/* The page uses the theme tokens; a component inherits them rather than re-declaring the ramp. */
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  /* iOS inflates text in landscape without this, which would reflow the transcript on rotation. */
+  -webkit-text-size-adjust: 100%;
+}
+
+/*
+ * The only animations the app ships are the pulse on a status that means "output is in flight" (a
+ * running tool call, a running bash command). Each of those states says so in text in the same row,
+ * so the pulse is decoration: switching it off costs the reader no information. A future animation
+ * that carries information of its own would have to be exempted here deliberately.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse {
+    animation: none;
+  }
+}

@@ -307,7 +307,7 @@
 
 <section
   aria-label="Composer"
-  class="flex flex-col gap-2 border-t border-neutral-800 p-2"
+  class="flex flex-col gap-2 border-t border-hairline p-2"
   data-testid="composer"
 >
   {#if settings !== null}
@@ -344,7 +344,7 @@
           <img
             src={attachment.objectUrl}
             alt={attachment.fileName}
-            class="h-11 w-11 rounded border border-neutral-700 object-cover"
+            class="h-11 w-11 rounded border border-hairline-strong object-cover"
           />
           <button
             type="button"
@@ -355,7 +355,7 @@
             }}
           >
             <span
-              class="grid size-6 place-items-center rounded-full border border-neutral-700 bg-neutral-900"
+              class="grid size-6 place-items-center rounded-full border border-hairline-strong bg-panel"
               aria-hidden="true">×</span
             >
           </button>
@@ -369,7 +369,7 @@
   <SteerStatus refusal={steerRefusal} target={steerTarget} inFlight={steerInFlight} />
 
   {#if visibleError !== null}
-    <p class="text-xs text-red-400" role="alert" data-testid="composer-error">{visibleError}</p>
+    <p class="text-meta text-danger" role="alert" data-testid="composer-error">{visibleError}</p>
   {/if}
 
   {#if paletteOpen}
@@ -391,7 +391,7 @@
     />
     <textarea
       bind:this={textarea}
-      class="min-h-11 min-w-0 flex-1 resize-none rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-sm text-neutral-100"
+      class="min-h-11 min-w-0 flex-1 resize-none rounded border border-hairline-strong bg-panel px-2 py-1 text-body text-ink"
       rows="1"
       placeholder="Message pi"
       aria-label="Message"
@@ -401,7 +401,7 @@
       onkeydown={handleKeydown}></textarea>
     <button
       type="button"
-      class="grid size-11 shrink-0 place-items-center rounded border border-neutral-700 text-sm"
+      class="grid size-11 shrink-0 place-items-center rounded border border-hairline-strong text-body"
       aria-label="Attach image"
       data-testid="composer-attach"
       onclick={() => {
@@ -412,7 +412,7 @@
     </button>
     <button
       type="button"
-      class="grid size-11 shrink-0 place-items-center border border-neutral-700 text-sm"
+      class="grid size-11 shrink-0 place-items-center rounded-[14px] border border-hairline-strong text-body"
       aria-label="Branch"
       data-testid="composer-branch"
       onclick={onBranch}
@@ -422,7 +422,7 @@
     {#if running}
       <button
         type="button"
-        class="grid size-11 shrink-0 place-items-center rounded-full border border-neutral-700 text-sm"
+        class="grid size-11 shrink-0 place-items-center rounded-full border border-hairline-strong text-body"
         aria-label="Stop"
         data-testid="composer-send"
         onclick={onAbort}
@@ -432,7 +432,7 @@
     {:else}
       <button
         type="button"
-        class="grid size-11 shrink-0 place-items-center rounded-full bg-neutral-100 text-sm font-medium text-neutral-900 disabled:opacity-40"
+        class="grid size-11 shrink-0 place-items-center rounded-full bg-success text-body font-medium text-canvas disabled:opacity-40"
         disabled={!canSend}
         data-testid="composer-send"
         onclick={() => {

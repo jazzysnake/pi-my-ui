@@ -9,12 +9,12 @@
   const summary = $derived(notificationSummary(text));
 </script>
 
-<details class="mb-1 rounded border border-neutral-800" data-testid="notification-card">
+<details class="mb-1 rounded border border-hairline" data-testid="notification-card">
   <summary
-    class="cursor-pointer px-2 py-1 text-xs text-neutral-300"
+    class="flex min-h-11 cursor-pointer items-center px-2 text-meta text-dim"
     data-testid="notification-summary">{summary}</summary
   >
   <pre
-    class="max-w-full overflow-x-auto border-t border-neutral-800 px-2 py-1 text-xs break-words whitespace-pre-wrap text-neutral-400"
+    class="max-w-full overflow-x-auto border-t border-hairline px-2 py-1 text-meta break-words whitespace-pre-wrap text-dim"
     data-testid="notification-payload">{text}</pre>
 </details>

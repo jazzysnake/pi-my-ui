@@ -10,7 +10,7 @@
 {#if pill.kind !== AgentPillKind.None}
   <button
     type="button"
-    class="min-h-11 max-w-40 truncate rounded-full border border-neutral-700 px-2 text-xs text-neutral-300"
+    class="min-h-11 min-w-11 max-w-40 shrink-0 truncate rounded-full border border-hairline-strong px-2 text-meta text-dim"
     aria-label="Agents"
     data-testid="agent-pill"
     data-pill-kind={pill.kind}

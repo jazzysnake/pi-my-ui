@@ -26,15 +26,15 @@
 </script>
 
 <div class="flex items-center gap-1" role="group" aria-label="While running">
-  <span class="shrink-0 text-xs tracking-wider text-neutral-500 uppercase">While running</span>
+  <span class="shrink-0 text-meta tracking-wider text-faint uppercase">While running</span>
   {#if !steering}
     <button
       type="button"
-      class="min-h-11 rounded border px-2 text-xs"
-      class:border-neutral-100={choice === StreamingBehavior.Steer}
-      class:text-neutral-100={choice === StreamingBehavior.Steer}
-      class:border-neutral-700={choice !== StreamingBehavior.Steer}
-      class:text-neutral-400={choice !== StreamingBehavior.Steer}
+      class="min-h-11 rounded border px-2 text-meta"
+      class:border-ink={choice === StreamingBehavior.Steer}
+      class:text-ink={choice === StreamingBehavior.Steer}
+      class:border-hairline-strong={choice !== StreamingBehavior.Steer}
+      class:text-dim={choice !== StreamingBehavior.Steer}
       aria-pressed={choice === StreamingBehavior.Steer}
       aria-describedby="streaming-choice-hint"
       data-testid="streaming-choice-steer"
@@ -46,11 +46,11 @@
     </button>
     <button
       type="button"
-      class="min-h-11 rounded border px-2 text-xs"
-      class:border-neutral-100={choice === StreamingBehavior.FollowUp}
-      class:text-neutral-100={choice === StreamingBehavior.FollowUp}
-      class:border-neutral-700={choice !== StreamingBehavior.FollowUp}
-      class:text-neutral-400={choice !== StreamingBehavior.FollowUp}
+      class="min-h-11 rounded border px-2 text-meta"
+      class:border-ink={choice === StreamingBehavior.FollowUp}
+      class:text-ink={choice === StreamingBehavior.FollowUp}
+      class:border-hairline-strong={choice !== StreamingBehavior.FollowUp}
+      class:text-dim={choice !== StreamingBehavior.FollowUp}
       aria-pressed={choice === StreamingBehavior.FollowUp}
       aria-describedby="streaming-choice-hint"
       data-testid="streaming-choice-follow-up"
@@ -63,7 +63,7 @@
   {/if}
   <button
     type="button"
-    class="ml-auto grid size-11 shrink-0 place-items-center rounded-full border border-neutral-700 text-sm"
+    class="ml-auto grid size-11 shrink-0 place-items-center rounded-full border border-hairline-strong text-body"
     aria-label="Send while running"
     disabled={!canSend}
     data-testid="composer-send-while-running"
@@ -73,11 +73,7 @@
   </button>
 </div>
 {#if !steering}
-  <p
-    id="streaming-choice-hint"
-    class="text-xs text-neutral-500"
-    data-testid="streaming-choice-hint"
-  >
+  <p id="streaming-choice-hint" class="text-meta text-faint" data-testid="streaming-choice-hint">
     Steer: goes into this run at its next step · Follow up: waits until this run finishes
   </p>
 {/if}

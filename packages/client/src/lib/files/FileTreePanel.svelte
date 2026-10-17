@@ -57,24 +57,21 @@
 </script>
 
 <div class="absolute inset-0 z-30 flex">
-  <button type="button" class="flex-1 bg-black/60" aria-label="Close files" onclick={onClose}
-  ></button>
+  <button type="button" class="flex-1 bg-scrim" aria-label="Close files" onclick={onClose}></button>
 
   <aside
-    class="flex w-[88%] max-w-md flex-col border-l border-neutral-700 bg-neutral-900"
+    class="flex w-[88%] max-w-md flex-col border-l border-hairline-strong bg-panel"
     aria-label="Files"
     data-testid="file-tree"
   >
-    <div class="flex items-center gap-2 border-b border-neutral-800 px-3 py-2">
+    <div class="flex items-center gap-2 border-b border-hairline px-3 py-2">
       <span class="min-w-0 flex-1">
-        <span class="block text-xs tracking-wider text-neutral-400 uppercase">Files</span>
-        <span class="block truncate text-xs text-neutral-400" data-testid="file-tree-cwd"
-          >{cwd}</span
-        >
+        <span class="block text-meta tracking-wider text-dim uppercase">Files</span>
+        <span class="block truncate text-meta text-dim" data-testid="file-tree-cwd">{cwd}</span>
       </span>
       <button
         type="button"
-        class="grid min-h-11 min-w-11 place-items-center rounded border border-neutral-700 text-neutral-400"
+        class="grid min-h-11 min-w-11 place-items-center rounded border border-hairline-strong text-dim"
         aria-label="Close files"
         data-testid="file-tree-close"
         onclick={onClose}
@@ -85,17 +82,15 @@
 
     <div class="min-h-0 flex-1 overflow-y-auto">
       {#if rootFailure !== undefined}
-        <p class="px-3 py-4 text-red-400" data-testid="file-tree-error">{rootFailure}</p>
+        <p class="px-3 py-4 text-danger" data-testid="file-tree-error">{rootFailure}</p>
       {:else if rootListing === undefined}
-        <p class="px-3 py-4 text-neutral-400" data-testid="file-tree-loading">Loading…</p>
+        <p class="px-3 py-4 text-dim" data-testid="file-tree-loading">Loading…</p>
       {:else if rows.length === 0}
-        <p class="px-3 py-4 text-neutral-400" data-testid="file-tree-empty">
-          This directory is empty.
-        </p>
+        <p class="px-3 py-4 text-dim" data-testid="file-tree-empty">This directory is empty.</p>
       {:else}
         <ul data-testid="file-tree-list">
           {#each rows as row (row.path)}
-            <li class="border-b border-neutral-800">
+            <li class="border-b border-hairline">
               {#if row.entry.type === FileEntryType.Directory}
                 <button
                   type="button"
@@ -106,14 +101,14 @@
                   data-path={row.path}
                   onclick={() => toggle(row.path)}
                 >
-                  <span class="w-3 shrink-0 text-neutral-400">{row.expanded ? "▾" : "▸"}</span>
-                  <span class="truncate text-sm text-neutral-100" data-testid="file-tree-name"
+                  <span class="w-3 shrink-0 text-dim">{row.expanded ? "▾" : "▸"}</span>
+                  <span class="truncate text-body text-ink" data-testid="file-tree-name"
                     >{row.name}/</span
                   >
                   {#if row.loading}
-                    <span class="ml-auto text-xs text-neutral-500">…</span>
+                    <span class="ml-auto text-meta text-faint">…</span>
                   {:else if row.failure !== null}
-                    <span class="ml-auto text-xs text-red-400" data-testid="file-tree-node-error"
+                    <span class="ml-auto text-meta text-danger" data-testid="file-tree-node-error"
                       >{row.failure}</span
                     >
                   {/if}
@@ -130,11 +125,11 @@
                     data-path={row.path}
                     onclick={() => onDownloadFile(row.path)}
                   >
-                    <span class="truncate text-sm text-neutral-100" data-testid="file-tree-name"
+                    <span class="truncate text-body text-ink" data-testid="file-tree-name"
                       >{row.name}</span
                     >
                     {#if row.entry.size !== null}
-                      <span class="ml-auto text-xs text-neutral-500" data-testid="file-tree-size"
+                      <span class="ml-auto text-meta text-faint" data-testid="file-tree-size"
                         >{row.entry.size} B</span
                       >
                     {/if}
@@ -142,7 +137,7 @@
                   {#if isPreviewableName(row.name)}
                     <button
                       type="button"
-                      class="min-h-11 shrink-0 rounded border border-neutral-700 px-2 text-xs text-emerald-400"
+                      class="min-h-11 shrink-0 rounded border border-hairline-strong px-2 text-meta text-success"
                       data-testid="file-tree-preview"
                       data-path={row.path}
                       aria-label={`Preview ${row.name}`}

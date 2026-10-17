@@ -10,29 +10,37 @@
   };
 
   const TONES: Readonly<Record<string, string>> = {
-    [ToolCallStatus.Running]: "text-neutral-400",
-    [ToolCallStatus.Success]: "text-emerald-400",
-    [ToolCallStatus.Error]: "text-red-400",
+    [ToolCallStatus.Running]: "text-dim",
+    [ToolCallStatus.Success]: "text-success",
+    [ToolCallStatus.Error]: "text-danger",
   };
 
   const label = $derived(LABELS[block.status] ?? block.status);
-  const tone = $derived(TONES[block.status] ?? "text-neutral-400");
+  const tone = $derived(TONES[block.status] ?? "text-dim");
 </script>
 
 <div
-  class="mb-1 rounded border border-neutral-800 px-2 py-1 text-xs"
+  class="mb-1 rounded border border-hairline px-2 py-1 text-meta"
   data-testid="tool-card"
   data-tool-status={block.status}
 >
   <div class="flex items-center gap-2">
-    <span class="min-w-0 flex-1 truncate font-medium text-neutral-200" data-testid="tool-card-name"
+    <span class="min-w-0 flex-1 truncate font-medium text-ink" data-testid="tool-card-name"
       >{block.name}</span
     >
-    <span class={`shrink-0 ${tone}`} data-testid="tool-card-status">{label}</span>
+    <!--
+      The pulse marks a call that is still in flight. It is decoration: the same element says
+      "Running" in text, so dropping the animation under reduced motion loses nothing.
+    -->
+    <span
+      class={`shrink-0 ${tone}`}
+      class:animate-pulse={block.status === ToolCallStatus.Running}
+      data-testid="tool-card-status">{label}</span
+    >
   </div>
   {#if block.output !== undefined && block.output !== ""}
     <pre
-      class="mt-1 max-w-full overflow-x-auto border-t border-neutral-800 pt-1 text-neutral-400 break-words whitespace-pre-wrap"
+      class="mt-1 max-w-full overflow-x-auto border-t border-hairline pt-1 text-dim break-words whitespace-pre-wrap"
       data-testid="tool-card-output">{block.output}</pre>
   {/if}
 </div>

@@ -85,17 +85,17 @@
 </script>
 
 <div
-  class="absolute inset-0 z-40 flex flex-col bg-neutral-950"
+  class="absolute inset-0 z-40 flex flex-col bg-canvas"
   role="dialog"
   aria-modal="true"
   aria-label="Message tree"
   data-testid="message-tree-modal"
 >
-  <div class="flex items-center gap-2 border-b border-neutral-800 px-3 py-2">
-    <span class="min-w-0 flex-1 text-sm font-semibold tracking-wide uppercase">Message tree</span>
+  <div class="flex items-center gap-2 border-b border-hairline px-3 py-2">
+    <span class="min-w-0 flex-1 text-body font-semibold tracking-wide uppercase">Message tree</span>
     <button
       type="button"
-      class="grid size-11 shrink-0 place-items-center rounded border border-neutral-700 text-neutral-300"
+      class="grid size-11 shrink-0 place-items-center rounded border border-hairline-strong text-dim"
       aria-label="Close message tree"
       data-testid="message-tree-close"
       onclick={onClose}
@@ -104,20 +104,20 @@
     </button>
   </div>
 
-  <div class="border-b border-neutral-800 px-3 py-2">
+  <div class="border-b border-hairline px-3 py-2">
     <input
       type="search"
       bind:value={query}
       aria-label="Search the message tree"
       placeholder="Search messages"
-      class="min-h-11 w-full rounded border border-neutral-700 bg-neutral-900 px-2 text-sm"
+      class="min-h-11 w-full rounded border border-hairline-strong bg-panel px-2 text-body"
       data-testid="message-tree-search"
     />
   </div>
 
   {#if moveError !== null}
     <p
-      class="border-b border-neutral-800 px-3 py-2 text-xs text-red-400"
+      class="border-b border-hairline px-3 py-2 text-meta text-danger"
       role="alert"
       data-testid="message-tree-move-error"
     >
@@ -127,22 +127,22 @@
 
   <div bind:this={body} class="min-h-0 flex-1 overflow-y-auto" data-testid="message-tree-body">
     {#if error !== null}
-      <p class="px-3 py-4 text-xs text-red-400" role="alert" data-testid="message-tree-error">
+      <p class="px-3 py-4 text-meta text-danger" role="alert" data-testid="message-tree-error">
         {error}
       </p>
     {:else if tree === null}
-      <p class="px-3 py-4 text-xs text-neutral-400" data-testid="message-tree-loading">
+      <p class="px-3 py-4 text-meta text-dim" data-testid="message-tree-loading">
         {loading ? "Loading the message tree…" : "The message tree is not available."}
       </p>
     {:else if searching}
       {#if matches.length === 0}
-        <p class="px-3 py-4 text-xs text-neutral-400" data-testid="message-tree-no-results">
+        <p class="px-3 py-4 text-meta text-dim" data-testid="message-tree-no-results">
           No matching entries
         </p>
       {:else}
         <ul aria-label="Search results">
           {#each matches as match (match.node.entry.id)}
-            <li class="border-b border-neutral-800">
+            <li class="border-b border-hairline">
               <button
                 type="button"
                 class="flex min-h-11 w-full items-baseline gap-2 px-3 text-left"
@@ -151,10 +151,10 @@
                   void jumpTo(match);
                 }}
               >
-                <span class="shrink-0 text-xs tracking-wider text-neutral-500 uppercase">
+                <span class="shrink-0 text-meta tracking-wider text-faint uppercase">
                   {entryKindLabel(match.node)}
                 </span>
-                <span class="min-w-0 truncate text-sm text-neutral-100">
+                <span class="min-w-0 truncate text-body text-ink">
                   {match.node.entry.text}
                 </span>
               </button>
@@ -166,8 +166,8 @@
       <ul aria-label="Message tree">
         {#each rows as row (row.node.entry.id)}
           <li
-            class="flex items-stretch border-b border-neutral-800"
-            class:bg-neutral-900={row.isLeaf || highlightedId === row.node.entry.id}
+            class="flex items-stretch border-b border-hairline"
+            class:bg-panel={row.isLeaf || highlightedId === row.node.entry.id}
             data-testid="message-tree-row"
             data-entry-id={row.node.entry.id}
             data-active={row.onActivePath ? "true" : "false"}
@@ -178,7 +178,7 @@
             {#if row.expandable}
               <button
                 type="button"
-                class="grid min-h-11 min-w-11 shrink-0 place-items-center text-xs text-neutral-400"
+                class="grid min-h-11 min-w-11 shrink-0 place-items-center text-meta text-dim"
                 style:padding-left={rowIndent(row.depth)}
                 aria-expanded={row.expanded}
                 aria-label={row.expanded
@@ -212,21 +212,21 @@
               }}
             >
               <span
-                class="shrink-0 text-xs tracking-wider uppercase"
-                class:text-neutral-100={row.onActivePath}
-                class:text-neutral-500={!row.onActivePath}>{entryKindLabel(row.node)}</span
+                class="shrink-0 text-meta tracking-wider uppercase"
+                class:text-ink={row.onActivePath}
+                class:text-faint={!row.onActivePath}>{entryKindLabel(row.node)}</span
               >
               <span
-                class="min-w-0 flex-1 truncate text-sm"
-                class:text-neutral-100={row.onActivePath}
-                class:text-neutral-400={!row.onActivePath}>{row.node.entry.text}</span
+                class="min-w-0 flex-1 truncate text-body"
+                class:text-ink={row.onActivePath}
+                class:text-dim={!row.onActivePath}>{row.node.entry.text}</span
               >
               {#if row.isLeaf}
-                <span class="shrink-0 text-xs text-neutral-300" data-testid="message-tree-current"
+                <span class="shrink-0 text-meta text-dim" data-testid="message-tree-current"
                   >leaf</span
                 >
               {:else if movingEntryId === row.node.entry.id}
-                <span class="shrink-0 text-xs text-neutral-400" data-testid="message-tree-moving"
+                <span class="shrink-0 text-meta text-dim" data-testid="message-tree-moving"
                   >moving…</span
                 >
               {/if}

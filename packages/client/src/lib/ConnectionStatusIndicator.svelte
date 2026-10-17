@@ -10,9 +10,9 @@
   };
 
   const TONES: Record<ConnectionStatus, string> = {
-    [ConnectionStatus.Connecting]: "text-amber-400",
-    [ConnectionStatus.Connected]: "text-emerald-400",
-    [ConnectionStatus.Reconnecting]: "text-amber-400",
+    [ConnectionStatus.Connecting]: "text-warning",
+    [ConnectionStatus.Connected]: "text-success",
+    [ConnectionStatus.Reconnecting]: "text-warning",
   };
 
   const label = $derived(LABELS[status]);
@@ -25,7 +25,7 @@
 -->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <span
-  class={`group relative inline-grid size-11 place-items-center rounded ${tone}`}
+  class={`group relative inline-grid size-11 shrink-0 place-items-center rounded ${tone}`}
   role="status"
   aria-live="polite"
   tabindex="0"
@@ -38,7 +38,7 @@
     data-testid="connection-status-dot"
   ></span>
   <span
-    class="pointer-events-none absolute right-full mr-2 rounded border border-neutral-700 bg-neutral-900 px-2 py-0.5 text-xs whitespace-nowrap opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
+    class="pointer-events-none absolute right-full mr-2 rounded border border-hairline-strong bg-panel px-2 py-0.5 text-meta whitespace-nowrap opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
     data-testid="connection-status-label">{label}</span
   >
 </span>

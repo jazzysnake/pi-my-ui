@@ -8,8 +8,8 @@
   const meter = $derived(contextMeter(usage));
 
   const TONES: Readonly<Record<string, string>> = {
-    warning: "text-amber-400",
-    critical: "text-red-400",
+    warning: "text-warning",
+    critical: "text-danger",
   };
 </script>
 
@@ -19,7 +19,7 @@
   reader (and a test) can assert about a figure pi is recomputing.
 -->
 <span
-  class={`shrink-0 text-xs ${TONES[meter.state] ?? "text-neutral-400"}`}
+  class={`shrink-0 text-meta ${TONES[meter.state] ?? "text-dim"}`}
   aria-label="Context usage"
   data-testid="context-usage"
   data-state={meter.state}

@@ -16,3 +16,11 @@ evidence screenshots as the design record.
       screenshots remain.
 - [x] The client builds, typechecks, lints and tests without the prototype.
 - [x] No production bundle contains prototype code.
+
+## Comments
+
+Resolved on `integration/ui-pass-2` by merge `38123d9` (implementation `810f0ff`). The prototype
+directory, root `prototype:rows` script, client `dev` script and dev-only mount branch are gone;
+`main.ts` now mounts the app unconditionally. The spec and all evidence screenshots remain. Full
+verify is green (154 client tests, 128/128 e2e), and the production bundle audit found no prototype
+identifiers.

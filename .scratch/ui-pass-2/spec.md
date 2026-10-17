@@ -1,4 +1,8 @@
-Status: draft
+Status: implemented
+
+> The prototype code and `npm run prototype:rows` were retired by ticket 05 after the card, copy,
+> code and error treatments shipped. The evidence screenshots in `evidence/` remain the visual
+> record; the shipped implementation is now the normative source.
 
 # Transcript rows: failed turns, the copy control, and what the drawer lists
 

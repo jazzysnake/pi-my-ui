@@ -11,14 +11,20 @@
     label,
     class: className = "",
     testId,
-  }: { text: string; label: string; class?: string; testId?: string } = $props();
+  }: {
+    /** A getter defers reading the text to the tap, for a block whose code lives in the DOM. */
+    text: string | (() => string);
+    label: string;
+    class?: string;
+    testId?: string;
+  } = $props();
 
   let copied = $state(false);
   let revertTimer: ReturnType<typeof setTimeout> | null = null;
 
   async function copy(): Promise<void> {
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(typeof text === "function" ? text() : text);
     } catch {
       return;
     }

@@ -27,7 +27,7 @@ const RUNNING_SCRIPT: Script = [
     reply: {
       content: [
         { type: "thinking", thinking: "Deciding how long to wait." },
-        { type: "text", text: "Holding the run open." },
+        { type: "text", text: "Holding the run open.\n\n```bash\nsleep 5\n```" },
         { type: "toolCall", id: "call_hold", name: "bash", arguments: { command: "sleep 5" } },
       ],
       stopReason: "toolUse",
@@ -101,6 +101,8 @@ test("every control the composer's own states put on screen meets the minimum", 
       "data-tool-status",
       "running",
     );
+    // The fenced code the reply carries puts the block's own copy control in this sweep.
+    await expect(page.getByTestId("copy-code").first()).toHaveAttribute("aria-label", "Copy code");
     await expectEveryControlMeetsTouchTarget(page, "a run active");
 
     // A collapsed reasoning block is a `<summary>`, and it is only on screen while its entry is.

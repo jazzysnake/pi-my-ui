@@ -1,20 +1,10 @@
 <script lang="ts">
   import { tick } from "svelte";
-  import {
-    ContentBlockType,
-    EntryKind,
-    MessageRole,
-    type ProjectedEntry,
-    type ProjectedMessageEntry,
-  } from "@pi-my-ui/protocol";
+  import { EntryKind, MessageRole, type ProjectedEntry } from "@pi-my-ui/protocol";
 
-  import BashCard from "./BashCard.svelte";
   import CompactionBoundary from "./CompactionBoundary.svelte";
-  import Icon from "./Icon.svelte";
-  import Markdown from "./Markdown.svelte";
+  import MessageCard from "./MessageCard.svelte";
   import NotificationCard from "./NotificationCard.svelte";
-  import ToolCallCard from "./ToolCallCard.svelte";
-  import { entryText } from "./transcript.js";
   import {
     loadOlderWindow,
     newestWindowPosition,
@@ -60,8 +50,8 @@
       container.scrollHeight - container.scrollTop - container.clientHeight <= NEAR_BOTTOM_PX;
   }
 
-  function copyRaw(entry: ProjectedMessageEntry): void {
-    void navigator.clipboard.writeText(entryText(entry));
+  function isMessageCard(entry: ProjectedEntry): boolean {
+    return entry.kind === EntryKind.Message && entry.role !== MessageRole.Notification;
   }
 
   /** The first row the reader can see, and how far below the viewport's top edge it starts. */
@@ -234,7 +224,7 @@
   {/if}
   {#each mounted.visible as entry (entry.id)}
     <article
-      class="mb-3 last:mb-0"
+      class={`last:mb-0 ${isMessageCard(entry) ? "mb-5" : "mb-3"}`}
       data-testid="transcript-entry"
       data-entry-id={entry.id}
       data-role={entry.kind === EntryKind.Message ? entry.role : entry.kind}
@@ -244,41 +234,7 @@
       {:else if entry.role === MessageRole.Notification}
         <NotificationCard {entry} />
       {:else}
-        <div class="flex items-start gap-1">
-          <div class="min-w-0 flex-1">
-            {#each entry.blocks as block, index (index)}
-              {#if block.type === ContentBlockType.Text}
-                {#if entry.role === MessageRole.Assistant}
-                  <Markdown text={block.text} />
-                {:else}
-                  <p class="text-body break-words whitespace-pre-wrap">{block.text}</p>
-                {/if}
-              {:else if block.type === ContentBlockType.Reasoning}
-                <details class="mb-1 rounded border border-hairline" data-testid="reasoning-block">
-                  <summary class="flex min-h-11 cursor-pointer items-center px-2 text-meta text-dim"
-                    >Thinking</summary
-                  >
-                  <p class="px-2 pb-2 text-meta break-words whitespace-pre-wrap text-dim">
-                    {block.text}
-                  </p>
-                </details>
-              {:else if block.type === ContentBlockType.ToolCall}
-                <ToolCallCard {block} />
-              {:else if block.type === ContentBlockType.BashExecution}
-                <BashCard {block} />
-              {/if}
-            {/each}
-          </div>
-          <button
-            type="button"
-            class="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded text-faint"
-            aria-label="Copy raw markdown"
-            data-testid="copy-raw"
-            onclick={() => copyRaw(entry)}
-          >
-            <Icon name="copy" class="size-4" />
-          </button>
-        </div>
+        <MessageCard {entry} />
       {/if}
     </article>
   {/each}

@@ -2,12 +2,17 @@
  * The Session index the drawer reads: the files pi wrote for this working directory, as disk facts.
  * pi's own Session reader does the parsing, so a listing can never drift from what pi would resume.
  *
+ * A subagent run's child is such a file, but it belongs to a run behind the agent pill, not to the
+ * Sessions the owner started, so the list drops it and keeps every fork and clone.
+ *
  * Listing touches no Pi child. A Session's child starts only when a viewer subscribes to it, so the
  * list stays cheap and an unopened Session costs nothing.
  */
 
 import { SessionManager, type SessionInfo } from "@earendil-works/pi-coding-agent";
 import type { SessionSummary } from "@pi-my-ui/protocol";
+
+import { isSubagentChild } from "./subagent-child-session.js";
 
 /** Longest first-message excerpt a row carries; the row truncates further on a phone. */
 const FIRST_MESSAGE_MAX_LENGTH = 160;
@@ -46,11 +51,11 @@ function toSummary(info: SessionInfo): SessionSummary {
   };
 }
 
-/** Every Session for `cwd`, most recently active first, as the drawer renders it. */
+/** Every Session for `cwd` the owner started, most recently active first, as the drawer renders it. */
 export async function listSessions(
   cwd: string,
   sessionDir?: string,
 ): Promise<readonly SessionSummary[]> {
   const infos = await SessionManager.list(cwd, sessionDir);
-  return infos.map(toSummary);
+  return infos.filter((info) => !isSubagentChild(info)).map(toSummary);
 }

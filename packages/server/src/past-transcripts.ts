@@ -33,9 +33,7 @@ import { SessionManager } from "@earendil-works/pi-coding-agent";
 
 import { errorText } from "./error-text.js";
 import { projectionBatch } from "./projection.js";
-
-/** Characters of the run id that pi-subagents puts in a child session's name. */
-const AGENT_ID_PREFIX_LENGTH = 8;
+import { RUN_ID_PREFIX_LENGTH, childRunIdPrefixOf } from "./subagent-child-session.js";
 
 /** Only these files are session files, the same rule pi's own discovery uses. */
 const SESSION_FILE_EXTENSION = ".jsonl";
@@ -51,19 +49,9 @@ export interface PastTranscriptRequest {
 
 /** The first characters of a run id, in the lower case a child's name is written in. */
 function prefixOf(id: string): string | undefined {
-  return id.length < AGENT_ID_PREFIX_LENGTH
+  return id.length < RUN_ID_PREFIX_LENGTH
     ? undefined
-    : id.slice(0, AGENT_ID_PREFIX_LENGTH).toLowerCase();
-}
-
-/** The run id prefix a child session's own name ends with, or `undefined` for any other shape. */
-function childPrefixOf(name: string | undefined): string | undefined {
-  if (name === undefined) {
-    return undefined;
-  }
-  const marker = name.lastIndexOf("#");
-  const tail = name.slice(marker + 1);
-  return marker !== -1 && tail.length === AGENT_ID_PREFIX_LENGTH ? tail.toLowerCase() : undefined;
+    : id.slice(0, RUN_ID_PREFIX_LENGTH).toLowerCase();
 }
 
 function unreadable(detail: string): SubagentTranscriptLookup {
@@ -163,7 +151,7 @@ export function readPastTranscript(request: PastTranscriptRequest): SubagentTran
   }
   const siblings = found.siblings;
   const children = siblings.filter(
-    (sibling) => childPrefixOf(sibling.manager.getSessionName()) === prefix,
+    (sibling) => childRunIdPrefixOf(sibling.manager.getSessionName()) === prefix,
   );
   const only = children.length === 1 ? children[0] : undefined;
   if (only === undefined) {

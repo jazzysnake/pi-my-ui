@@ -1,6 +1,6 @@
 /** Text derivations the transcript needs from a ProjectedEntry, shared by its row components. */
 
-import { ContentBlockType, type ProjectedEntry } from "@pi-my-ui/protocol";
+import { ContentBlockType, EntryKind, type ProjectedEntry } from "@pi-my-ui/protocol";
 
 /** The label a notification falls back to when its payload carries no readable summary. */
 export const NOTIFICATION_FALLBACK_SUMMARY = "Extension message";
@@ -30,6 +30,10 @@ function decodeXmlEntities(value: string): string {
  * and output so its copy control is not inert.
  */
 export function entryText(entry: ProjectedEntry): string {
+  // A boundary carries no copy control, but its summary is the only text it has.
+  if (entry.kind === EntryKind.CompactionBoundary) {
+    return entry.summary;
+  }
   return entry.blocks
     .map((block) => {
       if (block.type === ContentBlockType.Text) {

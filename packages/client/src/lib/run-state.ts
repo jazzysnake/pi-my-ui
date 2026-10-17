@@ -43,6 +43,13 @@ export function runStateDisplay(runState: RunState): RunStateDisplay | null {
     case RunStateKind.Idle:
     case RunStateKind.Streaming:
       return null;
+    case RunStateKind.Compacting:
+      return {
+        kind: runState.kind,
+        label: "Compacting context",
+        detail: null,
+        reconnect: false,
+      };
     case RunStateKind.Retrying:
       return {
         kind: runState.kind,

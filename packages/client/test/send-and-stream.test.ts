@@ -2,6 +2,7 @@ import { flushSync, mount, type Component } from "svelte";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  EntryKind,
   ProjectionDeltaKind,
   RunStateKind,
   ServerMessageType,
@@ -49,6 +50,7 @@ function userEntry(id: string, text: string): ProjectedEntry {
   return {
     id,
     parentId: null,
+    kind: EntryKind.Message,
     role: "user",
     timestamp: 0,
     blocks: [{ type: "text", text }],
@@ -59,6 +61,7 @@ function assistantEntry(id: string, text: string, reasoning?: string): Projected
   return {
     id,
     parentId: "entry-1",
+    kind: EntryKind.Message,
     role: "assistant",
     timestamp: 1,
     blocks: [

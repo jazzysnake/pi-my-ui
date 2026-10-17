@@ -6,6 +6,7 @@
 
 import {
   ContentBlockType,
+  EntryKind,
   MessageRole,
   type BashExecutionResult,
   type ProjectedEntry,
@@ -45,6 +46,7 @@ export function createLiveBash(host: LiveBashHost): LiveBash {
   function entry(bash: ActiveBash, result?: BashExecutionResult): ProjectedEntry {
     const existing = host.entry(bash.id);
     return {
+      kind: EntryKind.Message,
       id: bash.id,
       parentId: existing?.parentId ?? host.leafId(),
       role: MessageRole.Bash,

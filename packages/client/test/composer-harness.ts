@@ -2,6 +2,7 @@ import { flushSync, mount, type Component } from "svelte";
 import { vi } from "vitest";
 
 import {
+  EntryKind,
   ProjectionDeltaKind,
   RunStateKind,
   ServerMessageType,
@@ -65,6 +66,7 @@ export function settingsOf(overrides: Partial<SettingsMessage> = {}): SettingsMe
 
 export function userEntry(id: string, text: string): ProjectedEntry {
   return {
+    kind: EntryKind.Message,
     id,
     parentId: null,
     role: "user",
@@ -81,6 +83,7 @@ export interface Mounted {
   readonly setModel: ReturnType<typeof vi.fn>;
   readonly setThinking: ReturnType<typeof vi.fn>;
   readonly setAutoCompaction: ReturnType<typeof vi.fn>;
+  readonly compact: ReturnType<typeof vi.fn>;
   readonly setSessionName: ReturnType<typeof vi.fn>;
   readonly getSessionStats: ReturnType<typeof vi.fn>;
   readonly exportSession: ReturnType<typeof vi.fn>;
@@ -96,6 +99,7 @@ export function mountShell(store: ClientStore, status = ConnectionStatus.Connect
   const setModel = vi.fn();
   const setThinking = vi.fn();
   const setAutoCompaction = vi.fn();
+  const compact = vi.fn();
   const setSessionName = vi.fn();
   const getSessionStats = vi.fn();
   const exportSession = vi.fn();
@@ -117,6 +121,7 @@ export function mountShell(store: ClientStore, status = ConnectionStatus.Connect
         onSetModel: setModel,
         onSetThinkingLevel: setThinking,
         onSetAutoCompaction: setAutoCompaction,
+        onCompact: compact,
         onSetSessionName: setSessionName,
         onGetSessionStats: getSessionStats,
         onExportSession: exportSession,
@@ -136,6 +141,7 @@ export function mountShell(store: ClientStore, status = ConnectionStatus.Connect
     setModel,
     setThinking,
     setAutoCompaction,
+    compact,
     setSessionName,
     getSessionStats,
     exportSession,

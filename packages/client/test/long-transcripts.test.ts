@@ -1,7 +1,12 @@
 import { flushSync } from "svelte";
 import { describe, expect, it } from "vitest";
 
-import { MessageRole, ProjectionDeltaKind, type ProjectedEntry } from "@pi-my-ui/protocol";
+import {
+  EntryKind,
+  MessageRole,
+  ProjectionDeltaKind,
+  type ProjectedEntry,
+} from "@pi-my-ui/protocol";
 
 import { ClientStore } from "../src/lib/store/client-store.svelte.js";
 import { deltaOf, mountShell, snapshotOf, userEntry } from "./composer-harness.js";
@@ -10,6 +15,7 @@ function assistantEntry(id: string, text: string): ProjectedEntry {
   return {
     id,
     parentId: "entry-1",
+    kind: EntryKind.Message,
     role: MessageRole.Assistant,
     timestamp: 1,
     blocks: [{ type: "text", text }],
@@ -26,6 +32,7 @@ function longTranscript(count: number): ProjectedEntry[] {
   return Array.from({ length: count }, (_, index) => ({
     id: `entry-${String(index)}`,
     parentId: index === 0 ? null : `entry-${String(index - 1)}`,
+    kind: EntryKind.Message,
     role: MessageRole.User,
     timestamp: index,
     blocks: [{ type: "text" as const, text: `Message ${String(index)}` }],

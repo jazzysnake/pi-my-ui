@@ -47,7 +47,43 @@ function describeExpectation(expect: ScriptExpectation): string {
     const images = expect.images === undefined ? "" : ` with ${String(expect.images)} image(s)`;
     return `user ${JSON.stringify(expect.text)}${images}`;
   }
+  if (expect.role === "compaction") {
+    return expect.customInstructions === undefined
+      ? "a compaction summary request"
+      : `a compaction summary request focused on ${JSON.stringify(expect.customInstructions)}`;
+  }
   return `tool result from ${expect.toolName}`;
+}
+
+/** The text pi appends to its summary prompt for the focus the user typed after `/compact`. */
+function focusLine(customInstructions: string): string {
+  return `Additional focus: ${customInstructions}`;
+}
+
+/**
+ * pi builds its summary request by serializing the conversation and appending its instructions. The
+ * conversation differs per Session, so the request is recognized by that shape and then checked for
+ * the focus the recording bound it to; a request the recording never saw is still refused.
+ */
+function assertCompaction(
+  expect: { readonly customInstructions?: string },
+  messages: readonly Message[],
+): void {
+  const incoming = lastModelVisibleMessage(messages);
+  const text = incoming.role === "user" ? textOf(incoming.content) : "";
+  // pi asks for a summary in two shapes: the whole conversation under `<conversation>`, and, when the
+  // cut splits a turn, that turn's earlier half under `# Conversation`.
+  if (!text.startsWith("<conversation>") && !text.startsWith("# Conversation")) {
+    throw new ScriptError(
+      `scripted provider: expected ${describeExpectation({ role: "compaction", ...expect })} but received ${describe(incoming)}`,
+    );
+  }
+  const focus = expect.customInstructions;
+  if (focus !== undefined && !text.includes(focusLine(focus))) {
+    throw new ScriptError(
+      `scripted provider: the compaction request does not carry ${JSON.stringify(focusLine(focus))}`,
+    );
+  }
 }
 
 /**
@@ -87,6 +123,10 @@ export function assertExpectation(expect: ScriptExpectation, messages: readonly 
         )}`,
       );
     }
+    return;
+  }
+  if (expect.role === "compaction") {
+    assertCompaction(expect, messages);
     return;
   }
   if (incoming.role !== "toolResult" || incoming.toolName !== expect.toolName) {

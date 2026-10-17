@@ -2,6 +2,7 @@ import { flushSync, mount, type Component } from "svelte";
 import { describe, expect, it } from "vitest";
 
 import {
+  EntryKind,
   ProjectionDeltaKind,
   ServerMessageType,
   SubagentStatus,
@@ -22,6 +23,7 @@ function snapshotOf(subagents: readonly SubagentAgent[]): SnapshotMessage {
     {
       id: "entry-1",
       parentId: null,
+      kind: EntryKind.Message,
       role: "user",
       timestamp: 0,
       blocks: [{ type: "text", text: "Ask a subagent" }],

@@ -1,7 +1,14 @@
 <script lang="ts">
-  import { ContentBlockType, MessageRole, type ProjectedEntry } from "@pi-my-ui/protocol";
+  import {
+    ContentBlockType,
+    EntryKind,
+    MessageRole,
+    type ProjectedEntry,
+    type ProjectedMessageEntry,
+  } from "@pi-my-ui/protocol";
 
   import BashCard from "./BashCard.svelte";
+  import CompactionBoundary from "./CompactionBoundary.svelte";
   import Markdown from "./Markdown.svelte";
   import NotificationCard from "./NotificationCard.svelte";
   import ToolCallCard from "./ToolCallCard.svelte";
@@ -25,7 +32,7 @@
       container.scrollHeight - container.scrollTop - container.clientHeight <= NEAR_BOTTOM_PX;
   }
 
-  function copyRaw(entry: ProjectedEntry): void {
+  function copyRaw(entry: ProjectedMessageEntry): void {
     void navigator.clipboard.writeText(entryText(entry));
   }
 
@@ -78,9 +85,11 @@
       class="mb-3 last:mb-0"
       data-testid="transcript-entry"
       data-entry-id={entry.id}
-      data-role={entry.role}
+      data-role={entry.kind === EntryKind.Message ? entry.role : entry.kind}
     >
-      {#if entry.role === MessageRole.Notification}
+      {#if entry.kind === EntryKind.CompactionBoundary}
+        <CompactionBoundary {entry} />
+      {:else if entry.role === MessageRole.Notification}
         <NotificationCard {entry} />
       {:else}
         <div class="flex items-start gap-1">

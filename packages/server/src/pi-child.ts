@@ -67,6 +67,8 @@ export interface PiChild {
   setModel(provider: string, modelId: string): Promise<void>;
   setThinkingLevel(level: ThinkingLevel): Promise<void>;
   setAutoCompaction(enabled: boolean): Promise<void>;
+  /** Compact the Session now; `customInstructions` is the focus typed after `/compact`. */
+  compact(customInstructions?: string): Promise<void>;
   /** Every command this child offers the palette: prompt templates, skills and extension commands. */
   commands(): Promise<readonly CommandInfo[]>;
   stats(): Promise<SessionStats>;
@@ -296,6 +298,9 @@ export async function startPiChild(
     },
     setThinkingLevel: (level) => client.setThinkingLevel(level),
     setAutoCompaction: (enabled) => client.setAutoCompaction(enabled),
+    compact: async (customInstructions) => {
+      await client.compact(customInstructions);
+    },
     commands: async () => (await client.getCommands()).map(toCommandInfo),
     stats: async () => toSessionStats(await client.getSessionStats()),
     setSessionName: (name) => client.setSessionName(name),

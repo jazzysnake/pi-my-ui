@@ -7,6 +7,7 @@
 import {
   CommandSource,
   ContentBlockType,
+  EntryKind,
   MessageRole,
   ProjectionDeltaKind,
   RunStateKind,
@@ -126,13 +127,32 @@ export interface BashExecutionBlock {
 export type ContentBlock = TextBlock | ReasoningBlock | ToolCallBlock | BashExecutionBlock;
 
 /** One message in a transcript. */
-export interface ProjectedEntry {
+export interface ProjectedMessageEntry {
+  readonly kind: typeof EntryKind.Message;
   readonly id: string;
   readonly parentId: string | null;
   readonly role: MessageRole;
   readonly timestamp: number;
   readonly blocks: readonly ContentBlock[];
 }
+
+/**
+ * Where pi compacted the conversation: the summary that replaced the earlier turns, at the position
+ * it happened. The summary is plain text, never markdown: it is the model's account of a conversation.
+ */
+export interface CompactionBoundaryEntry {
+  readonly kind: typeof EntryKind.CompactionBoundary;
+  readonly id: string;
+  readonly parentId: string | null;
+  readonly timestamp: number;
+  readonly summary: string;
+  readonly tokensBefore: number;
+  /** The first entry pi kept; everything before it survives only as the summary. */
+  readonly firstKeptEntryId: string;
+}
+
+/** One row of a transcript: a message, or a compaction boundary. */
+export type ProjectedEntry = ProjectedMessageEntry | CompactionBoundaryEntry;
 
 /** One ordered change to a {@link SessionProjection}. */
 export type ProjectionDelta =
@@ -158,6 +178,7 @@ export interface PiChildExit {
 export type RunState =
   | { readonly kind: typeof RunStateKind.Idle }
   | { readonly kind: typeof RunStateKind.Streaming }
+  | { readonly kind: typeof RunStateKind.Compacting }
   | {
       readonly kind: typeof RunStateKind.Retrying;
       readonly attempt: number;

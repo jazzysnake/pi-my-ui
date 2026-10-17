@@ -6,6 +6,7 @@
  */
 
 import {
+  EntryKind,
   MessageRole,
   ProjectionDeltaKind,
   ServerMessageType,
@@ -47,6 +48,7 @@ export function createComposerSlice(): ComposerSlice {
       for (const delta of message.deltas) {
         if (
           delta.kind !== ProjectionDeltaKind.EntryUpsert ||
+          delta.entry.kind !== EntryKind.Message ||
           delta.entry.role !== MessageRole.User
         ) {
           continue;

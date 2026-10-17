@@ -53,6 +53,7 @@
   onSetModel={(provider, modelId) => transport?.setModel(provider, modelId)}
   onSetThinkingLevel={(level) => transport?.setThinkingLevel(level)}
   onSetAutoCompaction={(enabled) => transport?.setAutoCompaction(enabled)}
+  onCompact={(customInstructions) => transport?.compact(customInstructions)}
   onSetSessionName={(name) => transport?.setSessionName(name)}
   onGetSessionStats={() => transport?.getSessionStats()}
   onExportSession={() => transport?.exportSession()}

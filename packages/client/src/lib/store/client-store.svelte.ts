@@ -4,6 +4,7 @@ import type { ServerMessage } from "@pi-my-ui/protocol";
 
 import { createComposerSlice, type ComposerSlice } from "./composer.svelte.js";
 import { createCommandsSlice, type CommandsSlice } from "./commands.svelte.js";
+import { createContextSlice, type ContextSlice } from "./context.svelte.js";
 import { createFilesSlice, type FilesSlice } from "./files.svelte.js";
 import { createSessionsSlice, type SessionsSlice } from "./sessions.svelte.js";
 import { createSettingsSlice, type SettingsSlice } from "./settings.svelte.js";
@@ -18,6 +19,7 @@ export class ClientStore {
   readonly composer: ComposerSlice = createComposerSlice();
   readonly commands: CommandsSlice = createCommandsSlice();
   readonly subagents: SubagentsSlice = createSubagentsSlice();
+  readonly context: ContextSlice = createContextSlice();
 
   receive(message: ServerMessage): void {
     this.transcript.receive(message);
@@ -27,6 +29,7 @@ export class ClientStore {
     this.composer.receive(message);
     this.commands.receive(message);
     this.subagents.receive(message);
+    this.context.receive(message);
   }
 
   /**
@@ -40,5 +43,6 @@ export class ClientStore {
     this.composer.clearError();
     this.commands.clear();
     this.subagents.clear();
+    this.context.clear();
   }
 }

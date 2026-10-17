@@ -2,6 +2,7 @@ import { flushSync, mount, type Component } from "svelte";
 import { describe, expect, it, vi, type Mock } from "vitest";
 
 import {
+  EntryKind,
   ProjectionDeltaKind,
   ServerMessageType,
   SessionActivity,
@@ -62,6 +63,7 @@ function entryOf(id: string, text: string): ProjectedEntry {
   return {
     id,
     parentId: null,
+    kind: EntryKind.Message,
     role: "user",
     timestamp: 0,
     blocks: [{ type: "text", text }],

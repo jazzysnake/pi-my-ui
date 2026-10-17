@@ -2,6 +2,7 @@ import { flushSync, mount, type Component } from "svelte";
 import { describe, expect, it } from "vitest";
 
 import {
+  EntryKind,
   MessageRole,
   ServerMessageType,
   type ProjectedEntry,
@@ -34,6 +35,7 @@ function toolCallEntry(id: string, status: ToolCallStatus, output?: string): Pro
   return {
     id,
     parentId: null,
+    kind: EntryKind.Message,
     role: MessageRole.Assistant,
     timestamp: 0,
     blocks: [
@@ -51,6 +53,7 @@ function toolCallEntry(id: string, status: ToolCallStatus, output?: string): Pro
 
 function reasoningEntry(id: string, text: string): ProjectedEntry {
   return {
+    kind: EntryKind.Message,
     id,
     parentId: null,
     role: MessageRole.Assistant,

@@ -12,6 +12,7 @@
 
 import {
   ContentBlockType,
+  EntryKind,
   MessageRole,
   ProjectionDeltaKind,
   RunStateKind,
@@ -28,8 +29,9 @@ import {
 import type { JsonAgentSessionEvent, SessionEntry } from "@earendil-works/pi-coding-agent";
 
 import { createLiveBash, type LiveBash } from "./live-bash.js";
+import { createLiveCompaction } from "./live-compaction.js";
 import { blocksFromMessage, projectionBatch, roleOf, toolResultOutput } from "./projection.js";
-import { appendBlock, setBlock } from "./streaming-blocks.js";
+import { blockEditOf } from "./streaming-blocks.js";
 
 type AgentMessage = Extract<JsonAgentSessionEvent, { readonly type: "message_start" }>["message"];
 type MessageStartEvent = Extract<JsonAgentSessionEvent, { readonly type: "message_start" }>;
@@ -69,6 +71,16 @@ export function createSessionProjectionMachine(
   let pendingId = 0;
   let abortRequested = false;
 
+  const compaction = createLiveCompaction({
+    nextId,
+    leafId: () => projection.leafId,
+    runState: () => projection.runState,
+    emit,
+    upsert,
+    setLeaf,
+    setRunState,
+  });
+
   const bash = createLiveBash({
     nextId,
     entry: entryById,
@@ -104,6 +116,17 @@ export function createSessionProjectionMachine(
     return { kind: ProjectionDeltaKind.RunState, runState };
   }
 
+  /** Every message row this machine builds, in one place. */
+  function messageEntry(
+    role: MessageRole,
+    id: string,
+    parentId: string | null,
+    timestamp: number,
+    blocks: readonly ContentBlock[],
+  ): ProjectedEntry {
+    return { kind: EntryKind.Message, id, parentId, role, timestamp, blocks };
+  }
+
   function entryById(id: string): ProjectedEntry | undefined {
     return projection.entries.find((entry) => entry.id === id);
   }
@@ -115,13 +138,7 @@ export function createSessionProjectionMachine(
     }
     const id = nextId();
     return emit([
-      upsert({
-        id,
-        parentId: projection.leafId,
-        role,
-        timestamp: Date.now(),
-        blocks: blocksFromMessage(message),
-      }),
+      upsert(messageEntry(role, id, projection.leafId, Date.now(), blocksFromMessage(message))),
       setLeaf(id),
     ]);
   }
@@ -134,7 +151,11 @@ export function createSessionProjectionMachine(
     const id = streamingEntryId;
     if (id !== null) {
       const entry = entryById(id);
-      if (entry !== undefined && entry.role === MessageRole.Assistant) {
+      if (
+        entry !== undefined &&
+        entry.kind === EntryKind.Message &&
+        entry.role === MessageRole.Assistant
+      ) {
         return { id, blocks: entry.blocks, deltas: [] };
       }
     }
@@ -144,13 +165,7 @@ export function createSessionProjectionMachine(
       id: newId,
       blocks: [],
       deltas: [
-        upsert({
-          id: newId,
-          parentId: projection.leafId,
-          role: MessageRole.Assistant,
-          timestamp: Date.now(),
-          blocks: [],
-        }),
+        upsert(messageEntry(MessageRole.Assistant, newId, projection.leafId, Date.now(), [])),
         setLeaf(newId),
       ],
     };
@@ -160,14 +175,19 @@ export function createSessionProjectionMachine(
     update: (blocks: readonly ContentBlock[]) => readonly ContentBlock[],
   ): readonly ProjectionDelta[] {
     const streaming = ensureStreamingAssistant();
-    const entry: ProjectedEntry = {
-      id: streaming.id,
-      parentId: entryById(streaming.id)?.parentId ?? projection.leafId,
-      role: MessageRole.Assistant,
-      timestamp: entryById(streaming.id)?.timestamp ?? Date.now(),
-      blocks: update(streaming.blocks),
-    };
-    return emit([...streaming.deltas, upsert(entry)]);
+    const existing = entryById(streaming.id);
+    return emit([
+      ...streaming.deltas,
+      upsert(
+        messageEntry(
+          MessageRole.Assistant,
+          streaming.id,
+          existing?.parentId ?? projection.leafId,
+          existing?.timestamp ?? Date.now(),
+          update(streaming.blocks),
+        ),
+      ),
+    ]);
   }
 
   function onMessageStart(event: MessageStartEvent): readonly ProjectionDelta[] {
@@ -178,13 +198,7 @@ export function createSessionProjectionMachine(
     const id = nextId();
     streamingEntryId = id;
     return emit([
-      upsert({
-        id,
-        parentId: projection.leafId,
-        role: MessageRole.Assistant,
-        timestamp: Date.now(),
-        blocks: [],
-      }),
+      upsert(messageEntry(MessageRole.Assistant, id, projection.leafId, Date.now(), [])),
       setLeaf(id),
     ]);
   }
@@ -193,7 +207,7 @@ export function createSessionProjectionMachine(
     message: Extract<AgentMessage, { readonly role: "toolResult" }>,
   ): readonly ProjectionDelta[] {
     for (const entry of projection.entries) {
-      if (entry.role !== MessageRole.Assistant) {
+      if (entry.kind !== EntryKind.Message || entry.role !== MessageRole.Assistant) {
         continue;
       }
       const index = entry.blocks.findIndex(
@@ -242,77 +256,21 @@ export function createSessionProjectionMachine(
       ]);
     }
     return emit([
-      upsert({
-        id,
-        parentId: existing?.parentId ?? projection.leafId,
-        role: MessageRole.Assistant,
-        timestamp: existing?.timestamp ?? Date.now(),
-        blocks,
-      }),
+      upsert(
+        messageEntry(
+          MessageRole.Assistant,
+          id,
+          existing?.parentId ?? projection.leafId,
+          existing?.timestamp ?? Date.now(),
+          blocks,
+        ),
+      ),
     ]);
   }
 
   function onMessageUpdate(event: MessageUpdateEvent): readonly ProjectionDelta[] {
-    const update = event.assistantMessageEvent;
-    switch (update.type) {
-      case "text_start":
-        return withStreamingBlocks((blocks) =>
-          setBlock(blocks, update.contentIndex, { type: ContentBlockType.Text, text: "" }),
-        );
-      case "text_delta":
-        return withStreamingBlocks((blocks) =>
-          appendBlock(blocks, update.contentIndex, ContentBlockType.Text, update.delta),
-        );
-      case "text_end":
-        return withStreamingBlocks((blocks) =>
-          setBlock(blocks, update.contentIndex, {
-            type: ContentBlockType.Text,
-            text: update.content,
-          }),
-        );
-      case "thinking_start":
-        return withStreamingBlocks((blocks) =>
-          setBlock(blocks, update.contentIndex, { type: ContentBlockType.Reasoning, text: "" }),
-        );
-      case "thinking_delta":
-        return withStreamingBlocks((blocks) =>
-          appendBlock(blocks, update.contentIndex, ContentBlockType.Reasoning, update.delta),
-        );
-      case "thinking_end":
-        return withStreamingBlocks((blocks) =>
-          setBlock(blocks, update.contentIndex, {
-            type: ContentBlockType.Reasoning,
-            text: update.content,
-          }),
-        );
-      case "toolcall_start":
-        return withStreamingBlocks((blocks) =>
-          setBlock(blocks, update.contentIndex, {
-            type: ContentBlockType.ToolCall,
-            id: update.id,
-            name: update.toolName,
-            arguments: {},
-            status: ToolCallStatus.Running,
-          }),
-        );
-      case "toolcall_delta":
-        // Arguments arrive as partial JSON; the end event carries the parsed call.
-        return [];
-      case "toolcall_end":
-        return withStreamingBlocks((blocks) =>
-          setBlock(blocks, update.contentIndex, {
-            type: ContentBlockType.ToolCall,
-            id: update.toolCall.id,
-            name: update.toolCall.name,
-            arguments: update.toolCall.arguments,
-            status: ToolCallStatus.Running,
-          }),
-        );
-      case "start":
-      case "done":
-      case "error":
-        return [];
-    }
+    const edit = blockEditOf(event.assistantMessageEvent);
+    return edit === null ? [] : withStreamingBlocks(edit);
   }
 
   function onAgentEnd(event: AgentEndEvent): readonly ProjectionDelta[] {
@@ -365,6 +323,7 @@ export function createSessionProjectionMachine(
         batch,
       );
       streamingEntryId = null;
+      compaction.reset();
       return batch.cursor;
     },
     applySubagent(agent) {
@@ -420,6 +379,10 @@ export function createSessionProjectionMachine(
           return onAgentEnd(event);
         case "bash_execution_update":
           return bash.append(event.delta);
+        case "compaction_start":
+          return compaction.begin();
+        case "compaction_end":
+          return compaction.end(event);
         default:
           return [];
       }
@@ -427,6 +390,7 @@ export function createSessionProjectionMachine(
     markAborted() {
       abortRequested = true;
       streamingEntryId = null;
+      compaction.reset();
       // An abort while nothing is running already belongs to a settled Session, so it would only
       // paint an Aborted row for a turn that was never asked to stop.
       if (
@@ -442,6 +406,7 @@ export function createSessionProjectionMachine(
       // completed; the durable entry the child persisted before it went is what a reseed restores.
       streamingEntryId = null;
       abortRequested = false;
+      compaction.reset();
       return emit([setRunState({ kind: RunStateKind.Crashed, ...exit })]);
     },
   };

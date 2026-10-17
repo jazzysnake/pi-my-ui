@@ -14,6 +14,7 @@ import type { Cursor, ImageAttachment } from "./model.js";
 import type {
   BashMessage,
   ClientMessage,
+  CompactMessage,
   ExportSessionMessage,
   GetSessionStatsMessage,
   ListDirectoryMessage,
@@ -215,6 +216,18 @@ function validateSetAutoCompaction(record: Record<string, unknown>): SetAutoComp
   };
 }
 
+function validateCompact(record: Record<string, unknown>): CompactMessage {
+  const customInstructions = record["customInstructions"];
+  if (customInstructions !== undefined && typeof customInstructions !== "string") {
+    malformed('"customInstructions" must be a string when present');
+  }
+  return {
+    type: ClientMessageType.Compact,
+    sessionId: requireSessionId(record),
+    ...(customInstructions === undefined ? {} : { customInstructions }),
+  };
+}
+
 function validateGetSessionStats(record: Record<string, unknown>): GetSessionStatsMessage {
   return { type: ClientMessageType.GetSessionStats, sessionId: requireSessionId(record) };
 }
@@ -257,6 +270,8 @@ export function validateClientMessage(value: unknown): ClientMessage {
       return validateSetThinkingLevel(record);
     case ClientMessageType.SetAutoCompaction:
       return validateSetAutoCompaction(record);
+    case ClientMessageType.Compact:
+      return validateCompact(record);
     case ClientMessageType.ListDirectory:
       return validateListDirectory(record);
     case ClientMessageType.PreviewFile:

@@ -28,16 +28,13 @@ import {
 } from "./script.js";
 
 /**
- * Entry types that rewrite the model's context. A flat script of prompt/answer pairs cannot express
- * the rewritten transcript, so recording stops rather than binding a later reply to a prompt the
- * model never saw in that form.
+ * Entry types that rewrite the model's context without naming the call that produced them. A flat
+ * script of prompt/answer pairs cannot express the rewritten transcript, so recording stops rather
+ * than binding a later reply to a prompt the model never saw in that form. A compaction entry is
+ * excluded from this set because its summary is the model's own reply to pi's summary request, which
+ * the script can bind to.
  */
-const CONTEXT_REWRITES = new Set([
-  "compaction",
-  "branch_summary",
-  "context_edit",
-  "custom_message",
-]);
+const CONTEXT_REWRITES = new Set(["branch_summary", "context_edit", "custom_message"]);
 
 /** The same hermetic launch every real or scripted pi child gets; only the provider differs. */
 export const HERMETIC_PI_ARGS = [
@@ -109,7 +106,10 @@ function userPrompt(message: UserMessage, source: string): RecordedPrompt {
   return images === 0 ? { role: "user", text } : { role: "user", text, images };
 }
 
-/** The entries from the Session root to its last message, which is the active conversation. */
+/**
+ * The entries from the Session root to its last entry, which is the active conversation. The leaf is
+ * the last entry rather than the last message: a Session compacted at its end ends in a compaction.
+ */
 function entryPath(entries: readonly FileEntry[], source: string): FileEntry[] {
   const byId = new Map<string, FileEntry>();
   let leaf: FileEntry | undefined;
@@ -118,12 +118,10 @@ function entryPath(entries: readonly FileEntry[], source: string): FileEntry[] {
       continue;
     }
     byId.set(entry.id, entry);
-    if (entry.type === "message") {
-      leaf = entry;
-    }
+    leaf = entry;
   }
   if (leaf === undefined) {
-    throw new ScriptError(`${source}: the Session has no message to record`);
+    throw new ScriptError(`${source}: the Session has no entry to record`);
   }
 
   const path: FileEntry[] = [];
@@ -146,6 +144,15 @@ export function scriptFromSession(entries: readonly FileEntry[], source = "sessi
 
   for (const entry of entryPath(entries, source)) {
     if (entry.type === "session") {
+      continue;
+    }
+    if (entry.type === "compaction") {
+      // pi's summary request is not stored, so the recording binds the reply to the request's shape;
+      // the summary text is the model's own words, as pi persisted them.
+      steps.push({
+        expect: { role: "compaction" },
+        reply: { content: [{ type: "text", text: entry.summary }], stopReason: "stop" },
+      });
       continue;
     }
     if (CONTEXT_REWRITES.has(entry.type)) {

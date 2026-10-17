@@ -6,16 +6,19 @@
 
 import {
   ContentBlockType,
+  EntryKind,
   MessageRole,
   ProjectionDeltaKind,
   ToolCallStatus,
   type BashExecutionBlock,
+  type CompactionBoundaryEntry,
   type ContentBlock,
   type DeltaBatch,
   type ProjectedEntry,
   type ProjectionDelta,
 } from "@pi-my-ui/protocol";
 import type {
+  CompactionEntry,
   CustomMessageEntry,
   SessionEntry,
   SessionMessageEntry,
@@ -196,6 +199,7 @@ function projectMessage(
   const message = entry.message;
   if (message.role === "bashExecution") {
     return {
+      kind: EntryKind.Message,
       id: entry.id,
       parentId: entry.parentId,
       role: MessageRole.Bash,
@@ -208,6 +212,7 @@ function projectMessage(
     return undefined;
   }
   return {
+    kind: EntryKind.Message,
     id: entry.id,
     parentId: entry.parentId,
     role,
@@ -240,11 +245,25 @@ function projectCustomMessage(entry: CustomMessageEntry): ProjectedEntry | undef
     return undefined;
   }
   return {
+    kind: EntryKind.Message,
     id: entry.id,
     parentId: entry.parentId,
     role: MessageRole.Notification,
     timestamp: Date.parse(entry.timestamp),
     blocks,
+  };
+}
+
+/** A compaction pi persisted, as the boundary the transcript marks history with. */
+export function compactionBoundary(entry: CompactionEntry): CompactionBoundaryEntry {
+  return {
+    kind: EntryKind.CompactionBoundary,
+    id: entry.id,
+    parentId: entry.parentId,
+    timestamp: Date.parse(entry.timestamp),
+    summary: entry.summary,
+    tokensBefore: entry.tokensBefore,
+    firstKeptEntryId: entry.firstKeptEntryId,
   };
 }
 
@@ -258,6 +277,9 @@ function projectEntry(entry: SessionEntry, lookup: ToolResultLookup): ProjectedE
   }
   if (entry.type === "custom_message") {
     return projectCustomMessage(entry);
+  }
+  if (entry.type === "compaction") {
+    return compactionBoundary(entry);
   }
   return undefined;
 }

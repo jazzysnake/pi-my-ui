@@ -2,9 +2,11 @@ import { flushSync, mount, type Component } from "svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  EntryKind,
   MessageRole,
   ServerMessageType,
   type ProjectedEntry,
+  type ProjectedMessageEntry,
   type SnapshotMessage,
 } from "@pi-my-ui/protocol";
 
@@ -29,8 +31,9 @@ function snapshotOf(entries: readonly ProjectedEntry[]): SnapshotMessage {
   };
 }
 
-function entry(id: string, role: ProjectedEntry["role"], text: string): ProjectedEntry {
+function entry(id: string, role: ProjectedMessageEntry["role"], text: string): ProjectedEntry {
   return {
+    kind: EntryKind.Message,
     id,
     parentId: null,
     role,

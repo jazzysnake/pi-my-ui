@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ContentBlockType,
+  EntryKind,
   MessageRole,
   ProjectionDeltaKind,
   type BashExecutionBlock,
@@ -16,6 +17,7 @@ function bashEntry(block: Partial<BashExecutionBlock> = {}): ProjectedEntry {
   return {
     id: "bash-entry-1",
     parentId: null,
+    kind: EntryKind.Message,
     role: MessageRole.Bash,
     timestamp: 0,
     blocks: [

@@ -13,6 +13,8 @@ import {
   SessionActivity,
   sessionActivityOf,
   type CommandsMessage,
+  type ContextUsage,
+  type ContextUsageMessage,
   type Cursor,
   type DeltaMessage,
   type ImageAttachment,
@@ -59,6 +61,8 @@ export interface SessionHost {
   setModel(provider: string, modelId: string): Promise<void>;
   setThinkingLevel(level: ThinkingLevel): Promise<void>;
   setAutoCompaction(enabled: boolean): Promise<void>;
+  /** Compact the Session now; `customInstructions` is the focus typed after `/compact`. */
+  compact(customInstructions?: string): Promise<void>;
   /** pi's statistics for this Session, read on demand for the session panel. */
   sessionStats(): Promise<SessionStats>;
   /** Rename the Session in pi; the caller refreshes the Session list afterwards. */
@@ -115,6 +119,9 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
   let buffering: JsonAgentSessionEvent[] | null = null;
   /** The last moment this Session did anything, which is where its idle window starts. */
   let lastActivityAt = options.clock.now();
+  /** The in-flight context-usage read, and whether another was asked for while it ran. */
+  let contextRead: Promise<void> | undefined;
+  let contextReadQueued = false;
 
   const child: SessionChild = createSessionChild({
     target: options.target,
@@ -170,6 +177,45 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       return;
     }
     publish(machine.applyEvent(event));
+    // pi pushes no context-usage event, so the two moments the figure can change are pulled: a
+    // settled run (a fresh reply gives pi a measurement) and the end of a compaction (pi reports an
+    // empty figure until such a reply). No other event changes it, so none spends a read.
+    if (event.type === "agent_settled" || event.type === "compaction_end") {
+      refreshContextUsage();
+    }
+  }
+
+  function broadcast(message: ServerMessage): void {
+    for (const viewer of [...viewers]) {
+      viewer.onMessage(message);
+    }
+  }
+
+  function contextUsageMessage(contextUsage: ContextUsage | null): ContextUsageMessage {
+    return { type: ServerMessageType.ContextUsage, sessionId: options.sessionId, contextUsage };
+  }
+
+  /** One read at a time, and a read asked for during one runs after it, so figures cannot arrive
+   * out of order. A failed read sends nothing: a stale figure is better than a fabricated empty one. */
+  function refreshContextUsage(): void {
+    if (contextRead !== undefined) {
+      contextReadQueued = true;
+      return;
+    }
+    contextRead = (async () => {
+      try {
+        const stats = await (await child.ensure()).stats();
+        broadcast(contextUsageMessage(stats.contextUsage));
+      } catch {
+        // The transcript is served whether or not pi can report its context size.
+      }
+    })().finally(() => {
+      contextRead = undefined;
+      if (contextReadQueued) {
+        contextReadQueued = false;
+        refreshContextUsage();
+      }
+    });
   }
 
   /**
@@ -330,6 +376,12 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
         // A child that cannot list commands still serves its transcript; the palette falls back to
         // the built-ins rather than failing the subscription.
       }
+      // The context figure is read, not replayed, so a viewer that was away sees pi's current one.
+      try {
+        viewer.onMessage(contextUsageMessage((await (await child.ensure()).stats()).contextUsage));
+      } catch {
+        // A Session with no figure still serves its transcript; the readout says it is unavailable.
+      }
       return () => {
         viewers.delete(viewer);
         touch();
@@ -372,6 +424,13 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       await ensureServed();
       await (await child.ensure()).setAutoCompaction(enabled);
       await broadcastSettings();
+      touch();
+    },
+    async compact(customInstructions) {
+      await ensureServed();
+      // pi reports the compaction on its own event stream, so the in-progress state, the boundary
+      // and the cleared context figure all arrive from pi rather than from this call.
+      await (await child.ensure()).compact(customInstructions);
       touch();
     },
     async sessionStats() {

@@ -273,6 +273,10 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
         await host.setAutoCompaction(message.enabled);
         return;
       }
+      if (message.type === ClientMessageType.Compact) {
+        await host.compact(message.customInstructions);
+        return;
+      }
       if (message.type === ClientMessageType.GetSessionStats) {
         send(socket, {
           type: ServerMessageType.SessionStats,

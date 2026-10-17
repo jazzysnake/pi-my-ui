@@ -1,9 +1,13 @@
+/** Session-level frames that are not transcript state, so a transcript reader skips them. */
+const NOT_TRANSCRIPT_STATE = new Set(["sessions", "settings", "commands", "contextUsage"]);
+
 /**
  * Reading a projected transcript off a real WebSocket client, so a spec can wait for a run to land
  * instead of sleeping and hoping. Nothing here stands in for the transport or for pi.
  */
 
 import {
+  EntryKind,
   ProjectionDeltaKind,
   type DeltaMessage,
   type ProjectedEntry,
@@ -12,10 +16,10 @@ import {
 
 import type { WsSessionClient } from "./ws-session-client.js";
 
-/** Every text block of every entry, in order. */
+/** Every text block of every message entry, in order; a compaction boundary has none. */
 export function projectionText(entries: readonly ProjectedEntry[]): string {
   return entries
-    .flatMap((entry) => entry.blocks)
+    .flatMap((entry) => (entry.kind === EntryKind.Message ? entry.blocks : []))
     .filter((block) => block.type === "text")
     .map((block) => block.text)
     .join(" ");
@@ -51,7 +55,7 @@ export async function readUntilText(
     }
     // Settings and the Session list are not transcript state, so a run that lands across one still
     // reads cleanly. The palette's commands are read on attach for the same reason.
-    if (message.type === "settings" || message.type === "sessions" || message.type === "commands") {
+    if (NOT_TRANSCRIPT_STATE.has(message.type)) {
       continue;
     }
     if (message.type === "snapshot") {
@@ -75,7 +79,7 @@ export async function nextDelta(client: WsSessionClient): Promise<DeltaMessage> 
     if (message.type === "delta") {
       return message;
     }
-    if (message.type === "sessions" || message.type === "settings" || message.type === "commands") {
+    if (NOT_TRANSCRIPT_STATE.has(message.type)) {
       continue;
     }
     throw new Error(`expected a Delta but received ${message.type}`);
@@ -83,17 +87,17 @@ export async function nextDelta(client: WsSessionClient): Promise<DeltaMessage> 
 }
 
 /**
- * The non-transcript frames a subscribe sends after its Snapshot: the Session's Settings and its
- * discoverable Commands. A caller reads both so the next frame it sees is the answer it asked for.
+ * The non-transcript frames a subscribe sends after its Snapshot: the Session's Settings, its
+ * discoverable Commands and its context figure. A caller reads all three so the next frame it sees
+ * is the answer it asked for.
  */
 export async function readAttachSurfaces(client: WsSessionClient): Promise<void> {
-  const read = new Set<string>();
-  while (read.size < 2) {
+  const expected = new Set(["settings", "commands", "contextUsage"]);
+  while (expected.size > 0) {
     const message = await client.next();
-    if (message.type === "settings" || message.type === "commands") {
-      read.add(message.type);
+    if (expected.delete(message.type)) {
       continue;
     }
-    throw new Error(`expected settings or commands but received ${message.type}`);
+    throw new Error(`expected an attach surface but received ${message.type}`);
   }
 }

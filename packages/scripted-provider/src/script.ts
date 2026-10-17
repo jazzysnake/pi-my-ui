@@ -17,7 +17,16 @@ export type ScriptExpectation =
       /** Text the whole model context must not contain; the way an excluded command is proven. */
       readonly contextExcludes?: string;
     }
-  | { readonly role: "toolResult"; readonly toolName: string; readonly text?: string };
+  | { readonly role: "toolResult"; readonly toolName: string; readonly text?: string }
+  | {
+      /**
+       * pi's own summarization request. Its text is the conversation pi serialized, which differs
+       * with every Session, so it is matched by the request's shape rather than its whole text.
+       */
+      readonly role: "compaction";
+      /** The extra focus pi was given, when the compaction was asked for with instructions. */
+      readonly customInstructions?: string;
+    };
 
 /** An assistant turn as a session file stores it: content blocks plus how the turn ended. */
 export interface ScriptedReply {
@@ -89,6 +98,15 @@ function parseExpectation(value: unknown, source: string, where: string): Script
       ...(contextExcludes === undefined ? {} : { contextExcludes }),
     };
   }
+  if (role === "compaction") {
+    const customInstructions = record["customInstructions"];
+    if (customInstructions !== undefined && typeof customInstructions !== "string") {
+      fail(source, where, '"customInstructions" must be a string when present');
+    }
+    return customInstructions === undefined
+      ? { role: "compaction" }
+      : { role: "compaction", customInstructions };
+  }
   if (role === "toolResult") {
     const toolName = record["toolName"];
     if (typeof toolName !== "string") {
@@ -102,7 +120,7 @@ function parseExpectation(value: unknown, source: string, where: string): Script
       ? { role: "toolResult", toolName }
       : { role: "toolResult", toolName, text };
   }
-  return fail(source, where, 'expectation "role" must be "user" or "toolResult"');
+  return fail(source, where, 'expectation "role" must be "user", "toolResult" or "compaction"');
 }
 
 function parseBlock(value: unknown, source: string, where: string): ScriptedBlock {

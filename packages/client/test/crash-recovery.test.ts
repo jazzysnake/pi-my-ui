@@ -2,6 +2,7 @@ import { flushSync, mount, type Component } from "svelte";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  EntryKind,
   ProjectionDeltaKind,
   RunStateKind,
   ServerMessageType,
@@ -49,7 +50,14 @@ function runStateDelta(deltas: readonly ProjectionDelta[], fromCursor: number): 
 }
 
 function entryOf(id: string, text: string): ProjectedEntry {
-  return { id, parentId: null, role: "user", timestamp: 0, blocks: [{ type: "text", text }] };
+  return {
+    kind: EntryKind.Message,
+    id,
+    parentId: null,
+    role: "user",
+    timestamp: 0,
+    blocks: [{ type: "text", text }],
+  };
 }
 
 interface Mounted {

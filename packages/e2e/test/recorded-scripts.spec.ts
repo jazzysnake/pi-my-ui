@@ -110,3 +110,58 @@ test("replays a committed recording identically through the scripted provider", 
     await home.dispose();
   }
 });
+
+test("records a compacted Session as a compaction step carrying pi's own summary", () => {
+  // pi stores the summary a compaction produced, so the recorded reply is the model's own words; the
+  // request it answered is bound by the shape of pi's summary call, which a Session file does not hold.
+  const entries = parseSessionEntries(
+    [
+      { type: "session", version: 3, id: "session", timestamp: "2030-01-01T00:00:00.000Z" },
+      {
+        type: "message",
+        id: "u1",
+        parentId: null,
+        timestamp: "2030-01-01T00:00:01.000Z",
+        message: {
+          role: "user",
+          content: [{ type: "text", text: "write a note" }],
+          timestamp: 1,
+        },
+      },
+      {
+        type: "message",
+        id: "a1",
+        parentId: "u1",
+        timestamp: "2030-01-01T00:00:02.000Z",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "The note is written." }],
+          stopReason: "stop",
+          timestamp: 2,
+        },
+      },
+      {
+        type: "compaction",
+        id: "c1",
+        parentId: "a1",
+        timestamp: "2030-01-01T00:00:03.000Z",
+        summary: "The note was written.",
+        firstKeptEntryId: "u1",
+        tokensBefore: 1200,
+      },
+    ]
+      .map((entry) => JSON.stringify(entry))
+      .join("\n"),
+  );
+
+  expect(scriptFromSession(entries, "compacted session")).toEqual([
+    {
+      expect: { role: "user", text: "write a note" },
+      reply: { content: [{ type: "text", text: "The note is written." }], stopReason: "stop" },
+    },
+    {
+      expect: { role: "compaction" },
+      reply: { content: [{ type: "text", text: "The note was written." }], stopReason: "stop" },
+    },
+  ]);
+});

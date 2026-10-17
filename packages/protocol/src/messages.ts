@@ -8,6 +8,7 @@ import type { SessionActivity, StreamingBehavior, ThinkingLevel } from "./consta
 import type { DirectoryEntry } from "./files.js";
 import type {
   CommandInfo,
+  ContextUsage,
   Cursor,
   DeltaBatch,
   ImageAttachment,
@@ -82,6 +83,16 @@ export interface SetAutoCompactionMessage {
   readonly enabled: boolean;
 }
 
+/**
+ * Compact the Session now. `customInstructions` is the text typed after `/compact`, which pi appends
+ * to its summary prompt as extra focus; absent when the user asked for a plain compaction.
+ */
+export interface CompactMessage {
+  readonly type: typeof ClientMessageType.Compact;
+  readonly sessionId: string;
+  readonly customInstructions?: string;
+}
+
 /** Cancel the Session's running turn. */
 export interface AbortMessage {
   readonly type: typeof ClientMessageType.Abort;
@@ -146,6 +157,7 @@ export type ClientMessage =
   | SetModelMessage
   | SetThinkingLevelMessage
   | SetAutoCompactionMessage
+  | CompactMessage
   | ListDirectoryMessage
   | PreviewFileMessage
   | GetSessionStatsMessage
@@ -197,6 +209,17 @@ export interface SettingsMessage {
   readonly thinkingLevel: ThinkingLevel;
   readonly availableThinkingLevels: readonly ThinkingLevel[];
   readonly autoCompactionEnabled: boolean;
+}
+
+/**
+ * One Session's context-window usage as pi measures it. It is read rather than replayed, like the
+ * Settings beside it: pi pushes no event for it, and a reconnect re-reads the current figure instead
+ * of replaying every change it missed. `null` means pi has no figure at all (no model or window).
+ */
+export interface ContextUsageMessage {
+  readonly type: typeof ServerMessageType.ContextUsage;
+  readonly sessionId: string;
+  readonly contextUsage: ContextUsage | null;
 }
 
 /** A typed failure, carrying the code the client branches on. */
@@ -258,6 +281,7 @@ export type ServerMessage =
   | SnapshotMessage
   | DeltaMessage
   | SettingsMessage
+  | ContextUsageMessage
   | ErrorMessage
   | DirectoryListingMessage
   | FilePreviewMessage

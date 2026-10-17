@@ -4,6 +4,7 @@
   import Composer from "./Composer.svelte";
   import AgentPill from "./AgentPill.svelte";
   import ConnectionStatusIndicator from "./ConnectionStatusIndicator.svelte";
+  import ContextUsageMeter from "./ContextUsageMeter.svelte";
   import RunStateRow from "./RunStateRow.svelte";
   import SessionDrawer from "./SessionDrawer.svelte";
   import SessionStatsPanel from "./SessionStatsPanel.svelte";
@@ -24,6 +25,7 @@
     onSetModel = () => undefined,
     onSetThinkingLevel = () => undefined,
     onSetAutoCompaction = () => undefined,
+    onCompact = () => undefined,
     onSetSessionName = () => undefined,
     onGetSessionStats = () => undefined,
     onExportSession = () => undefined,
@@ -47,6 +49,7 @@
     onSetModel?: (provider: string, modelId: string) => void;
     onSetThinkingLevel?: (level: ThinkingLevel) => void;
     onSetAutoCompaction?: (enabled: boolean) => void;
+    onCompact?: (customInstructions?: string) => void;
     onSetSessionName?: (name: string) => void;
     onGetSessionStats?: () => void;
     onExportSession?: () => void;
@@ -115,8 +118,12 @@
       case BuiltinCommand.Export:
         onExportSession();
         return;
-      case BuiltinCommand.Tree:
       case BuiltinCommand.Compact:
+        // pi compacts asynchronously and reports the boundary on its own stream, so this asks and
+        // nothing here reports success.
+        onCompact(args === "" ? undefined : args);
+        return;
+      case BuiltinCommand.Tree:
       case BuiltinCommand.Fork:
       case BuiltinCommand.Clone:
         store.commands.setNotice(notImplementedMessage(command));
@@ -159,7 +166,10 @@
       Files
     </button>
     <AgentPill {store} />
-    <div class="ml-auto">
+    <div class="ml-auto flex min-w-0 items-center gap-2">
+      {#if store.context.usage !== undefined}
+        <ContextUsageMeter usage={store.context.usage} />
+      {/if}
       <ConnectionStatusIndicator {status} />
     </div>
   </header>

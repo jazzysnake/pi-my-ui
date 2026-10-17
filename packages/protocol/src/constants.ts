@@ -13,6 +13,7 @@ export const ClientMessageType = {
   SetModel: "setModel",
   SetThinkingLevel: "setThinkingLevel",
   SetAutoCompaction: "setAutoCompaction",
+  Compact: "compact",
   ListDirectory: "listDirectory",
   PreviewFile: "previewFile",
   GetSessionStats: "getSessionStats",
@@ -31,6 +32,7 @@ export const ServerMessageType = {
   Snapshot: "snapshot",
   Delta: "delta",
   Settings: "settings",
+  ContextUsage: "contextUsage",
   Error: "error",
   DirectoryListing: "directoryListing",
   FilePreview: "filePreview",
@@ -55,6 +57,8 @@ export const ProjectionDeltaKind = {
 export const RunStateKind = {
   Idle: "idle",
   Streaming: "streaming",
+  /** pi is summarizing the conversation into a compaction boundary. */
+  Compacting: "compacting",
   Retrying: "retrying",
   Aborted: "aborted",
   Errored: "errored",
@@ -76,6 +80,16 @@ export const SessionActivity = {
 export type SessionActivity = (typeof SessionActivity)[keyof typeof SessionActivity];
 
 export type ProjectionDeltaKind = (typeof ProjectionDeltaKind)[keyof typeof ProjectionDeltaKind];
+
+/** What kind of row an entry is in the transcript. */
+export const EntryKind = {
+  /** One message, with the role it played. */
+  Message: "message",
+  /** The marker pi's compaction left where history became a summary. */
+  CompactionBoundary: "compactionBoundary",
+} as const;
+
+export type EntryKind = (typeof EntryKind)[keyof typeof EntryKind];
 
 /** The role a projected message plays in a transcript. */
 export const MessageRole = {

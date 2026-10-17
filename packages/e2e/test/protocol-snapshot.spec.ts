@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { startServer, type RunningServer } from "@pi-my-ui/server";
-import type { ProjectedEntry } from "@pi-my-ui/protocol";
+import { EntryKind, type ProjectedEntry } from "@pi-my-ui/protocol";
 import type { Script } from "@pi-my-ui/scripted-provider";
 
 import { seedSession, type FixtureSession } from "../src/fixture-builder";
@@ -50,12 +50,14 @@ async function disposeHarness(harness: Harness): Promise<void> {
   await harness.home.dispose();
 }
 
-/** The plain text of a projected entry, in block order. */
+/** The plain text of a projected message entry, in block order. */
 function entryText(entry: ProjectedEntry): string {
-  return entry.blocks
-    .filter((block) => block.type === "text")
-    .map((block) => block.text)
-    .join("");
+  return entry.kind !== EntryKind.Message
+    ? ""
+    : entry.blocks
+        .filter((block) => block.type === "text")
+        .map((block) => block.text)
+        .join("");
 }
 
 test("a WebSocket client receives a correct Snapshot for a seeded Session", async () => {
@@ -86,8 +88,10 @@ test("a WebSocket client receives a correct Snapshot for a seeded Session", asyn
       message.projection.entries.some((entry) => entryText(entry) === "Seed text block 54."),
     ).toBe(true);
     expect(
-      message.projection.entries.some((entry) =>
-        entry.blocks.some((block) => block.type === "toolCall"),
+      message.projection.entries.some(
+        (entry) =>
+          entry.kind === EntryKind.Message &&
+          entry.blocks.some((block) => block.type === "toolCall"),
       ),
     ).toBe(true);
   } finally {

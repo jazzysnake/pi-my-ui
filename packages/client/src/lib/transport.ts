@@ -71,6 +71,8 @@ export interface Transport {
   setThinkingLevel(level: ThinkingLevel): void;
   /** Turn pi's automatic compaction on or off. Ignored while the link is down. */
   setAutoCompaction(enabled: boolean): void;
+  /** Ask pi to compact the Session, optionally focusing the summary. Ignored while the link is down. */
+  compact(customInstructions?: string): void;
   /** Ask for one Session's statistics. Ignored while the link is down. */
   getSessionStats(): void;
   /** Set the Session's display name in pi. Ignored while the link is down. */
@@ -240,6 +242,15 @@ export function createTransport(options: TransportOptions): Transport {
     },
     setAutoCompaction(enabled) {
       send({ type: ClientMessageType.SetAutoCompaction, sessionId: activeSessionId, enabled });
+    },
+    compact(customInstructions) {
+      send({
+        type: ClientMessageType.Compact,
+        sessionId: activeSessionId,
+        ...(customInstructions === undefined || customInstructions === ""
+          ? {}
+          : { customInstructions }),
+      });
     },
     getSessionStats() {
       send({ type: ClientMessageType.GetSessionStats, sessionId: activeSessionId });

@@ -27,6 +27,7 @@ function snapshotOf(entries: readonly ProjectedEntry[]): SnapshotMessage {
       entries,
       runState: { kind: "idle" },
       subagents: [],
+      subagentTranscripts: [],
     },
   };
 }

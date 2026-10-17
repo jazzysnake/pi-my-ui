@@ -18,6 +18,7 @@ import {
   RunStateKind,
   ToolCallStatus,
   reduceDeltaBatch,
+  sameSubagentAgent,
   type ContentBlock,
   type PiChildExit,
   type ProjectedEntry,
@@ -33,6 +34,7 @@ import { createLiveBash, type LiveBash } from "./live-bash.js";
 import { createLiveCompaction } from "./live-compaction.js";
 import { blocksFromMessage, projectionBatch, roleOf, toolResultOutput } from "./projection.js";
 import { blockEditOf } from "./streaming-blocks.js";
+import { createSubagentTranscripts } from "./subagent-transcripts.js";
 import { workflowRunsFromEntries } from "./workflow-runs.js";
 import { createLiveWorkflow } from "./live-workflow.js";
 
@@ -44,22 +46,6 @@ type AgentEndEvent = Extract<JsonAgentSessionEvent, { readonly type: "agent_end"
 
 const IDLE_RUN_STATE: RunState = { kind: RunStateKind.Idle };
 
-/**
- * Whether two reports describe the same agent state. A repeat carries news only when a field the row
- * shows has moved, so an unchanged re-report is dropped rather than re-published to every browser.
- */
-function sameAgent(left: SubagentAgent, right: SubagentAgent): boolean {
-  return (
-    left.id === right.id &&
-    left.handle === right.handle &&
-    left.type === right.type &&
-    left.status === right.status &&
-    left.runKind === right.runKind &&
-    left.startedAt === right.startedAt &&
-    left.finishedAt === right.finishedAt
-  );
-}
-
 export interface SessionProjectionMachine {
   readonly projection: SessionProjection;
   /** The live `!`/`!!` card; its deltas are applied through the same reducer as any other. */
@@ -69,6 +55,8 @@ export interface SessionProjectionMachine {
   applyEvent(event: JsonAgentSessionEvent): readonly ProjectionDelta[];
   /** Apply one subagent record from the bridge; a repeat of the same state is not re-published. */
   applySubagent(agent: SubagentAgent): readonly ProjectionDelta[];
+  /** Apply one event from an agent's own session; that agent's conversation is part of this one. */
+  applySubagentEvent(agentId: string, event: JsonAgentSessionEvent): readonly ProjectionDelta[];
   markAborted(): readonly ProjectionDelta[];
   /** The Session's Pi child is gone; nothing it was doing is still going on. */
   markCrashed(exit: PiChildExit): readonly ProjectionDelta[];
@@ -85,10 +73,15 @@ export function createSessionProjectionMachine(
     entries: [],
     runState: IDLE_RUN_STATE,
     subagents: [],
+    subagentTranscripts: [],
   };
   let streamingEntryId: string | null = null;
   let pendingId = 0;
   let abortRequested = false;
+
+  const agentTranscripts = createSubagentTranscripts((agentId) =>
+    createSessionProjectionMachine(agentId, cwd),
+  );
 
   const compaction = createLiveCompaction({
     nextId,
@@ -152,7 +145,7 @@ export function createSessionProjectionMachine(
 
   function subagentDeltas(agent: SubagentAgent): readonly ProjectionDelta[] {
     const existing = projection.subagents.find((candidate) => candidate.id === agent.id);
-    if (existing !== undefined && sameAgent(existing, agent)) {
+    if (existing !== undefined && sameSubagentAgent(existing, agent)) {
       return [];
     }
     return [{ kind: ProjectionDeltaKind.SubagentUpsert, agent }];
@@ -380,14 +373,19 @@ export function createSessionProjectionMachine(
           entries: [],
           runState: IDLE_RUN_STATE,
           subagents: [...live, ...workflowRunsFromEntries(entries)],
+          subagentTranscripts: [],
         },
         batch,
       );
       streamingEntryId = null;
+      agentTranscripts.forgetAll();
       compaction.reset();
       return batch.cursor;
     },
     applySubagent,
+    applySubagentEvent(agentId, event) {
+      return emit(agentTranscripts.apply(agentId, event));
+    },
     applyEvent(event) {
       switch (event.type) {
         case "agent_start":

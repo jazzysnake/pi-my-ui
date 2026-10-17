@@ -59,3 +59,19 @@ export interface SubagentAgent {
   /** When the run settled; absent while it is still going. */
   readonly finishedAt?: number;
 }
+
+/**
+ * Whether two reports describe the same agent state. A repeat carries news only when a field a row
+ * shows has moved, so an unchanged re-report is dropped rather than published to every browser.
+ */
+export function sameSubagentAgent(left: SubagentAgent, right: SubagentAgent): boolean {
+  return (
+    left.id === right.id &&
+    left.handle === right.handle &&
+    left.type === right.type &&
+    left.status === right.status &&
+    left.runKind === right.runKind &&
+    left.startedAt === right.startedAt &&
+    left.finishedAt === right.finishedAt
+  );
+}

@@ -27,12 +27,12 @@ import {
   type SettingsMessage,
   type SnapshotMessage,
   type StreamingBehavior,
-  type SubagentAgent,
   type ThinkingLevel,
 } from "@pi-my-ui/protocol";
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 
 import type { ServerClock } from "./clock.js";
+import { attachBridgeEvents, type BridgeSubscriptions } from "./bridge/events.js";
 import { createDeltaHistory } from "./delta-history.js";
 import type { PiChildLaunch, PiSessionTarget, PiSettings } from "./pi-child.js";
 import { createSessionChild, type SessionChild } from "./session-child.js";
@@ -100,10 +100,8 @@ export interface SessionHost {
 }
 
 /** The bridge a Session's Pi child must connect before the Session is served. */
-export interface BridgeGate {
+export interface BridgeGate extends BridgeSubscriptions {
   waitForSession(sessionId: string): Promise<void>;
-  /** Subscribe to the agent records the child's bridge sends; returns an unsubscribe. */
-  onAgent(listener: (sessionId: string, agent: SubagentAgent) => void): () => void;
 }
 
 export interface SessionHostOptions {
@@ -254,16 +252,14 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
   }
 
   /**
-   * Agent records arrive on the bridge, not pi's RPC. They are applied to the Projection even before
-   * the transcript is seeded, so a bridge record that beats pi's first read still reaches the
-   * Snapshot; publishing waits for seeding so no viewer receives a Delta against a Projection it
-   * has not been sent.
+   * Agent records and their conversations arrive on the bridge, not pi's RPC. They are applied even
+   * before the transcript is seeded, so a record that beats pi's first read still reaches the
+   * Snapshot; publishing waits for seeding so no viewer receives a Delta against a Projection it has
+   * not been sent.
    */
-  const unsubscribeAgents = options.bridge.onAgent((sessionId, agent) => {
-    if (sessionId !== options.sessionId) {
-      return;
-    }
-    publish(machine.applySubagent(agent));
+  const detachBridge = attachBridgeEvents(options.bridge, options.sessionId, {
+    applyAgent: (agent) => publish(machine.applySubagent(agent)),
+    applyTranscript: (agentId, event) => publish(machine.applySubagentEvent(agentId, event)),
   });
 
   async function doSeed(): Promise<void> {
@@ -539,7 +535,7 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       await restart();
     },
     async close() {
-      unsubscribeAgents();
+      detachBridge();
       viewers.clear();
       await child.stop();
     },

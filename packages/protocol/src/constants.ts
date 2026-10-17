@@ -60,6 +60,8 @@ export const ProjectionDeltaKind = {
   LeafChanged: "leafChanged",
   RunState: "runState",
   SubagentUpsert: "subagentUpsert",
+  SubagentEntryUpsert: "subagentEntryUpsert",
+  SubagentEntryRemoved: "subagentEntryRemoved",
 } as const;
 
 /** The states a Session's run can be in, as the transcript shows them. */

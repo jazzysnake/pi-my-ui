@@ -160,13 +160,30 @@ export interface CompactionBoundaryEntry {
 /** One row of a transcript: a message, or a compaction boundary. */
 export type ProjectedEntry = ProjectedMessageEntry | CompactionBoundaryEntry;
 
+/** One agent's own conversation: an agent writes to its own session file, never the Session's. */
+export interface SubagentTranscript {
+  readonly agentId: string;
+  readonly entries: readonly ProjectedEntry[];
+}
+
 /** One ordered change to a {@link SessionProjection}. */
 export type ProjectionDelta =
   | { readonly kind: typeof ProjectionDeltaKind.EntryUpsert; readonly entry: ProjectedEntry }
   | { readonly kind: typeof ProjectionDeltaKind.EntryRemoved; readonly entryId: string }
   | { readonly kind: typeof ProjectionDeltaKind.LeafChanged; readonly leafId: string | null }
   | { readonly kind: typeof ProjectionDeltaKind.RunState; readonly runState: RunState }
-  | { readonly kind: typeof ProjectionDeltaKind.SubagentUpsert; readonly agent: SubagentAgent };
+  | { readonly kind: typeof ProjectionDeltaKind.SubagentUpsert; readonly agent: SubagentAgent }
+  | {
+      readonly kind: typeof ProjectionDeltaKind.SubagentEntryUpsert;
+      /** The agent whose conversation the entry belongs to. */
+      readonly agentId: string;
+      readonly entry: ProjectedEntry;
+    }
+  | {
+      readonly kind: typeof ProjectionDeltaKind.SubagentEntryRemoved;
+      readonly agentId: string;
+      readonly entryId: string;
+    };
 
 /**
  * How a Pi child ended when it exited unexpectedly. A signal is reported for a child that was
@@ -237,4 +254,9 @@ export interface SessionProjection {
   readonly runState: RunState;
   /** The agents this Session started, in the order pi reported them; empty when none ran. */
   readonly subagents: readonly SubagentAgent[];
+  /**
+   * The conversation of every agent whose events this server received, in the order the agents first
+   * reported one; empty when no agent ran or none was observed live.
+   */
+  readonly subagentTranscripts: readonly SubagentTranscript[];
 }

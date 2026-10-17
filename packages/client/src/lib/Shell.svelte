@@ -79,6 +79,16 @@
   /** The composer's draft, so the message tree can hand one of the user's messages back to it. */
   let composerText = $state("");
 
+  /**
+   * The rows the transcript draws: the Session's own conversation, or the focused agent's. Both are
+   * the same view fed a different Projection slice, so reading either one works the same way.
+   */
+  const shownEntries = $derived(
+    store.subagents.focusedAgentId === null
+      ? store.transcript.entries
+      : store.subagents.transcriptOf(store.subagents.focusedAgentId),
+  );
+
   // A confirmed Leaf move on one of the user's own messages returns its text here, which is what
   // makes it editable and resubmittable instead of merely read.
   $effect(() => {
@@ -219,7 +229,7 @@
       <ConnectionStatusIndicator {status} />
     </div>
   </header>
-  <Transcript entries={store.transcript.entries} />
+  <Transcript entries={shownEntries} />
   <RunStateRow
     runState={store.transcript.runState}
     starting={store.transcript.starting}

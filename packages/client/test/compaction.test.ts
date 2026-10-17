@@ -55,6 +55,7 @@ function snapshotOf(entries: readonly ProjectedEntry[]): SnapshotMessage {
       entries,
       runState: { kind: RunStateKind.Idle },
       subagents: [],
+      subagentTranscripts: [],
     },
   };
 }

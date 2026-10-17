@@ -34,6 +34,7 @@ export function snapshotOf(entries: readonly ProjectedEntry[]): SnapshotMessage 
       entries,
       runState: IDLE,
       subagents: [],
+      subagentTranscripts: [],
     },
   };
 }

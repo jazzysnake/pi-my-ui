@@ -45,6 +45,7 @@ function snapshotOf(sessionId: string, entries: readonly ProjectedEntry[]): Serv
       entries,
       runState: { kind: IDLE },
       subagents: [],
+      subagentTranscripts: [],
     },
   };
 }

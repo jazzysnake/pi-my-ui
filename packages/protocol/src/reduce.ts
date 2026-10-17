@@ -4,7 +4,13 @@
  */
 
 import { ProjectionDeltaKind } from "./constants.js";
-import type { DeltaBatch, ProjectedEntry, ProjectionDelta, SessionProjection } from "./model.js";
+import type {
+  DeltaBatch,
+  ProjectedEntry,
+  ProjectionDelta,
+  SessionProjection,
+  SubagentTranscript,
+} from "./model.js";
 import type { SubagentAgent } from "./subagents.js";
 
 /** Replace the entry with the same id, or append it. Idempotent by entry id. */
@@ -31,6 +37,32 @@ function upsertSubagent(
   return agents.map((existing, position) => (position === index ? agent : existing));
 }
 
+/** Change one agent's conversation, leaving every other agent's untouched. */
+function mapTranscript(
+  transcripts: readonly SubagentTranscript[],
+  agentId: string,
+  change: (entries: readonly ProjectedEntry[]) => readonly ProjectedEntry[],
+): readonly SubagentTranscript[] {
+  return transcripts.map((transcript) =>
+    transcript.agentId === agentId
+      ? { ...transcript, entries: change(transcript.entries) }
+      : transcript,
+  );
+}
+
+/** Append an entry to an agent's conversation, opening that conversation on its first entry. */
+function upsertTranscriptEntry(
+  transcripts: readonly SubagentTranscript[],
+  agentId: string,
+  entry: ProjectedEntry,
+): readonly SubagentTranscript[] {
+  const existing = transcripts.some((transcript) => transcript.agentId === agentId);
+  if (!existing) {
+    return [...transcripts, { agentId, entries: [entry] }];
+  }
+  return mapTranscript(transcripts, agentId, (entries) => upsertEntry(entries, entry));
+}
+
 /** Apply one Delta. Exhaustive over {@link ProjectionDeltaKind}; the compiler enforces it. */
 export function applyDelta(
   projection: SessionProjection,
@@ -50,6 +82,24 @@ export function applyDelta(
       return { ...projection, runState: delta.runState };
     case ProjectionDeltaKind.SubagentUpsert:
       return { ...projection, subagents: upsertSubagent(projection.subagents, delta.agent) };
+    case ProjectionDeltaKind.SubagentEntryUpsert:
+      return {
+        ...projection,
+        subagentTranscripts: upsertTranscriptEntry(
+          projection.subagentTranscripts,
+          delta.agentId,
+          delta.entry,
+        ),
+      };
+    case ProjectionDeltaKind.SubagentEntryRemoved:
+      return {
+        ...projection,
+        subagentTranscripts: mapTranscript(
+          projection.subagentTranscripts,
+          delta.agentId,
+          (entries) => entries.filter((entry) => entry.id !== delta.entryId),
+        ),
+      };
   }
 }
 

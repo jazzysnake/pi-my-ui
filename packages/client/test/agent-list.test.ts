@@ -40,6 +40,7 @@ function snapshotOf(subagents: readonly SubagentAgent[]): SnapshotMessage {
       ],
       runState: { kind: "idle" },
       subagents,
+      subagentTranscripts: [],
     },
   };
 }

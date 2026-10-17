@@ -72,6 +72,56 @@ export function subagentManager(): SubagentManager | undefined {
   };
 }
 
+/** The live session a running agent's own conversation streams from. */
+export interface SubagentLiveSession {
+  readonly messages: readonly unknown[];
+  subscribe(listener: (event: unknown) => void): () => void;
+}
+
+/**
+ * One agent's live session, when pi-subagents has created it. `record.session` is assigned inside the
+ * run, after the lifecycle events that name the agent, so absence is normal and temporary rather
+ * than an agent without a conversation.
+ */
+export function liveSessionOf(
+  manager: SubagentManager | undefined,
+  id: string,
+  log: (line: string) => void,
+): SubagentLiveSession | undefined {
+  if (manager === undefined) {
+    return undefined;
+  }
+  let record: unknown;
+  try {
+    record = manager.getRecord(id);
+  } catch (error) {
+    log(`${BRIDGE_LOG_SCOPE} reading the record for ${id} failed: ${errorText(error)}`);
+    return undefined;
+  }
+  return isRecord(record) ? narrowLiveSession(record["session"]) : undefined;
+}
+
+function narrowLiveSession(value: unknown): SubagentLiveSession | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const subscribe = value["subscribe"];
+  const messages = value["messages"];
+  if (typeof subscribe !== "function" || !Array.isArray(messages)) {
+    return undefined;
+  }
+  return {
+    messages,
+    subscribe: (listener: (event: unknown) => void): (() => void) => {
+      const stop: unknown = (subscribe as (l: (event: unknown) => void) => unknown).call(
+        value,
+        listener,
+      );
+      return typeof stop === "function" ? (stop as () => void) : () => undefined;
+    },
+  };
+}
+
 /** The record fields the bridge reads; the handle is not on any lifecycle event. */
 interface ManagerRecord {
   readonly handle: string | undefined;

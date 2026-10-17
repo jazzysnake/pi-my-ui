@@ -35,6 +35,7 @@ export function snapshotOf(
       entries,
       runState,
       subagents: [],
+      subagentTranscripts: [],
     },
   };
 }

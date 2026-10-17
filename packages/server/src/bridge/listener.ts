@@ -20,11 +20,12 @@ import {
   encodeBridgeRecord,
   parseBridgeAgent,
   parseBridgeHello,
+  parseBridgeTranscript,
   subagentAgentFromBridge,
-  type BridgeAgentRecord,
   type BridgeErrorInfo,
   type SubagentAgent,
 } from "@pi-my-ui/protocol";
+import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 
 import { BridgeConfigurationError, BridgeConnectionError, errorText } from "./errors.js";
 import { bindAndSecureSocket, removeBridgeSocket } from "./socket.js";
@@ -42,6 +43,16 @@ export const DEFAULT_BRIDGE_CONNECT_TIMEOUT_MS = 10_000;
 /** A subscriber to the agent records a child's bridge sends, keyed by the child's Session. */
 export type BridgeAgentListener = (sessionId: string, agent: SubagentAgent) => void;
 
+/**
+ * A subscriber to a running agent's own conversation events. They are pi's session events, carried
+ * across the wire opaquely so the server can reduce them with its one projection machine.
+ */
+export type BridgeTranscriptListener = (
+  sessionId: string,
+  agentId: string,
+  event: JsonAgentSessionEvent,
+) => void;
+
 /** Start a Session's child, then wait on this before serving the Session. */
 export interface BridgeListener {
   readonly socketPath: string;
@@ -49,6 +60,8 @@ export interface BridgeListener {
   waitForSession(sessionId: string): Promise<void>;
   /** Subscribe to subagent records; returns an unsubscribe. */
   onAgent(listener: BridgeAgentListener): () => void;
+  /** Subscribe to subagent conversation events; returns an unsubscribe. */
+  onTranscript(listener: BridgeTranscriptListener): () => void;
   /** Stop accepting, drop connections, and remove the socket. Idempotent. */
   close(): Promise<void>;
 }
@@ -97,6 +110,7 @@ export async function startBridgeListener(options: BridgeListenerOptions): Promi
   const liveConnections = new Map<string, Socket>();
   const connections = new Set<Connection>();
   const agentListeners = new Set<BridgeAgentListener>();
+  const transcriptListeners = new Set<BridgeTranscriptListener>();
   let closed = false;
 
   const failWait = (sessionId: string, message: string): void => {
@@ -157,6 +171,35 @@ export async function startBridgeListener(options: BridgeListenerOptions): Promi
     }
   };
 
+  /** One record's `type`, for a peer whose frame is not yet parsed. */
+  function recordTypeOf(value: unknown): unknown {
+    return typeof value === "object" && value !== null
+      ? (value as Readonly<Record<string, unknown>>)["type"]
+      : undefined;
+  }
+
+  /**
+   * Parse one post-handshake record, or drop the connection: a peer that sends a bad frame is not
+   * speaking this wire, and every later frame from it is equally unreliable.
+   */
+  function parseOrDrop<T>(
+    connection: Connection,
+    sessionId: string,
+    parse: (record: unknown) => T,
+    value: unknown,
+  ): T | undefined {
+    try {
+      return parse(value);
+    } catch (error) {
+      log(
+        `bridge: dropping session ${quoted(sessionId)} after a bad record: ` +
+          (error instanceof BridgeProtocolError ? error.message : errorText(error)),
+      );
+      connection.socket.destroy();
+      return undefined;
+    }
+  }
+
   const handleLine = (connection: Connection, line: string): void => {
     let value: unknown;
     try {
@@ -183,19 +226,22 @@ export async function startBridgeListener(options: BridgeListenerOptions): Promi
       return;
     }
     const sessionId = connection.sessionId;
-    let agent: BridgeAgentRecord;
-    try {
-      agent = parseBridgeAgent(value);
-    } catch (error) {
-      log(
-        `bridge: dropping session ${quoted(sessionId)} after a bad record: ` +
-          (error instanceof BridgeProtocolError ? error.message : errorText(error)),
-      );
-      connection.socket.destroy();
+    if (recordTypeOf(value) === BridgeRecordType.Transcript) {
+      const transcript = parseOrDrop(connection, sessionId, parseBridgeTranscript, value);
+      // Records for a Session this server no longer serves have no Projection to advance.
+      if (transcript === undefined || !known.has(sessionId)) {
+        return;
+      }
+      // The bridge forwards pi's own session events and the protocol carries them opaquely, so this
+      // is the one place their pi shape is named.
+      const event = transcript.event as unknown as JsonAgentSessionEvent;
+      for (const listener of transcriptListeners) {
+        listener(sessionId, transcript.agentId, event);
+      }
       return;
     }
-    // Records for a Session this server no longer serves have no Projection to advance.
-    if (!known.has(sessionId)) {
+    const agent = parseOrDrop(connection, sessionId, parseBridgeAgent, value);
+    if (agent === undefined || !known.has(sessionId)) {
       return;
     }
     for (const listener of agentListeners) {
@@ -304,12 +350,19 @@ export async function startBridgeListener(options: BridgeListenerOptions): Promi
         agentListeners.delete(listener);
       };
     },
+    onTranscript(listener: BridgeTranscriptListener): () => void {
+      transcriptListeners.add(listener);
+      return () => {
+        transcriptListeners.delete(listener);
+      };
+    },
     async close(): Promise<void> {
       if (closed) {
         return;
       }
       closed = true;
       agentListeners.clear();
+      transcriptListeners.clear();
       for (const sessionId of [...pendingWaits.keys()]) {
         failWait(sessionId, "the bridge listener stopped before the handshake");
       }

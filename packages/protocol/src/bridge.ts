@@ -21,6 +21,7 @@ export const BridgeRecordType = {
   Hello: "hello",
   HelloAck: "helloAck",
   Agent: "agent",
+  Transcript: "transcript",
 } as const;
 
 export type BridgeRecordType = (typeof BridgeRecordType)[keyof typeof BridgeRecordType];
@@ -75,7 +76,7 @@ export interface BridgeHelloAckRecord {
 }
 
 /** Every record a child's bridge sends. */
-export type BridgeChildRecord = BridgeHelloRecord | BridgeAgentRecord;
+export type BridgeChildRecord = BridgeHelloRecord | BridgeAgentRecord | BridgeTranscriptRecord;
 
 /** Every record the server sends. */
 export type BridgeServerRecord = BridgeHelloAckRecord;
@@ -211,6 +212,83 @@ export function parseBridgeAgent(value: unknown): BridgeAgentRecord {
 
 /** The run kind every record on this wire is: the bridge observes agents, never workflow runs. */
 export const BRIDGE_AGENT_RUN_KIND = SubagentRunKind.Agent;
+
+/**
+ * The events of an agent's own session that carry its conversation. The transcript is built from
+ * whole messages and the pieces between them; every other event an `AgentSession` emits is about a
+ * run, and a subagent's run state reaches the Projection as an agent record instead.
+ */
+export const SUBAGENT_TRANSCRIPT_EVENT_TYPES = [
+  "message_start",
+  "message_update",
+  "message_end",
+] as const;
+
+/**
+ * One event from a running subagent's conversation. The payload is pi's own session event, carried
+ * opaquely: the protocol describes this wire, and pi's message shapes are not its to restate. The
+ * server reduces the event with the same code it reduces the Session's own events with.
+ */
+export interface BridgeTranscriptRecord {
+  readonly type: typeof BridgeRecordType.Transcript;
+  readonly agentId: string;
+  readonly event: Readonly<Record<string, unknown>>;
+}
+
+/** The exported tuple, typed for a lookup: a wire value is a `string`, not a literal union. */
+const TRANSCRIPT_EVENT_TYPES: readonly string[] = SUBAGENT_TRANSCRIPT_EVENT_TYPES;
+
+/**
+ * A message must be an object the projection can read: it switches on `role` and iterates `content`.
+ * A record that says the transcript carries a message but sends something else is refused here, where
+ * the peer can be told, rather than throwing deep inside a projection.
+ */
+function requireMessage(value: unknown): void {
+  const message = asRecord(value);
+  const role = message["role"];
+  if (typeof role !== "string" || role === "") {
+    malformed('"event.message.role" must be a non-empty string');
+  }
+  const content = message["content"];
+  if (content !== undefined && typeof content !== "string" && !Array.isArray(content)) {
+    malformed('"event.message.content" must be a string or an array when present');
+  }
+}
+
+/** A streaming update must describe a block the projection can place, and a call it can attach. */
+function requireUpdate(value: unknown): void {
+  const update = asRecord(value);
+  const type = update["type"];
+  if (typeof type !== "string" || type === "") {
+    malformed('"event.assistantMessageEvent.type" must be a non-empty string');
+  }
+  if (type === "toolcall_end") {
+    asRecord(update["toolCall"]);
+  }
+}
+
+/** Parse one post-handshake transcript record. */
+export function parseBridgeTranscript(value: unknown): BridgeTranscriptRecord {
+  const record = asRecord(value);
+  if (record["type"] !== BridgeRecordType.Transcript) {
+    malformed(`expected a ${BridgeRecordType.Transcript} record`);
+  }
+  const agentId = record["agentId"];
+  if (typeof agentId !== "string" || agentId === "") {
+    malformed('"agentId" must be a non-empty string');
+  }
+  const event = asRecord(record["event"]);
+  const eventType = event["type"];
+  if (typeof eventType !== "string" || !TRANSCRIPT_EVENT_TYPES.includes(eventType)) {
+    malformed(`"event.type" must be one of ${TRANSCRIPT_EVENT_TYPES.join(", ")}`);
+  }
+  if (eventType === "message_update") {
+    requireUpdate(event["assistantMessageEvent"]);
+  } else {
+    requireMessage(event["message"]);
+  }
+  return { type: BridgeRecordType.Transcript, agentId, event };
+}
 
 /**
  * The Projection row for one bridge record: an agent, never a workflow run, because the bridge only

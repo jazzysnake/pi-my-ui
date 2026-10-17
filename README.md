@@ -18,8 +18,8 @@ until you deliberately bind beyond loopback and allow your browser's origin.
   [Caddy + Tailscale guide](docs/deploy/caddy.md).
 - **Chromium** for the browser tests: `npx playwright install chromium`.
 
-`npm run verify` needs no model credentials and never touches your real `~/.pi`: the test suite
-runs real pi in a hermetic home with a scripted model provider.
+Both gates need no model credentials and never touch your real `~/.pi`: the test suite runs real pi
+in a hermetic home with a scripted model provider.
 
 ## Install and build
 
@@ -98,29 +98,33 @@ pass `--allowed-origin`, add the exact dev origin you open (for example
 
 ## Commands
 
-| Command                      | What it does                                                                                                                                              |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run verify`             | **The gate.** Typecheck (tests included) → lint, hygiene and fixture checks → format check → store and component tests → build → sharded end-to-end suite |
-| `npm run typecheck`          | Build the protocol package, then typecheck every workspace including tests                                                                                |
-| `npm run lint`               | ESLint, the comment hygiene check and the fixture check                                                                                                   |
-| `npm run format`             | Prettier write                                                                                                                                            |
-| `npm run format:check`       | Prettier check (non-mutating)                                                                                                                             |
-| `npm run test`               | Store and component tests                                                                                                                                 |
-| `npm run build`              | Build every workspace                                                                                                                                     |
-| `npm run test:e2e`           | The whole Playwright suite in one process                                                                                                                 |
-| `npm run test:e2e:sharded`   | The same suite as concurrent shards; fails if a shard fails or a test is unaccounted for                                                                  |
-| `npm run test:smoke`         | Opt-in: record one real-provider run and replay it through the scripted provider                                                                          |
-| `npm run measure:pool`       | Measure the pool's resident memory and eviction behaviour                                                                                                 |
-| `npm run rerecord -- <name>` | Re-record one scripted-provider script from a real provider run                                                                                           |
+| Command                      | What it does                                                                                                                                                             |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `npm run verify`             | **The fast gate.** Typecheck (tests included) → lint, hygiene, e2e style and fixture checks → format check → store and component tests → build. Stops before end-to-end. |
+| `npm run verify:full`        | The fast gate plus the sharded end-to-end suite.                                                                                                                         |
+| `npm run typecheck`          | Build the protocol package, then typecheck every workspace including tests                                                                                               |
+| `npm run lint`               | ESLint, the comment hygiene, e2e style and fixture checks                                                                                                                |
+| `npm run format`             | Prettier write                                                                                                                                                           |
+| `npm run format:check`       | Prettier check (non-mutating)                                                                                                                                            |
+| `npm run test`               | Store and component tests                                                                                                                                                |
+| `npm run build`              | Build every workspace                                                                                                                                                    |
+| `npm run test:e2e`           | The whole Playwright suite in one process                                                                                                                                |
+| `npm run test:e2e:sharded`   | The same suite as concurrent shards; fails if a shard fails or a test is unaccounted for                                                                                 |
+| `npm run test:smoke`         | Opt-in: record one real-provider run and replay it through the scripted provider                                                                                         |
+| `npm run measure:pool`       | Measure the pool's resident memory and eviction behaviour                                                                                                                |
+| `npm run rerecord -- <name>` | Re-record one scripted-provider script from a real provider run                                                                                                          |
 
 The browser commands need a build first (`npm run build`) and a one-time
 `npx playwright install chromium`.
 
-### What the gate covers
+### What the gates cover
+
+`npm run verify` stops after the build. `npm run verify:full` adds the end-to-end suite.
 
 - **Typecheck** covers tests as well as source.
 - **Lint** includes `scripts/hygiene-check.mjs`, which fails on a ticket id or a date in a source
-  comment, and warns on a file over 400 code lines or a high comment ratio.
+  comment, and warns on a file over 400 code lines or a high comment ratio. It also includes
+  `scripts/e2e-style-check.mjs`, which rejects raw theme colours in e2e specs.
 - **Store and component tests** feed `ServerMessage` values straight into the client store and
   assert on rendered output. They never open a socket and never touch a store internal.
 - **End-to-end tests** run a real browser against real pi, in a hermetic home per test, with the
@@ -131,7 +135,7 @@ The browser commands need a build first (`npm run build`) and a one-time
 
 The suite does not need model credentials. The opt-in smoke test is the only test that does:
 `npm run test:smoke` skips loudly unless `ANTHROPIC_API_KEY` (or the chosen provider's variable) is
-set, and it never runs as part of `verify`.
+set, and it never runs as part of either gate.
 
 ## Documentation
 

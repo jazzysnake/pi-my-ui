@@ -1,12 +1,15 @@
 import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { expect, test } from "@playwright/test";
 
 const HYGIENE_CHECK = fileURLToPath(new URL("../../../scripts/hygiene-check.mjs", import.meta.url));
+const E2E_STYLE_CHECK = fileURLToPath(
+  new URL("../../../scripts/e2e-style-check.mjs", import.meta.url),
+);
 const FIXTURE_CHECK = fileURLToPath(new URL("../../../scripts/fixture-check.mjs", import.meta.url));
 
 function run(script: string, args: readonly string[]) {
@@ -39,6 +42,26 @@ test("the hygiene gate fails on a ticket or story reference and allows a decisio
     await writeSource(root, "// See ADR 0003 for the decision this encodes.");
     const decision = run(HYGIENE_CHECK, ["--root", root]);
     expect(decision.status).toBe(0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("the e2e style gate rejects a raw theme colour literal", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-my-ui-e2e-style-"));
+  const spec = join(root, "packages", "e2e", "test", "example.spec.ts");
+  try {
+    await mkdir(dirname(spec), { recursive: true });
+    // Built from pieces so this fixture does not trip the check that reads this directory.
+    const rawColor = ["rgb", "(1, 2, 3)"].join("");
+    await writeFile(spec, `const colour = "${rawColor}";\n`, "utf8");
+    const failed = run(E2E_STYLE_CHECK, ["--root", root]);
+    expect(failed.status).toBe(1);
+    expect(failed.stderr).toContain("raw theme colour");
+
+    await writeFile(spec, 'const colour = themeColor(page, "--color-danger");\n', "utf8");
+    const clean = run(E2E_STYLE_CHECK, ["--root", root]);
+    expect(clean.status).toBe(0);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

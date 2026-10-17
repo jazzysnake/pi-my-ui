@@ -11,11 +11,11 @@
 // every other shard's (see `createPortNamespace` in packages/e2e/src/pi-harness.ts): the kernel
 // never hands two live probes the same port.
 //
-// Usage: node scripts/test-e2e-sharded.mjs [--shards N]
+// Usage: node scripts/test-e2e-sharded.mjs [--shards N] [--workers N]
 
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { availableParallelism, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -35,6 +35,13 @@ const PLAYWRIGHT_BIN = join(
  */
 const DEFAULT_SHARDS = 2;
 const SHARDS_ENV_VAR = "PI_MY_UI_E2E_SHARDS";
+const WORKERS_ENV_VAR = "PI_MY_UI_E2E_WORKERS";
+/**
+ * Each shard's worker pool is capped so two shards leave cores for the host and for any concurrent
+ * agent work. A full default Playwright pool per shard fills a 16-core box and makes the
+ * timing-sensitive streaming specs fail under load rather than on behaviour.
+ */
+const MAX_WORKERS_PER_SHARD = 4;
 /** The product promise for the whole run, so a run above it fails the gate rather than warning. */
 const WALL_BUDGET_MS = 60_000;
 
@@ -57,6 +64,27 @@ function parseShardCount(argv) {
   const count = Number(raw);
   if (!Number.isInteger(count) || count < 1) {
     throw new E2eShardError(`--shards must be a positive integer, got ${JSON.stringify(raw)}`);
+  }
+  return count;
+}
+
+function defaultWorkerCount(shardCount) {
+  const share = Math.floor(availableParallelism() / shardCount);
+  return Math.max(1, Math.min(MAX_WORKERS_PER_SHARD, share));
+}
+
+function parseWorkerCount(argv, shardCount) {
+  const flagIndex = argv.indexOf("--workers");
+  if (flagIndex !== -1 && argv[flagIndex + 1] === undefined) {
+    throw new E2eShardError("--workers needs a value");
+  }
+  const raw = flagIndex === -1 ? process.env[WORKERS_ENV_VAR] : argv[flagIndex + 1];
+  if (raw === undefined || raw === "") {
+    return defaultWorkerCount(shardCount);
+  }
+  const count = Number(raw);
+  if (!Number.isInteger(count) || count < 1) {
+    throw new E2eShardError(`--workers must be a positive integer, got ${JSON.stringify(raw)}`);
   }
   return count;
 }
@@ -134,7 +162,7 @@ async function discoverSuite() {
   return collectFromReport(parseReport(result.stdout, "the discovery run"), "the discovery run");
 }
 
-async function runShard(index, total, reportDir) {
+async function runShard(index, total, workers, reportDir) {
   const reportPath = join(reportDir, `shard-${String(index)}.json`);
   const result = await runPlaywright(
     [
@@ -142,6 +170,7 @@ async function runShard(index, total, reportDir) {
       "--config",
       CONFIG_PATH,
       `--shard=${String(index)}/${String(total)}`,
+      `--workers=${String(workers)}`,
       "--reporter=list,json",
     ],
     { env: { PLAYWRIGHT_JSON_OUTPUT_FILE: reportPath } },
@@ -229,6 +258,7 @@ function reportSummary(shards, expectedCount, elapsedMs) {
 
 async function main() {
   const shardCount = parseShardCount(process.argv.slice(2));
+  const workerCount = parseWorkerCount(process.argv.slice(2), shardCount);
   const startedAt = Date.now();
   const reportDir = await mkdtemp(join(tmpdir(), "pi-my-ui-shards-"));
 
@@ -236,12 +266,12 @@ async function main() {
     const expected = await discoverSuite();
     console.log(
       `[e2e-shards] discovered ${String(expected.length)} test(s); ` +
-        `running ${String(shardCount)} shard(s)`,
+        `running ${String(shardCount)} shard(s) with ${String(workerCount)} worker(s) each`,
     );
 
     const results = await Promise.all(
       Array.from({ length: shardCount }, (_, offset) =>
-        runShard(offset + 1, shardCount, reportDir),
+        runShard(offset + 1, shardCount, workerCount, reportDir),
       ),
     );
 

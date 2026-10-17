@@ -1,7 +1,7 @@
 // The evidence behind the pool's idle-eviction defaults: what one Pi child costs to keep, to stream
 // through and to run a subagent in, and what it costs to start one again.
 //
-// This is an instrument, not a gate. It is outside `npm run verify` because its numbers belong to the
+// This is an instrument, not a gate. It is outside `npm run verify:full` because its numbers belong to the
 // machine it runs on, and the recorded results in `docs/measurements.md` name that machine. Run it
 // with `npm run measure:pool`, after `npm run build`.
 

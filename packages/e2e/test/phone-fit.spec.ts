@@ -5,6 +5,7 @@ import type { Script } from "@pi-my-ui/scripted-provider";
 
 import { startClientPageServer, type ClientPageServer } from "../src/client-page-server";
 import { expectComposerSend } from "../src/composer-send";
+import { PALETTE } from "../src/palette";
 import { seedSession, type FixtureSession, type SeedName } from "../src/fixture-builder";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 
@@ -100,8 +101,8 @@ test("the shell is drawn in the console theme: palette, monospace type and compo
         lineHeight: style.lineHeight,
       };
     });
-    expect(shell.background).toBe("rgb(11, 13, 16)");
-    expect(shell.foreground).toBe("rgb(201, 209, 217)");
+    expect(shell.background).toBe(PALETTE.canvas);
+    expect(shell.foreground).toBe(PALETTE.ink);
     expect(shell.fontFamily).toContain("ui-monospace");
     expect(shell.fontSize).toBe("12.5px");
     expect(shell.lineHeight).toBe("18.75px");
@@ -126,8 +127,8 @@ test("the shell is drawn in the console theme: palette, monospace type and compo
     // The composer's round send control in the palette's green, and its square branch control.
     // `rounded-full` resolves to a radius of at least half the box, which is what makes it a circle.
     expect(geometry.send?.radius).toBeGreaterThanOrEqual((geometry.send?.width ?? 0) / 2);
-    expect(geometry.send?.background).toBe("rgb(126, 231, 135)");
-    expect(geometry.send?.foreground).toBe("rgb(11, 13, 16)");
+    expect(geometry.send?.background).toBe(PALETTE.success);
+    expect(geometry.send?.foreground).toBe(PALETTE.canvas);
     expect(geometry.branch?.radius).toBe(14);
 
     // The context readout lives in the session bar, apart from the composer's choosers.

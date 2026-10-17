@@ -18,9 +18,10 @@
   ],
   "scripts": {
     "verify": "node scripts/verify.mjs",
+    "verify:full": "node scripts/verify.mjs --full",
     "build:protocol": "npm run build --workspace @pi-my-ui/protocol",
     "typecheck": "npm run build:protocol && npm run typecheck --workspaces --if-present",
-    "lint": "eslint . && node scripts/hygiene-check.mjs && node scripts/fixture-check.mjs",
+    "lint": "eslint . && node scripts/hygiene-check.mjs && node scripts/e2e-style-check.mjs && node scripts/fixture-check.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "npm run build:protocol && npm run test --workspaces --if-present",

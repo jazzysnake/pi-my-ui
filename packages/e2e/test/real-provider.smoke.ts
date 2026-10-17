@@ -9,7 +9,7 @@ import {
 import { createHermeticHome, hermeticPiEnv, startScriptedPi } from "../src/pi-harness";
 
 /**
- * Opt-in real-provider smoke check, outside `npm run verify`.
+ * Opt-in real-provider smoke check, outside `npm run verify:full`.
  *
  * It records a real model-provider run and then replays that recording through the scripted
  * provider: if the recording cannot stand in for the run that produced it, the scripts have drifted

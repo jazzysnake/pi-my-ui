@@ -1,9 +1,8 @@
 #!/usr/bin/env node
-// Root `npm run verify` orchestrator.
-//
-// It delegates to the root npm scripts and stops at the first failure. A runner rather than an
-// `&&` chain exists for the banner: every step prints its label before it starts, so a CI log or a
-// pasted terminal session says which step failed instead of burying the npm script name.
+// Root `npm run verify` orchestrator. The fast gate stops after the build; `--full` adds the
+// sharded end-to-end suite. A runner rather than an `&&` chain exists for the banner: every step
+// prints its label before it starts, so a log says which step failed instead of burying the npm
+// script name.
 
 import { spawnSync } from "node:child_process";
 
@@ -13,7 +12,7 @@ const STEPS = [
   { label: "lint and format", scripts: ["lint", "format:check"] },
   { label: "store and component tests", scripts: ["test"] },
   { label: "build", scripts: ["build"] },
-  { label: "sharded end-to-end tests", scripts: ["test:e2e:sharded"] },
+  { label: "sharded end-to-end tests", scripts: ["test:e2e:sharded"], fullOnly: true },
 ];
 
 /** npm is a shell script on POSIX and `npm.cmd` on Windows. */
@@ -40,10 +39,18 @@ function runScript(script, position) {
 }
 
 function main() {
-  const total = STEPS.length;
+  const full = process.argv.includes("--full");
+  const steps = full ? STEPS : STEPS.filter((step) => step.fullOnly !== true);
+  const total = steps.length;
+
+  console.log(
+    full
+      ? "[verify] full gate (end-to-end included)"
+      : "[verify] fast gate (pass --full for end-to-end)",
+  );
 
   for (let index = 0; index < total; index += 1) {
-    const step = STEPS[index];
+    const step = steps[index];
     const position = `step ${index + 1}/${total}`;
     console.log(`\n===== [verify] ${position}: ${step.label} =====`);
     for (const script of step.scripts) {

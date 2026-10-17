@@ -20,9 +20,11 @@ import {
   encodeBridgeRecord,
   parseBridgeAgent,
   parseBridgeHello,
+  parseBridgeSteerResult,
   parseBridgeTranscript,
   subagentAgentFromBridge,
   type BridgeErrorInfo,
+  type BridgeSteerOutcome,
   type SubagentAgent,
 } from "@pi-my-ui/protocol";
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
@@ -32,6 +34,11 @@ import { bindAndSecureSocket, removeBridgeSocket } from "./socket.js";
 
 /** How long a connection may sit before sending its `hello`. */
 export const BRIDGE_HELLO_TIMEOUT_MS = 5_000;
+/**
+ * How long a steer waits for the child's answer. The bridge steers in-process and answers in one
+ * tick, so this bound only fires for a bridge that has stopped reading its socket.
+ */
+export const BRIDGE_STEER_TIMEOUT_MS = 10_000;
 /** Largest accepted frame; a bigger one means the peer is not speaking this protocol. */
 export const BRIDGE_MAX_FRAME_CHARS = 1024 * 1024;
 /**
@@ -62,6 +69,11 @@ export interface BridgeListener {
   onAgent(listener: BridgeAgentListener): () => void;
   /** Subscribe to subagent conversation events; returns an unsubscribe. */
   onTranscript(listener: BridgeTranscriptListener): () => void;
+  /**
+   * Ask a Session's child to steer one running agent, bounded by {@link BRIDGE_STEER_TIMEOUT_MS}.
+   * Resolves with the child's answer; never throws, so a caller reports the refusal to the browser.
+   */
+  steer(sessionId: string, agentId: string, message: string): Promise<BridgeSteerOutcome>;
   /** Stop accepting, drop connections, and remove the socket. Idempotent. */
   close(): Promise<void>;
 }
@@ -76,6 +88,12 @@ interface PendingWait {
   readonly promise: Promise<void>;
   readonly resolve: () => void;
   readonly reject: (error: Error) => void;
+  readonly timer: NodeJS.Timeout;
+}
+
+interface PendingSteer {
+  readonly sessionId: string;
+  readonly resolve: (outcome: BridgeSteerOutcome) => void;
   readonly timer: NodeJS.Timeout;
 }
 
@@ -111,7 +129,22 @@ export async function startBridgeListener(options: BridgeListenerOptions): Promi
   const connections = new Set<Connection>();
   const agentListeners = new Set<BridgeAgentListener>();
   const transcriptListeners = new Set<BridgeTranscriptListener>();
+  /** Steers awaiting their child's answer, so a dropped socket or a stop never leaves one hanging. */
+  const pendingSteers = new Map<string, PendingSteer>();
+  let steerRequests = 0;
   let closed = false;
+
+  /** Answer every outstanding steer for one Session with the reason it cannot be answered. */
+  const failSteersFor = (sessionId: string | undefined, reason: string): void => {
+    for (const [requestId, pending] of [...pendingSteers]) {
+      if (sessionId !== undefined && pending.sessionId !== sessionId) {
+        continue;
+      }
+      pendingSteers.delete(requestId);
+      clearTimeout(pending.timer);
+      pending.resolve({ ok: false, error: reason });
+    }
+  };
 
   const failWait = (sessionId: string, message: string): void => {
     const pending = pendingWaits.get(sessionId);
@@ -157,6 +190,9 @@ export async function startBridgeListener(options: BridgeListenerOptions): Promi
     known.add(sessionId);
     const previous = liveConnections.get(sessionId);
     if (previous !== undefined && previous !== connection.socket) {
+      // A steer written to the replaced socket was queued by a child that is going away, so it will
+      // never be answered there; the replacement explains it now rather than leaving it to time out.
+      failSteersFor(sessionId, "the Session's bridge reconnected before the steer was answered");
       previous.destroy();
     }
     liveConnections.set(sessionId, connection.socket);
@@ -226,6 +262,22 @@ export async function startBridgeListener(options: BridgeListenerOptions): Promi
       return;
     }
     const sessionId = connection.sessionId;
+    if (recordTypeOf(value) === BridgeRecordType.SteerResult) {
+      const result = parseOrDrop(connection, sessionId, parseBridgeSteerResult, value);
+      if (result === undefined) {
+        return;
+      }
+      const pending = pendingSteers.get(result.requestId);
+      if (pending === undefined) {
+        return;
+      }
+      pendingSteers.delete(result.requestId);
+      clearTimeout(pending.timer);
+      pending.resolve(
+        result.ok ? { ok: true } : { ok: false, error: result.error ?? "the steer was refused" },
+      );
+      return;
+    }
     if (recordTypeOf(value) === BridgeRecordType.Transcript) {
       const transcript = parseOrDrop(connection, sessionId, parseBridgeTranscript, value);
       // Records for a Session this server no longer serves have no Projection to advance.
@@ -299,6 +351,11 @@ export async function startBridgeListener(options: BridgeListenerOptions): Promi
         liveConnections.get(connection.sessionId) === connection.socket
       ) {
         liveConnections.delete(connection.sessionId);
+        // The queued steer cannot be answered or delivered by a child that is gone.
+        failSteersFor(
+          connection.sessionId,
+          "the Session's bridge disconnected before the steer was answered",
+        );
       }
     });
   });
@@ -356,6 +413,39 @@ export async function startBridgeListener(options: BridgeListenerOptions): Promi
         transcriptListeners.delete(listener);
       };
     },
+    steer(sessionId: string, agentId: string, message: string): Promise<BridgeSteerOutcome> {
+      if (closed) {
+        return Promise.resolve({
+          ok: false,
+          error: "the bridge listener stopped, so the subagent could not be steered",
+        });
+      }
+      const socket = liveConnections.get(sessionId);
+      if (socket === undefined || socket.destroyed) {
+        return Promise.resolve({
+          ok: false,
+          error: "the Session's bridge is not connected, so the subagent could not be steered",
+        });
+      }
+      steerRequests += 1;
+      const requestId = `steer-${String(steerRequests)}`;
+      return new Promise<BridgeSteerOutcome>((resolve) => {
+        const timer = setTimeout(() => {
+          pendingSteers.delete(requestId);
+          resolve({ ok: false, error: "the bridge did not answer the steer request in time" });
+        }, BRIDGE_STEER_TIMEOUT_MS);
+        timer.unref();
+        pendingSteers.set(requestId, { sessionId, resolve, timer });
+        socket.write(
+          encodeBridgeRecord({
+            type: BridgeRecordType.Steer,
+            requestId,
+            agentId,
+            message,
+          }),
+        );
+      });
+    },
     async close(): Promise<void> {
       if (closed) {
         return;
@@ -363,6 +453,7 @@ export async function startBridgeListener(options: BridgeListenerOptions): Promi
       closed = true;
       agentListeners.clear();
       transcriptListeners.clear();
+      failSteersFor(undefined, "the bridge listener stopped before the steer was answered");
       for (const sessionId of [...pendingWaits.keys()]) {
         failWait(sessionId, "the bridge listener stopped before the handshake");
       }

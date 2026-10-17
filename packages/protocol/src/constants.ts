@@ -26,6 +26,7 @@ export const ClientMessageType = {
   Reconnect: "reconnect",
   GetTree: "getTree",
   MoveLeaf: "moveLeaf",
+  SteerSubagent: "steerSubagent",
 } as const;
 
 export type ClientMessageType = (typeof ClientMessageType)[keyof typeof ClientMessageType];

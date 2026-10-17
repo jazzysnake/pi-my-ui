@@ -32,13 +32,15 @@ import {
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 
 import type { ServerClock } from "./clock.js";
-import { attachBridgeEvents, type BridgeSubscriptions } from "./bridge/events.js";
+import type { BridgeGate } from "./bridge/gate.js";
+import { attachBridgeEvents } from "./bridge/events.js";
 import { createDeltaHistory } from "./delta-history.js";
 import type { PiChildLaunch, PiSessionTarget, PiSettings } from "./pi-child.js";
 import { createSessionChild, type SessionChild } from "./session-child.js";
 import { createSessionLeaf } from "./session-leaf.js";
 import { createSessionMutations, type SessionMutationOutcome } from "./session-mutation.js";
 import { createSessionProjectionMachine } from "./session-projection.js";
+import { createSessionSteering } from "./session-steering.js";
 
 /** A recipient of one Session's Snapshot and Deltas; the connection implements it over its socket. */
 export interface SessionViewer {
@@ -61,6 +63,7 @@ export interface SessionHost {
   ): Promise<void>;
   /** Run a `!`/`!!` shell command; `!!` keeps its output out of the model's context. */
   bash(command: string, excludeFromContext: boolean): Promise<void>;
+  steerSubagent(agentId: string, message: string): Promise<void>;
   abort(): Promise<void>;
   setModel(provider: string, modelId: string): Promise<void>;
   setThinkingLevel(level: ThinkingLevel): Promise<void>;
@@ -99,10 +102,7 @@ export interface SessionHost {
   close(): Promise<void>;
 }
 
-/** The bridge a Session's Pi child must connect before the Session is served. */
-export interface BridgeGate extends BridgeSubscriptions {
-  waitForSession(sessionId: string): Promise<void>;
-}
+export type { BridgeGate } from "./bridge/gate.js";
 
 export interface SessionHostOptions {
   readonly sessionId: string;
@@ -385,6 +385,8 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
     touch,
   });
 
+  const steering = createSessionSteering(options, ensureServed, touch);
+
   /**
    * Fork and clone share one procedure (pi rebinds the child, so this Session has to be rebuilt from
    * its own file), and that procedure lives in its own module rather than growing this one.
@@ -449,6 +451,7 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       await ensureServed();
       await (await child.ensure()).prompt(text, images, behavior);
     },
+    steerSubagent: steering.steerSubagent,
     async bash(command, excludeFromContext) {
       await ensureServed();
       publish(machine.bash.begin(command, excludeFromContext));

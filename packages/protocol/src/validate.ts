@@ -29,6 +29,7 @@ import type {
   SetModelMessage,
   SetSessionNameMessage,
   SetThinkingLevelMessage,
+  SteerSubagentMessage,
   SubscribeMessage,
 } from "./messages.js";
 
@@ -269,6 +270,24 @@ function validateGetTree(record: Record<string, unknown>): GetTreeMessage {
   return { type: ClientMessageType.GetTree, sessionId: requireSessionId(record) };
 }
 
+/** One steer: the agent and the text. Whether the agent is running is the Session's answer. */
+function validateSteerSubagent(record: Record<string, unknown>): SteerSubagentMessage {
+  const agentId = record["agentId"];
+  if (typeof agentId !== "string" || agentId === "") {
+    malformed('"agentId" must be a non-empty string');
+  }
+  const message = record["message"];
+  if (typeof message !== "string" || message.trim() === "") {
+    malformed('"message" must be a non-empty string');
+  }
+  return {
+    type: ClientMessageType.SteerSubagent,
+    sessionId: requireSessionId(record),
+    agentId,
+    message,
+  };
+}
+
 /** One existing entry, named by id; whether the id resolves is the Session's answer, not this one. */
 function validateMoveLeaf(record: Record<string, unknown>): MoveLeafMessage {
   const entryId = requireEntryId(record);
@@ -331,6 +350,8 @@ export function validateClientMessage(value: unknown): ClientMessage {
       return validateGetTree(record);
     case ClientMessageType.MoveLeaf:
       return validateMoveLeaf(record);
+    case ClientMessageType.SteerSubagent:
+      return validateSteerSubagent(record);
     case ClientMessageType.Reconnect:
       return { type: ClientMessageType.Reconnect, sessionId: requireSessionId(record) };
     default:

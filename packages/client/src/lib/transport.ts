@@ -63,6 +63,8 @@ export interface Transport {
   prompt(text: string, images?: readonly ImageAttachment[], behavior?: StreamingBehavior): void;
   /** Run a `!`/`!!` shell command. Ignored while the link is down. */
   bash(command: string, excludeFromContext: boolean): void;
+  /** Send one message into a running subagent's own conversation. Ignored while the link is down. */
+  steerSubagent(agentId: string, message: string): void;
   /** Cancel the Session's running turn. Ignored while the link is down. */
   abort(): void;
   /** Switch the Session's model. Ignored while the link is down. */
@@ -246,6 +248,14 @@ export function createTransport(options: TransportOptions): Transport {
         sessionId: activeSessionId,
         command,
         excludeFromContext,
+      });
+    },
+    steerSubagent(agentId, message) {
+      send({
+        type: ClientMessageType.SteerSubagent,
+        sessionId: activeSessionId,
+        agentId,
+        message,
       });
     },
     abort() {

@@ -16,6 +16,7 @@
   import FileTreePanel from "./files/FileTreePanel.svelte";
   import { ROOT_PATH } from "./files/rows.js";
   import type { ClientStore } from "./store/client-store.svelte.js";
+  import { isSteerable, steerTargetOf } from "./subagents/steering.js";
   import type { ConnectionStatus } from "./transport.js";
 
   let {
@@ -42,6 +43,7 @@
     onDownloadFile,
     onCreateSession = () => undefined,
     onReconnect = () => undefined,
+    onSteerSubagent = () => undefined,
   }: {
     store: ClientStore;
     status: ConnectionStatus;
@@ -70,6 +72,8 @@
     onDownloadFile: (path: string) => void;
     onCreateSession?: () => void;
     onReconnect?: () => void;
+    /** Steer one running subagent; a typed message while its conversation is shown. */
+    onSteerSubagent?: (agentId: string, message: string) => void;
   } = $props();
 
   let filesOpen = $state(false);
@@ -87,6 +91,14 @@
     store.subagents.focusedAgentId === null
       ? store.transcript.entries
       : store.subagents.transcriptOf(store.subagents.focusedAgentId),
+  );
+
+  /**
+   * The agent a typed message would steer. While an agent's conversation is shown, plain text is
+   * addressed to that agent, so the composer must know whether it can reach it and why not.
+   */
+  const steerTarget = $derived(
+    steerTargetOf(store.subagents.agents, store.subagents.focusedAgentId),
   );
 
   // A confirmed Leaf move on one of the user's own messages returns its text here, which is what
@@ -125,6 +137,19 @@
   function handleReconnect(): void {
     store.transcript.requestReconnect();
     onReconnect();
+  }
+
+  /**
+   * A steer is recorded before it is sent, so its status line appears from the click; the store
+   * clears it when pi delivers the message, refuses it, or ends the run without delivering it.
+   */
+  function handleSteer(agentId: string, message: string): void {
+    const agent = store.subagents.agents.find((candidate) => candidate.id === agentId);
+    if (agent === undefined || !isSteerable(agent.status)) {
+      return;
+    }
+    store.subagents.noteSteer(agentId);
+    onSteerSubagent(agentId, message);
   }
 
   /** The active Session's name as the drawer has it; a Session with none is named honestly. */
@@ -294,6 +319,9 @@
     {onSetThinkingLevel}
     {onSetAutoCompaction}
     onBranch={openTree}
+    {steerTarget}
+    steerInFlight={store.subagents.steerInFlight}
+    onSteer={handleSteer}
     bind:text={composerText}
   />
   {#if forkOpen}

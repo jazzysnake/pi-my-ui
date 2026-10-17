@@ -192,6 +192,18 @@ export interface MoveLeafMessage {
   readonly entryId: string;
 }
 
+/**
+ * Send one message to a running subagent's own conversation. The bridge delivers it as a user turn
+ * after the agent's current tool call, so it is a redirection of the run, not a new Session prompt.
+ */
+export interface SteerSubagentMessage {
+  readonly type: typeof ClientMessageType.SteerSubagent;
+  readonly sessionId: string;
+  /** The agent record's id, as the Projection's `subagents` carry it. */
+  readonly agentId: string;
+  readonly message: string;
+}
+
 export type ClientMessage =
   | ListSessionsMessage
   | CreateSessionMessage
@@ -213,6 +225,7 @@ export type ClientMessage =
   | CloneSessionMessage
   | GetTreeMessage
   | MoveLeafMessage
+  | SteerSubagentMessage
   | ReconnectMessage;
 
 /**

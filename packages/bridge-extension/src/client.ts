@@ -16,8 +16,10 @@ import {
   BridgeRecordType,
   encodeBridgeRecord,
   parseBridgeHelloAck,
+  parseBridgeSteer,
   type BridgeChildRecord,
   type BridgeHelloAckRecord,
+  type BridgeSteerRecord,
 } from "@pi-my-ui/protocol";
 
 export const BRIDGE_LOG_PREFIX = "[pi-my-ui bridge]";
@@ -43,6 +45,11 @@ export interface BridgeClientOptions {
   readonly sessionId: string;
   readonly pid: number;
   readonly log: BridgeLog;
+  /**
+   * What to do with a `steer` request from the server. The answer travels back on the same socket,
+   * so the client is handed the record rather than replying itself.
+   */
+  readonly onSteer?: ((record: BridgeSteerRecord) => void) | undefined;
 }
 
 export class BridgeClient {
@@ -50,6 +57,7 @@ export class BridgeClient {
   readonly #sessionId: string;
   readonly #pid: number;
   readonly #log: BridgeLog;
+  readonly #onSteer: ((record: BridgeSteerRecord) => void) | undefined;
   #socket: Socket | undefined;
   #buffer = "";
   #attempt = 0;
@@ -65,6 +73,7 @@ export class BridgeClient {
     this.#sessionId = options.sessionId;
     this.#pid = options.pid;
     this.#log = options.log;
+    this.#onSteer = options.onSteer;
   }
 
   /** Begin connecting. Synchronous and non-blocking; safe to call once per session start. */
@@ -182,9 +191,20 @@ export class BridgeClient {
   }
 
   #handleLine(line: string): void {
+    let value: unknown;
+    try {
+      value = JSON.parse(line);
+    } catch (error) {
+      this.#disable(`unreadable server record: ${errorText(error)}`);
+      return;
+    }
+    if (this.#handshakeDone) {
+      this.#handleServerRecord(value);
+      return;
+    }
     let ack: BridgeHelloAckRecord;
     try {
-      ack = parseBridgeHelloAck(JSON.parse(line));
+      ack = parseBridgeHelloAck(value);
     } catch (error) {
       this.#disable(`invalid handshake reply: ${errorText(error)}`);
       return;
@@ -203,6 +223,21 @@ export class BridgeClient {
       `${BRIDGE_LOG_PREFIX} connected to ${this.#socketPath} as session ${this.#sessionId}`,
     );
     this.#flush();
+  }
+
+  /**
+   * One record the server sent after the handshake. A record this build does not know is reported
+   * and ignored rather than disabling the socket: the handshake is not the only thing it carries.
+   */
+  #handleServerRecord(value: unknown): void {
+    let steer: BridgeSteerRecord;
+    try {
+      steer = parseBridgeSteer(value);
+    } catch (error) {
+      this.#log(`${BRIDGE_LOG_PREFIX} ignoring an unknown server record: ${errorText(error)}`);
+      return;
+    }
+    this.#onSteer?.(steer);
   }
 
   #onClose(socket: Socket): void {

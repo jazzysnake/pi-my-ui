@@ -12,6 +12,7 @@
   import BashModeIndicator from "./bash/BashModeIndicator.svelte";
   import * as bash from "./bash/mode.js";
   import CommandPalette from "./CommandPalette.svelte";
+  import RunningControls from "./composer/RunningControls.svelte";
   import StatusStrip from "./composer/StatusStrip.svelte";
   import {
     AttachmentRejection,
@@ -25,6 +26,13 @@
   import { buildPaletteEntries, completionText, filterPaletteEntries } from "./commands/palette.js";
   import { ComposerRouteKind, paletteQuery, routeComposerSubmission } from "./commands/router.js";
   import { tuiOnlyRefusalMessage } from "./commands/tui-only.js";
+  import SteerStatus from "./subagents/SteerStatus.svelte";
+  import {
+    STEER_ATTACHMENTS_MESSAGE,
+    steerRefusalOf,
+    type SteerTarget,
+  } from "./subagents/steering.js";
+  import type { SteerInFlight } from "./store/subagents.svelte.js";
   import { ConnectionStatus } from "./transport.js";
 
   let {
@@ -42,6 +50,9 @@
     onSetThinkingLevel,
     onSetAutoCompaction,
     onBranch,
+    steerTarget = null,
+    steerInFlight = null,
+    onSteer = () => undefined,
     text = $bindable(""),
     onEscape,
   }: {
@@ -66,6 +77,12 @@
     onSetThinkingLevel: (level: ThinkingLevel) => void;
     onSetAutoCompaction: (enabled: boolean) => void;
     onBranch: () => void;
+    /** The focused agent a typed message would steer, or `null` while the Session's view is shown. */
+    steerTarget?: SteerTarget | null;
+    /** The focused agent's undelivered steer, shown here until pi delivers it. */
+    steerInFlight?: SteerInFlight | null;
+    /** Hand one message to the focused subagent instead of the Session. */
+    onSteer?: (agentId: string, message: string) => void;
     /** The draft itself, so a view can put a message back here for editing and resubmitting. */
     text?: string;
     /** Consume Escape before the composer does; returns whether it was handled. */
@@ -94,7 +111,10 @@
   );
   const connected = $derived(status === ConnectionStatus.Connected);
   const hasContent = $derived(text.trim() !== "" || attachments.length > 0);
-  const canSend = $derived(connected && pendingFrom === null && hasContent);
+  const steerRefusal = $derived(steerRefusalOf(steerTarget));
+  const canSend = $derived(
+    connected && pendingFrom === null && hasContent && steerRefusal === null,
+  );
 
   const query = $derived(paletteQuery(text));
   const paletteEntries = $derived(
@@ -216,6 +236,22 @@
       onCommand(route.command, route.args);
       return;
     }
+    // A plain message while an agent's conversation is shown is a steer, not a prompt to the
+    // Session: the reader is addressing the agent in front of them. Slash commands and `!` keep
+    // their own routes above, so `/tree` still opens the tree with an agent focused.
+    if (steerTarget !== null) {
+      if (attachments.length > 0) {
+        localError = STEER_ATTACHMENTS_MESSAGE;
+        return;
+      }
+      // The steer is handed over and not echoed back by pi, so the draft is released now; a refusal
+      // arrives as the composer's error line rather than leaving the text silently in place.
+      const message = text;
+      releaseAll();
+      localError = null;
+      onSteer(steerTarget.agentId, message);
+      return;
+    }
     localError = null;
     onPrompt(text, toImageAttachments(attachments), behavior);
     pendingFrom = sentCount;
@@ -288,60 +324,17 @@
   {/if}
 
   {#if running}
-    <div class="flex items-center gap-1" role="group" aria-label="While running">
-      <span class="shrink-0 text-xs tracking-wider text-neutral-500 uppercase">While running</span>
-      <button
-        type="button"
-        class="min-h-11 rounded border px-2 text-xs"
-        class:border-neutral-100={streamingChoice === StreamingBehavior.Steer}
-        class:text-neutral-100={streamingChoice === StreamingBehavior.Steer}
-        class:border-neutral-700={streamingChoice !== StreamingBehavior.Steer}
-        class:text-neutral-400={streamingChoice !== StreamingBehavior.Steer}
-        aria-pressed={streamingChoice === StreamingBehavior.Steer}
-        aria-describedby="streaming-choice-hint"
-        data-testid="streaming-choice-steer"
-        onclick={() => {
-          streamingChoice = StreamingBehavior.Steer;
-        }}
-      >
-        Steer
-      </button>
-      <button
-        type="button"
-        class="min-h-11 rounded border px-2 text-xs"
-        class:border-neutral-100={streamingChoice === StreamingBehavior.FollowUp}
-        class:text-neutral-100={streamingChoice === StreamingBehavior.FollowUp}
-        class:border-neutral-700={streamingChoice !== StreamingBehavior.FollowUp}
-        class:text-neutral-400={streamingChoice !== StreamingBehavior.FollowUp}
-        aria-pressed={streamingChoice === StreamingBehavior.FollowUp}
-        aria-describedby="streaming-choice-hint"
-        data-testid="streaming-choice-follow-up"
-        onclick={() => {
-          streamingChoice = StreamingBehavior.FollowUp;
-        }}
-      >
-        Follow up
-      </button>
-      <button
-        type="button"
-        class="ml-auto grid size-11 shrink-0 place-items-center rounded-full border border-neutral-700 text-sm"
-        aria-label="Send while running"
-        disabled={!canSend}
-        data-testid="composer-send-while-running"
-        onclick={() => {
-          submit(streamingChoice);
-        }}
-      >
-        Send
-      </button>
-    </div>
-    <p
-      id="streaming-choice-hint"
-      class="text-xs text-neutral-500"
-      data-testid="streaming-choice-hint"
-    >
-      Steer: goes into this run at its next step · Follow up: waits until this run finishes
-    </p>
+    <RunningControls
+      {steerTarget}
+      choice={streamingChoice}
+      {canSend}
+      onChoose={(behavior) => {
+        streamingChoice = behavior;
+      }}
+      onSend={() => {
+        submit(streamingChoice);
+      }}
+    />
   {/if}
 
   {#if attachments.length > 0}
@@ -372,6 +365,8 @@
   {/if}
 
   <BashModeIndicator {text} />
+
+  <SteerStatus refusal={steerRefusal} target={steerTarget} inFlight={steerInFlight} />
 
   {#if visibleError !== null}
     <p class="text-xs text-red-400" role="alert" data-testid="composer-error">{visibleError}</p>

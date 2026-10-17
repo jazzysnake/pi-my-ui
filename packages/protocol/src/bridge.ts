@@ -22,6 +22,8 @@ export const BridgeRecordType = {
   HelloAck: "helloAck",
   Agent: "agent",
   Transcript: "transcript",
+  Steer: "steer",
+  SteerResult: "steerResult",
 } as const;
 
 export type BridgeRecordType = (typeof BridgeRecordType)[keyof typeof BridgeRecordType];
@@ -75,11 +77,40 @@ export interface BridgeHelloAckRecord {
   readonly error?: BridgeErrorInfo;
 }
 
+/** The server's request to steer one agent; `requestId` correlates the child's answer. */
+export interface BridgeSteerRecord {
+  readonly type: typeof BridgeRecordType.Steer;
+  readonly requestId: string;
+  /** The manager id of the agent to steer, as the agent records carry it. */
+  readonly agentId: string;
+  readonly message: string;
+}
+
+/** The child's answer to one steer request. */
+export interface BridgeSteerResultRecord {
+  readonly type: typeof BridgeRecordType.SteerResult;
+  readonly requestId: string;
+  readonly ok: boolean;
+  /** Present when `ok` is false. */
+  readonly error?: string;
+}
+
+/**
+ * The bridge's answer to one steer. It says pi accepted the message for delivery, not that the agent
+ * has read it: pi queues a steer until the running turn finishes its current tool call.
+ */
+export interface BridgeSteerOutcome {
+  readonly ok: boolean;
+  /** Present when `ok` is false; the steering subsystem's own reason. */
+  readonly error?: string;
+}
+
 /** Every record a child's bridge sends. */
-export type BridgeChildRecord = BridgeHelloRecord | BridgeAgentRecord | BridgeTranscriptRecord;
+export type BridgeChildRecord =
+  BridgeHelloRecord | BridgeAgentRecord | BridgeTranscriptRecord | BridgeSteerResultRecord;
 
 /** Every record the server sends. */
-export type BridgeServerRecord = BridgeHelloAckRecord;
+export type BridgeServerRecord = BridgeHelloAckRecord | BridgeSteerRecord;
 
 /** Every bridge record, in either direction. */
 export type BridgeRecord = BridgeChildRecord | BridgeServerRecord;
@@ -288,6 +319,51 @@ export function parseBridgeTranscript(value: unknown): BridgeTranscriptRecord {
     requireMessage(event["message"]);
   }
   return { type: BridgeRecordType.Transcript, agentId, event };
+}
+
+/** Parse the server's `steer` request on the child's side. */
+export function parseBridgeSteer(value: unknown): BridgeSteerRecord {
+  const record = asRecord(value);
+  if (record["type"] !== BridgeRecordType.Steer) {
+    malformed(`expected a ${BridgeRecordType.Steer} record`);
+  }
+  const requestId = record["requestId"];
+  if (typeof requestId !== "string" || requestId === "") {
+    malformed('"requestId" must be a non-empty string');
+  }
+  const agentId = record["agentId"];
+  if (typeof agentId !== "string" || agentId === "") {
+    malformed('"agentId" must be a non-empty string');
+  }
+  const message = record["message"];
+  if (typeof message !== "string" || message.trim() === "") {
+    malformed('"message" must be a non-empty string');
+  }
+  return { type: BridgeRecordType.Steer, requestId, agentId, message };
+}
+
+/** Parse the child's `steerResult` answer on the server's side. */
+export function parseBridgeSteerResult(value: unknown): BridgeSteerResultRecord {
+  const record = asRecord(value);
+  if (record["type"] !== BridgeRecordType.SteerResult) {
+    malformed(`expected a ${BridgeRecordType.SteerResult} record`);
+  }
+  const requestId = record["requestId"];
+  if (typeof requestId !== "string" || requestId === "") {
+    malformed('"requestId" must be a non-empty string');
+  }
+  const ok = record["ok"];
+  if (typeof ok !== "boolean") {
+    malformed('"ok" must be a boolean');
+  }
+  if (ok) {
+    return { type: BridgeRecordType.SteerResult, requestId, ok: true };
+  }
+  const error = record["error"];
+  if (typeof error !== "string" || error === "") {
+    malformed('"error" must be a non-empty string when the steer failed');
+  }
+  return { type: BridgeRecordType.SteerResult, requestId, ok: false, error };
 }
 
 /**

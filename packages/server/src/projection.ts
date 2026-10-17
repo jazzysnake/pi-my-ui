@@ -124,6 +124,19 @@ function toolCallStatus(result: ToolResultInfo | undefined): ToolCallStatus {
   return result.isError ? ToolCallStatus.Error : ToolCallStatus.Success;
 }
 
+/** The failure text the Projection states when pi recorded an error without one. */
+export const RUN_FAILED_TEXT = "the run failed";
+
+/**
+ * pi's record of an attempt that ended in error: its own error text, after whatever content the
+ * attempt produced. Both readers project a failure through this one rule, so neither can drift.
+ */
+function errorBlockOf(message: AgentMessage): ContentBlock | undefined {
+  return "stopReason" in message && message.stopReason === "error"
+    ? { type: ContentBlockType.Error, text: message.errorMessage ?? RUN_FAILED_TEXT }
+    : undefined;
+}
+
 export function blocksFromMessage(
   message: AgentMessage,
   lookup?: ToolResultLookup,
@@ -133,26 +146,33 @@ export function blocksFromMessage(
   if (!("content" in message)) {
     return [];
   }
-  if (typeof message.content === "string") {
-    return message.content === "" ? [] : [{ type: ContentBlockType.Text, text: message.content }];
-  }
   const blocks: ContentBlock[] = [];
-  for (const block of message.content) {
-    if (block.type === ContentBlockType.Text) {
-      blocks.push({ type: ContentBlockType.Text, text: block.text });
-    } else if (block.type === "thinking") {
-      blocks.push({ type: ContentBlockType.Reasoning, text: block.thinking });
-    } else if (block.type === ContentBlockType.ToolCall) {
-      const result = lookup?.(block.id);
-      blocks.push({
-        type: ContentBlockType.ToolCall,
-        id: block.id,
-        name: block.name,
-        arguments: block.arguments,
-        status: toolCallStatus(result),
-        ...(result === undefined || result.output === "" ? {} : { output: result.output }),
-      });
+  if (typeof message.content === "string") {
+    if (message.content !== "") {
+      blocks.push({ type: ContentBlockType.Text, text: message.content });
     }
+  } else {
+    for (const block of message.content) {
+      if (block.type === ContentBlockType.Text) {
+        blocks.push({ type: ContentBlockType.Text, text: block.text });
+      } else if (block.type === "thinking") {
+        blocks.push({ type: ContentBlockType.Reasoning, text: block.thinking });
+      } else if (block.type === ContentBlockType.ToolCall) {
+        const result = lookup?.(block.id);
+        blocks.push({
+          type: ContentBlockType.ToolCall,
+          id: block.id,
+          name: block.name,
+          arguments: block.arguments,
+          status: toolCallStatus(result),
+          ...(result === undefined || result.output === "" ? {} : { output: result.output }),
+        });
+      }
+    }
+  }
+  const failure = errorBlockOf(message);
+  if (failure !== undefined) {
+    blocks.push(failure);
   }
   return blocks;
 }
@@ -211,13 +231,19 @@ function projectMessage(
   if (role === undefined) {
     return undefined;
   }
+  const blocks = blocksFromMessage(message, lookup);
+  // A cancelled attempt pi recorded with no content has nothing to show. The live path removes its
+  // placeholder, and a reseed must not resurrect it as a blank row.
+  if (blocks.length === 0) {
+    return undefined;
+  }
   return {
     kind: EntryKind.Message,
     id: entry.id,
     parentId: entry.parentId,
     role,
     timestamp: Date.parse(entry.timestamp),
-    blocks: blocksFromMessage(message, lookup),
+    blocks,
   };
 }
 

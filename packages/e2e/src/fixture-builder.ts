@@ -158,6 +158,58 @@ export async function writeRelatedSession(
   };
 }
 
+/**
+ * One assistant attempt that never became a reply, as pi records it after the prompt it answered. A
+ * provider failure and a cancel are the two shapes that leave such a message behind.
+ */
+export interface AttemptTurn {
+  readonly prompt: string;
+  /** pi's own stop reason for a failed or a cancelled turn. */
+  readonly stopReason: "error" | "aborted";
+  /** The partial reply the attempt streamed before it stopped, if any. */
+  readonly text?: string;
+  /** The failure pi recorded; leaving it out exercises the transcript's own fallback text. */
+  readonly errorMessage?: string;
+}
+
+/** Write a Session made only of prompts and the attempts that answered them. */
+export async function writeAttemptsSession(
+  home: HermeticHome,
+  turns: readonly AttemptTurn[],
+): Promise<FixtureSession> {
+  await mkdir(home.sessionsDir, { recursive: true });
+  const manager = SessionManager.create(home.workspace, home.sessionsDir);
+  manager.appendSessionInfo(`Attempts: ${turns[0]?.prompt ?? "none"}`);
+  for (const turn of turns) {
+    manager.appendMessage({
+      role: "user",
+      content: [{ type: "text", text: turn.prompt }],
+      timestamp: Date.now(),
+    });
+    manager.appendMessage({
+      role: "assistant",
+      content: turn.text === undefined ? [] : [{ type: "text", text: turn.text }],
+      api: "openai-completions",
+      provider: "scripted",
+      model: "scripted",
+      usage: GENERATED_USAGE,
+      stopReason: turn.stopReason,
+      ...(turn.errorMessage === undefined ? {} : { errorMessage: turn.errorMessage }),
+      timestamp: Date.now(),
+    });
+  }
+  const path = manager.getSessionFile();
+  if (path === undefined) {
+    throw new Error("the attempt writer produced no Session file");
+  }
+  return {
+    id: manager.getSessionId(),
+    path,
+    entryCount: manager.getEntries().length,
+    leafId: manager.getLeafId(),
+  };
+}
+
 function generatedTimestamp(index: number, offset = 0): number {
   return GENERATED_EPOCH_MS + index * 1000 + offset;
 }

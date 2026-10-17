@@ -134,6 +134,7 @@ export const ContentBlockType = {
   Reasoning: "reasoning",
   ToolCall: "toolCall",
   BashExecution: "bashExecution",
+  Error: "error",
 } as const;
 
 export type ContentBlockType = (typeof ContentBlockType)[keyof typeof ContentBlockType];

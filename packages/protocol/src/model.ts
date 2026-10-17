@@ -129,8 +129,15 @@ export interface BashExecutionBlock {
   readonly result?: BashExecutionResult;
 }
 
+/** The failure that ended an assistant attempt, stated after whatever content it produced. */
+export interface ErrorBlock {
+  readonly type: typeof ContentBlockType.Error;
+  readonly text: string;
+}
+
 /** Any projected content block. */
-export type ContentBlock = TextBlock | ReasoningBlock | ToolCallBlock | BashExecutionBlock;
+export type ContentBlock =
+  TextBlock | ReasoningBlock | ToolCallBlock | BashExecutionBlock | ErrorBlock;
 
 /** One message in a transcript. */
 export interface ProjectedMessageEntry {

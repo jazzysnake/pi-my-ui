@@ -12,22 +12,22 @@ Reference: the committed transcript-row prototype's error-card treatment is norm
 
 **Blocked by:** 01 (the error block is presented inside the message card).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The protocol's content-block union exposes an error block carrying its text, and every
+- [x] The protocol's content-block union exposes an error block carrying its text, and every
       exhaustive consumer compiles against it.
-- [ ] An assistant message whose stop reason is error projects an error block after any content,
+- [x] An assistant message whose stop reason is error projects an error block after any content,
       with pi's error text; a missing text falls back to "the run failed".
-- [ ] The seed path and the live path produce the same error block for the same failed attempt.
-- [ ] An error-only attempt renders as the card's only block: danger-toned, with a meta-caps `error`
+- [x] The seed path and the live path produce the same error block for the same failed attempt.
+- [x] An error-only attempt renders as the card's only block: danger-toned, with a meta-caps `error`
       label, wrapped text, and no copy control.
-- [ ] A failed attempt with content renders its content first and the error block after it; the
+- [x] A failed attempt with content renders its content first and the error block after it; the
       card's copy control, when present, copies only the content text as today.
-- [ ] An empty, cancelled or aborted attempt that produced no content leaves no row on either path.
-- [ ] The failure is still shown after a reload or rejoin, while the live run-state row still reports
+- [x] An empty, cancelled or aborted attempt that produced no content leaves no row on either path.
+- [x] The failure is still shown after a reload or rejoin, while the live run-state row still reports
       the failure during the run.
-- [ ] No rework of the run-state row is needed; it keeps its current failure reporting.
-- [ ] A client component test feeding a Snapshot with an error block covers its rendering, tone,
+- [x] No rework of the run-state row is needed; it keeps its current failure reporting.
+- [x] A client component test feeding a Snapshot with an error block covers its rendering, tone,
       label and lack of copy control.
-- [ ] An end-to-end test with a real failed turn shows the error text live and again after reload; a
+- [x] An end-to-end test with a real failed turn shows the error text live and again after reload; a
       seeded empty assistant message produces no row.

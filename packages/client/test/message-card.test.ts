@@ -32,6 +32,10 @@ function text(value: string): ContentBlock {
   return { type: "text", text: value };
 }
 
+function failed(text: string): ContentBlock {
+  return { type: "error", text };
+}
+
 function bash(command: string, output: string): BashExecutionBlock {
   return {
     type: "bashExecution",
@@ -233,6 +237,71 @@ describe("the message card's copy control", () => {
     expect(control.getAttribute("data-copied")).toBe("false");
     expect(control.querySelector("svg")?.dataset["icon"]).toBe("copy");
     expect(announcement.textContent).toBe("");
+  });
+});
+
+describe("a failed attempt's error block", () => {
+  it("is the card's only block, danger-toned and labelled, with no copy control", () => {
+    const target = render([
+      message("failed", MessageRole.Assistant, [failed("the model exploded")]),
+    ]);
+
+    const card = row(target, "failed").querySelector<HTMLElement>('[data-testid="message-card"]');
+    if (card === null) {
+      throw new Error("the failed attempt is not inside a message card");
+    }
+    const error = card.querySelector<HTMLElement>('[data-testid="error-block"]');
+    const label = card.querySelector<HTMLElement>('[data-testid="error-label"]');
+    const text = card.querySelector<HTMLElement>('[data-testid="error-text"]');
+    const firstBlock = card.querySelector<HTMLElement>('[data-testid="message-card-first-block"]');
+    if (error === null || label === null || text === null || firstBlock === null) {
+      throw new Error("the card has no error block with a label and text");
+    }
+
+    // The attempt produced no content, so the box is the card's only block and it owns the width.
+    expect(card.querySelectorAll('[data-testid="message-card-first-block"]')).toHaveLength(1);
+    expect(firstBlock.contains(error)).toBe(true);
+    expect(getComputedStyle(firstBlock).paddingRight).toBe("0px");
+    expect(card.querySelector('[data-testid="copy-message"]')).toBeNull();
+
+    expect(error.className).toContain("border-danger/50");
+    expect(error.className).toContain("bg-danger/5");
+    expect(label.textContent).toBe("error");
+    expect(label.className).toContain("uppercase");
+    expect(label.className).toContain("text-danger");
+    expect(text.textContent).toBe("the model exploded");
+    expect(text.className).toContain("text-danger");
+    expect(text.className).toContain("break-words");
+  });
+
+  it("follows the content the attempt produced, and the copy carries only that content", () => {
+    const writeText = vi.fn<(value: string) => Promise<void>>().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+
+    const target = render([
+      message("partial", MessageRole.Assistant, [
+        text("the reply stopped mid-sentence"),
+        failed("the connection dropped"),
+      ]),
+    ]);
+    const card = row(target, "partial").querySelector<HTMLElement>('[data-testid="message-card"]');
+    if (card === null) {
+      throw new Error("the failed attempt is not inside a message card");
+    }
+
+    expect(card.textContent?.indexOf("the reply stopped mid-sentence")).toBeLessThan(
+      card.textContent?.indexOf("the connection dropped") ?? -1,
+    );
+
+    const control = card.querySelector<HTMLButtonElement>('[data-testid="copy-message"]');
+    if (control === null) {
+      throw new Error("a failed attempt with content has no copy control");
+    }
+    flushSync(() => {
+      control.click();
+    });
+
+    expect(writeText).toHaveBeenCalledWith("the reply stopped mid-sentence");
   });
 });
 

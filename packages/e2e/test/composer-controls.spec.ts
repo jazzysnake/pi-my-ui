@@ -261,6 +261,24 @@ test("a tap outside an open effort list dismisses it and leaves the effort alone
   }
 });
 
+test("a pointer that moves before it lifts leaves an open list open", async ({ page }) => {
+  const harness = await startHarness(UNUSED_SCRIPT);
+  try {
+    await openHarness(page, harness);
+    const options = page.getByTestId("model-options");
+    await page.getByTestId("model-picker-toggle").tap();
+    await expect(options).toBeVisible();
+
+    // A scroll or a drag begins outside the list and travels before it lifts, which is the one thing
+    // that tells it apart from a tap.
+    await page.getByTestId("transcript").dragTo(page.getByTestId("composer-status"));
+
+    await expect(options).toBeVisible();
+  } finally {
+    await disposeHarness(harness);
+  }
+});
+
 test("opening one picker closes the other, and a chosen row applies once", async ({ page }) => {
   const harness = await startHarness(UNUSED_SCRIPT);
   try {
@@ -280,8 +298,12 @@ test("opening one picker closes the other, and a chosen row applies once", async
     await expect(page.getByTestId("status-thinking")).toHaveText(chosen);
 
     await page.getByTestId("model-picker-toggle").tap();
-    await page.getByTestId("model-option").first().tap();
+    // A row that is not pi's current model, so the strip changing proves the tap reached the row.
+    const modelRow = page.locator('[data-testid="model-option"][aria-selected="false"]').first();
+    const chosenModel = (await modelRow.textContent())?.trim() ?? "";
+    await modelRow.tap();
     await expect(page.getByTestId("model-options")).toHaveCount(0);
+    await expect(page.getByTestId("status-model")).toHaveText(chosenModel);
     await expect(page.getByTestId("model-picker-toggle")).toHaveAttribute("aria-expanded", "false");
   } finally {
     await disposeHarness(harness);

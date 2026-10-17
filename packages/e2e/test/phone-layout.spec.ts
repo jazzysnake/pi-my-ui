@@ -272,8 +272,8 @@ function headerControl(controls: readonly HeaderControl[], testId: string): Head
 }
 
 test("the top bar holds its controls inside the narrowest phone", async ({ page }) => {
-  // The subagents seed carries a subagent, so the pill would be visible if it were still in the
-  // header; it now lives in the session bar below.
+  // The subagents seed carries a subagent, so the pill is on screen and its absence from the header
+  // means something; the header must still fit the narrowest phone without it.
   const harness = await startHarness(
     [
       {

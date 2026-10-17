@@ -22,6 +22,8 @@ const UNUSED_SCRIPT: Script = [
 /** The narrowest phone in use and the profile the evidence was captured on. */
 const STRIP_WIDTHS_PX = [320, 393] as const;
 const PHONE_LONG_EDGE_PX = 851;
+/** A name the length pi really reports, which the narrowest phone's row cannot show whole. */
+const LONG_MODEL_NAME = "DeepSeek V4.1 Flash";
 
 interface Harness {
   readonly home: HermeticHome;
@@ -30,10 +32,12 @@ interface Harness {
   readonly client: ClientPageServer;
 }
 
-async function startHarness(): Promise<Harness> {
+async function startHarness(modelName?: string): Promise<Harness> {
   const home = await createHermeticHome();
   const seeded = await seedSession(home, "plain");
-  const launch = await scriptedPiLaunch(home, UNUSED_SCRIPT);
+  const launch = await scriptedPiLaunch(home, UNUSED_SCRIPT, {
+    ...(modelName === undefined ? {} : { modelName }),
+  });
   const server = await startServer({
     cwd: launch.cwd,
     sessionDir: home.sessionsDir,
@@ -143,16 +147,13 @@ test("the status strip fits the narrowest phone and never cuts a label", async (
         return {
           scrollWidth: element.scrollWidth,
           clientWidth: element.clientWidth,
-          controls: [...element.querySelectorAll("button")].map((button) => {
-            const span = button.querySelector("span");
-            return {
-              id: button.getAttribute("data-testid") ?? "",
-              text: (button.textContent ?? "").trim(),
-              // A truncated label reports more content than it shows.
-              clipped: span !== null && span.scrollWidth > span.clientWidth + 1,
-              outside: button.getBoundingClientRect().right > box.right + 0.5,
-            };
-          }),
+          controls: [...element.querySelectorAll("button")].map((button) => ({
+            id: button.getAttribute("data-testid") ?? "",
+            text: (button.textContent ?? "").trim(),
+            // A label that does not fit leaves the button reporting more content than it shows.
+            clipped: button.scrollWidth > button.clientWidth + 1,
+            outside: button.getBoundingClientRect().right > box.right + 0.5,
+          })),
         };
       });
 
@@ -172,27 +173,48 @@ test("the status strip fits the narrowest phone and never cuts a label", async (
         ).toBe(false);
       }
     }
+  } finally {
+    await disposeHarness(harness);
+  }
+});
 
-    // The model name is pi's to choose. A name that does not fit must give way itself: the row stays
-    // one row, the strip does not scroll, and the toggle stays reachable.
-    await page.setViewportSize({ width: STRIP_WIDTHS_PX[0], height: PHONE_LONG_EDGE_PX });
-    const longName = await page.getByTestId("composer-status").evaluate((element) => {
-      const span = element.querySelector('[data-testid="status-model"]');
-      const model = element.querySelector('[data-testid="model-picker-toggle"]');
-      if (span !== null) {
-        span.textContent = "DeepSeek V4.1 Flash";
+/**
+ * The model name is pi's to choose, so it arrives through the scripted provider rather than being
+ * written into the page: a name that does not fit must give way itself.
+ */
+test("a long model name ellipsizes instead of pushing the toggle off the row", async ({ page }) => {
+  const harness = await startHarness(LONG_MODEL_NAME);
+  try {
+    await openHarness(page, harness);
+    await expect(page.getByTestId("status-model")).toHaveText(LONG_MODEL_NAME);
+
+    for (const width of STRIP_WIDTHS_PX) {
+      await page.setViewportSize({ width, height: PHONE_LONG_EDGE_PX });
+      const measured = await page.getByTestId("composer-status").evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        const model = element.querySelector('[data-testid="model-picker-toggle"]');
+        const toggle = element.querySelector('[data-testid="auto-compaction-toggle"]');
+        return {
+          stripScrolls: element.scrollWidth > element.clientWidth,
+          modelClipped: model !== null && model.scrollWidth > model.clientWidth + 1,
+          toggleInside: (toggle?.getBoundingClientRect().right ?? Infinity) <= box.right + 0.5,
+        };
+      });
+      expect(
+        measured.stripScrolls,
+        `at ${String(width)}px a long name must not scroll the strip`,
+      ).toBe(false);
+      expect(measured.toggleInside, `at ${String(width)}px the toggle must stay on the row`).toBe(
+        true,
+      );
+      // The narrowest phone is where the row runs out: the name gives way there, and only there.
+      if (width === STRIP_WIDTHS_PX[0]) {
+        expect(
+          measured.modelClipped,
+          `at ${String(width)}px the long model name must ellipsize rather than overflow`,
+        ).toBe(true);
       }
-      const box = element.getBoundingClientRect();
-      const toggle = element.querySelector('[data-testid="auto-compaction-toggle"]');
-      return {
-        stripScrolls: element.scrollWidth > element.clientWidth,
-        modelTruncated: model !== null && model.scrollWidth > model.clientWidth,
-        toggleInside: (toggle?.getBoundingClientRect().right ?? Infinity) <= box.right + 0.5,
-      };
-    });
-    expect(longName.stripScrolls, "a long model name must not scroll the strip").toBe(false);
-    expect(longName.modelTruncated, "the long model name must ellipsize, not overflow").toBe(true);
-    expect(longName.toggleInside, "the toggle must stay on the row").toBe(true);
+    }
   } finally {
     await disposeHarness(harness);
   }

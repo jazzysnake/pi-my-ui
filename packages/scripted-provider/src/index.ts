@@ -19,8 +19,19 @@ export {
 
 /** Names the script file the provider replays. The harness sets it on each hermetic pi child. */
 export const SCRIPT_ENV_VAR = "PI_MY_UI_SCRIPT";
+/**
+ * The model name pi reports. Defaults to {@link DEFAULT_MODEL_NAME}; a test that measures how a
+ * label of pi's choosing gives way sets a name of the length pi really reports.
+ */
+export const MODEL_NAME_ENV_VAR = "PI_MY_UI_MODEL_NAME";
 export const SCRIPTED_PROVIDER_ID = "scripted";
 export const SCRIPTED_MODEL_ID = "scripted";
+/**
+ * A second model of the same provider, so a test can choose a row that is not the model already in
+ * place and tell the choice apart from the list merely closing.
+ */
+export const SCRIPTED_ALTERNATE_MODEL_ID = "scripted-alternate";
+export const DEFAULT_MODEL_NAME = "Scripted model";
 
 type LoadedScript =
   { readonly ok: true; readonly script: Script } | { readonly ok: false; readonly error: string };
@@ -61,7 +72,15 @@ export default function registerScriptedProvider(pi: ExtensionAPI): void {
     models: [
       {
         id: SCRIPTED_MODEL_ID,
-        name: "Scripted model",
+        name: process.env[MODEL_NAME_ENV_VAR] ?? DEFAULT_MODEL_NAME,
+        reasoning: true,
+        input: ["text", "image"],
+        contextWindow: 200_000,
+        maxTokens: 8_192,
+      },
+      {
+        id: SCRIPTED_ALTERNATE_MODEL_ID,
+        name: "Scripted alternate model",
         reasoning: true,
         input: ["text", "image"],
         contextWindow: 200_000,

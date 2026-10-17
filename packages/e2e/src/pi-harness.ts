@@ -13,6 +13,7 @@ import {
   type JsonAgentSessionEvent,
 } from "@earendil-works/pi-coding-agent";
 import {
+  MODEL_NAME_ENV_VAR,
   SCRIPT_ENV_VAR,
   SCRIPTED_MODEL_ID,
   SCRIPTED_PROVIDER_ID,
@@ -131,8 +132,16 @@ export function hermeticPiEnv(
   };
 }
 
-function hermeticEnv(home: HermeticHome, scriptPath: string): Record<string, string> {
-  return hermeticPiEnv(home, { [SCRIPT_ENV_VAR]: scriptPath });
+function hermeticEnv(
+  home: HermeticHome,
+  scriptPath: string,
+  modelName: string | undefined,
+): Record<string, string> {
+  const scriptEnv = { [SCRIPT_ENV_VAR]: scriptPath };
+  return hermeticPiEnv(
+    home,
+    modelName === undefined ? scriptEnv : { ...scriptEnv, [MODEL_NAME_ENV_VAR]: modelName },
+  );
 }
 
 export interface PiTurn {
@@ -188,12 +197,15 @@ export interface StartScriptedPiOptions {
   readonly piSubagents?: boolean;
   /** Further pi extensions to load beside the scripted provider. */
   readonly extensions?: readonly string[];
+  /** The name pi reports for its model; a test that measures a long label sets one. */
+  readonly modelName?: string;
 }
 
 /** The extension options a hermetic launch accepts. */
 export interface ScriptedLaunchOptions {
   readonly piSubagents?: boolean;
   readonly extensions?: readonly string[];
+  readonly modelName?: string;
 }
 
 /** What a hermetic pi child needs: its workspace, its private environment, and its model. */
@@ -225,7 +237,7 @@ export async function scriptedPiLaunch(
   ]);
   return {
     cwd: home.workspace,
-    env: hermeticEnv(home, scriptPath),
+    env: hermeticEnv(home, scriptPath, options.modelName),
     args: [...HERMETIC_PI_ARGS, "--extension", SCRIPTED_PROVIDER_EXTENSION, ...extra],
     provider: SCRIPTED_PROVIDER_ID,
     model: SCRIPTED_MODEL_ID,
@@ -249,6 +261,7 @@ export async function startScriptedPi(options: StartScriptedPiOptions): Promise<
   const launch = await scriptedPiLaunch(home, options.script, {
     ...(options.piSubagents === undefined ? {} : { piSubagents: options.piSubagents }),
     ...(options.extensions === undefined ? {} : { extensions: options.extensions }),
+    ...(options.modelName === undefined ? {} : { modelName: options.modelName }),
   });
   const args = [...launch.args];
   if (options.session === false) {

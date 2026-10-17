@@ -106,6 +106,15 @@ export function defaultExpandedIds(tree: SessionTree): ReadonlySet<string> {
 }
 
 /**
+ * A node with exactly one child continues its parent instead of offering an alternative. This is the
+ * one definition: what the rows show, what a depth bump means, what one tap opens and what a
+ * control counts all read it, so the four cannot drift apart.
+ */
+function isContinuation(node: TreeNode): boolean {
+  return node.children.length === 1;
+}
+
+/**
  * Flatten the tree into rows, emitting a node's children only when its subtree is shown: it is an
  * expanded node, or a continuation on the active path. A collapsed row is still emitted with what a
  * tap would reveal, so a branch is visible as a place to open rather than disappearing.
@@ -114,11 +123,9 @@ export function flattenTree(tree: SessionTree, expanded: ReadonlySet<string>): r
   const onActivePath = activePathIds(tree);
   const measured = new Map<string, SubtreeRows>();
 
-  function showsChildren(node: TreeNode): boolean {
-    const childCount = node.children.length;
+  function showsChildren(node: TreeNode, onPath: boolean): boolean {
     return (
-      childCount > 0 &&
-      (expanded.has(node.entry.id) || (childCount === 1 && onActivePath.has(node.entry.id)))
+      node.children.length > 0 && (expanded.has(node.entry.id) || (isContinuation(node) && onPath))
     );
   }
 
@@ -133,8 +140,8 @@ export function flattenTree(tree: SessionTree, expanded: ReadonlySet<string>): r
     if (known !== undefined) {
       return known;
     }
-    const shows = showsChildren(node);
-    const opensContinuation = node.children.length === 1;
+    const shows = showsChildren(node, onActivePath.has(node.entry.id));
+    const opensContinuation = isContinuation(node);
     let shown = 1;
     let opened = 1;
     for (const child of node.children) {
@@ -142,8 +149,7 @@ export function flattenTree(tree: SessionTree, expanded: ReadonlySet<string>): r
       if (shows) {
         shown += childRows.shown;
       }
-      opened +=
-        opensContinuation && child.children.length === 1 ? childRows.opened : childRows.shown;
+      opened += opensContinuation && isContinuation(child) ? childRows.opened : childRows.shown;
     }
     const rows = { shown, opened };
     measured.set(node.entry.id, rows);
@@ -155,19 +161,19 @@ export function flattenTree(tree: SessionTree, expanded: ReadonlySet<string>): r
     for (const node of nodes) {
       const childCount = node.children.length;
       const onPath = onActivePath.has(node.entry.id);
-      const shows = showsChildren(node);
+      const shows = showsChildren(node, onPath);
       const { shown, opened } = measure(node);
       rows.push({
         node,
         depth,
         reveals: shows ? 0 : opened - shown,
         expanded: shows,
-        expandable: childCount > 1 || (childCount === 1 && !onPath),
+        expandable: childCount > 1 || (isContinuation(node) && !onPath),
         onActivePath: onPath,
         isLeaf: tree.leafId !== null && node.entry.id === tree.leafId,
       });
       if (shows) {
-        visit(node.children, childCount > 1 ? depth + 1 : depth);
+        visit(node.children, isContinuation(node) ? depth : depth + 1);
       }
     }
   }
@@ -195,9 +201,9 @@ export function revealIds(node: TreeNode): readonly string[] {
   }
   const ids = [node.entry.id];
   let current = node;
-  while (current.children.length === 1) {
+  while (isContinuation(current)) {
     const continuation = current.children[0];
-    if (continuation === undefined || continuation.children.length !== 1) {
+    if (continuation === undefined || !isContinuation(continuation)) {
       break;
     }
     ids.push(continuation.entry.id);

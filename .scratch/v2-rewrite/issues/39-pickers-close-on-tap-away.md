@@ -27,11 +27,11 @@ still applies that choice and closes the list, once.
 
 ## Comments
 
-Resolved on `v2-rewrite`. `lib/composer/StatusStrip.svelte` now registers a window `pointerdown`
-listener while a picker is open and calls `onOpenChange(null)` when the tap lands outside it. The
-listener is added by a `$effect` that reads `open`, so it exists only while a list does; the opening
-tap's pointerdown has already been dispatched by the time the effect attaches it, which is why
-opening does not immediately close.
+Resolved on `v2-rewrite`. `lib/composer/StatusStrip.svelte` records where the pointer went down
+while a picker is open and calls `onOpenChange(null)` on `pointerup`, but only when the pointer came
+up within 10 px of where it went down. The listeners are added by a `$effect` that reads `open`, so
+they exist only while a list does; the opening tap has already finished by the time the effect
+attaches them, which is why opening does not immediately close.
 
 The dismissal mechanism is not the scrim the repo's other overlays use (the Sessions and Files
 drawers, the agent list, the fork picker). Those are modal surfaces that must block the content
@@ -40,23 +40,31 @@ letting it through — tapping the input after opening a list would close the li
 input — and it would sit over the other picker's toggle, so switching lists would take two taps. The
 tests assert the input is focused after the tap, which a scrim cannot satisfy.
 
-`pointerdown` rather than a document `click` with a containment check, because most of the page is
+Pointer events rather than a document `click` with a containment check, because most of the page is
 plain text: on touch a tap on a transcript paragraph is not a click target, so a click listener would
-never hear the dismissal the owner asked for. The cost is that a touch scroll begins with a
-pointerdown and therefore dismisses too; a transient menu that hears every tap is the better trade.
+never hear the dismissal the owner asked for. The dismissal waits for `pointerup` rather than firing
+on the press, and that is what keeps a scroll of the transcript from closing the list: a scroll or a
+drag begins with a `pointerdown` outside the list and travels before it lifts, so only a release near
+the press is a tap. `packages/e2e/test/composer-controls.spec.ts` proves it by dragging the
+transcript's text onto the status strip: the list is still open afterwards. Before the narrowing it
+dismissed on the press, and that test failed with `model-options` gone.
+
 The picker's two toggles and both lists carry `data-picker-owned`, and the outside handler ignores
-taps inside them. That marker is what keeps a row tap from being dropped and a tap on the open toggle
-from closing on pointerdown and reopening on the click: removing it from the model toggle alone made
-the same-toggle test fail with the list still up, so the guard is load-bearing.
+anything inside them. That marker is what keeps a row tap from being dropped and a tap on the open
+toggle from closing on the press and reopening on the click: removing it from the model toggle alone
+made the same-toggle test fail with the list still up, so the guard is load-bearing.
 
 Coverage is `packages/e2e/test/composer-controls.spec.ts`, driven through real touch taps
 (`locator.tap()` under the suite's Pixel 5 profile) because Chromium's touch path is what the bug is
-about. Three tests: the model list dismissed by a tap on transcript text, the effort list dismissed
-by a tap on the input, and one that switches lists with one tap and then chooses a non-current
-thinking level and the model row, proving the row tap applied once and the list closed. Before the
-fix the first two failed with `model-options` / `thinking-options` expected `0` received `1` and the
-value untouched, which is the owner's symptom. `docs/guide.md`'s composer entry now says a tap
-anywhere else closes an open picker without changing the value.
+about. Four tests: the model list dismissed by a tap on transcript text, the effort list dismissed
+by a tap on the input, a drag that starts outside and leaves the list open, and one that switches
+lists with one tap and then chooses a non-current thinking level and a non-current model row. Both
+of the last test's choices are rows pi is not already on — the scripted provider registers a second
+model so the model half can choose one — so the strip changing proves the row was applied rather
+than only that the list closed. Before the fix the first two failed with `model-options` /
+`thinking-options` expected `0` received `1` and the value untouched, which is the owner's symptom.
+`docs/guide.md`'s composer entry now says a tap anywhere else closes an open picker without changing
+the value.
 
-`npm run verify` is green: typecheck, lint/format, 134 client and store tests, build, and 118
-end-to-end tests across 2 shards (+3 for this ticket).
+`npm run verify` is green: typecheck, lint/format, 138 store and component tests, build, and 122
+end-to-end tests across 2 shards.

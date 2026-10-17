@@ -18,33 +18,53 @@
     onSetAutoCompaction: (enabled: boolean) => void;
   } = $props();
 
+  /** How far a pointer may travel and still count as a tap, not a scroll or a drag. */
+  const TAP_SLOP_PX = 10;
+
   function chooseModel(model: ModelInfo): void {
     onOpenChange(null);
     onSetModel(model.provider, model.id);
   }
 
   /**
-   * A tap away from the open picker dismisses it. The listener is on `pointerdown`, not `click`,
-   * because most of the page is plain text: a tap on the transcript is not a click target on touch,
-   * so a click listener would never hear the tap that should dismiss the list. The picker's own
-   * handles and rows carry `data-picker-owned` so a tap on one reaches its click handler with the
-   * list still open; dismissing on the way down would either drop a row tap or make a tap on the
-   * open toggle close and reopen the same list.
+   * A tap away from the open picker dismisses it. The dismissal waits for `pointerup` and for the
+   * pointer to have stayed put, because a scroll or a drag on the transcript also begins with a
+   * `pointerdown`: hearing only the press would close the list the moment the user started moving.
+   * A tap on plain text is still heard, which is why the listener is not a document `click` — on
+   * touch, a tap on a transcript paragraph is not a click target.
    *
-   * The trade-off is that a touch scroll also begins with a pointerdown, so it dismisses too. A
-   * menu anchored above the input is transient, and hearing every tap is worth more than surviving
-   * a scroll that started outside it.
+   * The picker's own handles and rows carry `data-picker-owned` so a tap on one reaches its click
+   * handler with the list still open; dismissing there would either drop a row tap or make a tap on
+   * the open toggle close and reopen the same list.
    */
   $effect(() => {
     if (open === null) return;
+    let pressed: { readonly id: number; readonly x: number; readonly y: number } | null = null;
+    function own(target: EventTarget | null): boolean {
+      return target instanceof Element && target.closest("[data-picker-owned]") !== null;
+    }
+    function rememberPress(event: PointerEvent): void {
+      pressed = own(event.target)
+        ? null
+        : { id: event.pointerId, x: event.clientX, y: event.clientY };
+    }
     function dismiss(event: PointerEvent): void {
-      const target = event.target;
-      if (target instanceof Element && target.closest("[data-picker-owned]") !== null) return;
+      const start = pressed;
+      pressed = null;
+      if (start === null || start.id !== event.pointerId) return;
+      if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > TAP_SLOP_PX) return;
       onOpenChange(null);
     }
-    window.addEventListener("pointerdown", dismiss);
+    function forgetPress(): void {
+      pressed = null;
+    }
+    window.addEventListener("pointerdown", rememberPress);
+    window.addEventListener("pointerup", dismiss);
+    window.addEventListener("pointercancel", forgetPress);
     return () => {
-      window.removeEventListener("pointerdown", dismiss);
+      window.removeEventListener("pointerdown", rememberPress);
+      window.removeEventListener("pointerup", dismiss);
+      window.removeEventListener("pointercancel", forgetPress);
     };
   });
 

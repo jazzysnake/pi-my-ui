@@ -149,8 +149,8 @@ test("reduced motion stops the pulse and loses no text", async ({ page }) => {
     await expect(toolStatus).toBeVisible();
     await expect(toolStatus).toHaveText("Running");
 
-    // A live run is announced without a pulse: the transcript grows, and the send control becomes
-    // the stop control, with the run's state in its own name.
+    // A live run is announced by the transcript's growth and by the send control turning into the
+    // stop control, whose name carries the run's state.
     await expectComposerSend(page, "Stop");
 
     const animationName = (locator: ReturnType<Page["locator"]>): Promise<string> =>

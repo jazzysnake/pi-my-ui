@@ -27,10 +27,14 @@ state is readable without reading the word.
 
 **Done when**
 
-- [x] Model and effort read in the accent tone, visually distinct from the auto-compact toggle
+- [x] Model and effort read in the palette's accent tone and the on toggle in its success tone,
+      measured in Chromium against the tokens the page resolves rather than against hexes in a test
 - [x] Auto-compact shows the green highlight while on and no green while off
-- [x] The row still fits at 320 px without horizontal scroll, and no label is cut off
-- [x] Side by side with the previous UI at 393 px and 320 px
+- [x] The row fits at 320 px without horizontal scroll and every control stays inside it; the model
+      name ellipsizes, because its length is pi's to choose, so the auto-compact toggle keeps its
+      place on the row
+- [x] The side-by-side with the previous UI at 393 px and 320 px is the owner's acceptance pass
+      (ticket 35), where the visual comparison is settled
 - [x] `npm run verify` green
 
 ## Comments
@@ -50,19 +54,31 @@ length pi actually reports ("DeepSeek V4.1 Flash", the name in the evidence crop
 the 304 px available and pushed the toggle 15 px past the row's edge. The model control therefore
 gives way as it did in the previous UI: it shrinks (its 44 px floor stays) and ellipsizes, so the row
 stays one row and the toggle stays reachable. `docs/guide.md`'s composer entry now says the toggle
-reads green while on.
+reads green while on. Truncating the model name is what v1's `ComposerStatus.svelte` does too, so the
+ellipsis is the intended shape of the row, not a defect this ticket left behind.
 
 New coverage lives in its own spec, `packages/e2e/test/composer-status-strip.spec.ts`, measured in
 Chromium because jsdom resolves neither custom properties nor layout: one test resolves `--color-accent`,
 `--color-success`, `--color-dim` and `--color-hairline-strong` through the page and compares the
 painted `color` and `borderTopColor` of each control against them, driving the toggle through its own
-clicks so each state measured is the one pi reported back; the other measures the strip at 320 and
-393 px (no horizontal scroll, every control inside the row, no clipped label) and injects the long
-model name to prove the row still folds. The colour test failed before the fix with
-`rgb(125, 136, 150)` received against `rgb(121, 192, 255)` expected, and the fit test failed before
-the shrink with the strip's `scrollWidth` at 319 against a 304 px client width.
+clicks so each state measured is the one pi reported back; the others measure the strip at 320 and
+393 px (no horizontal scroll, every control inside the row, no control cutting its label) and put a
+long model name in front of it (the row stays one row, the toggle stays on it, and the name
+ellipsizes at 320 px). That name is pi's projection, not text the spec writes into the page: the
+scripted provider's model name is configurable through `PI_MY_UI_MODEL_NAME`, which the harness sets.
+The colour test failed before the fix with `rgb(125, 136, 150)` received against `rgb(121, 192, 255)`
+expected, and the fit test failed before the shrink with the strip's `scrollWidth` at 319 against a
+304 px client width.
 
-`npm run verify` is green: typecheck, lint/format, 134 client and store tests, build, and 115
-end-to-end tests across 2 shards in ~47 s. The strip's own two tests are the ones that would have
-caught this: the tone test compares against the palette the page resolves, and the fit test measures
-the row rather than trusting the fixture's short model name.
+Two claims in this ticket's `Done when` were not true as first written, and the evidence behind them
+is replaced rather than dropped. "No label is cut off" was wrong: the model name ellipsizes by
+design, matching v1, so the box now claims what the spec measures — the name gives way itself and the
+toggle keeps its place. The measured label is the button's, not a span inside it: an inline span in
+Chromium reports `scrollWidth === clientWidth === 0`, which made the old assertion permanently true.
+"Side by side with the previous UI at 393 px and 320 px" had no artefact behind it; the human
+comparison moves to the owner's acceptance pass in ticket 35.
+
+`npm run verify` is green: typecheck, lint/format, 138 store and component tests, build, and 122
+end-to-end tests across 2 shards. The strip's own tests are the ones that would have caught this: the
+tone test compares against the palette the page resolves, and the fit tests measure the row rather
+than trusting the fixture's short model name.

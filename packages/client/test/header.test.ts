@@ -55,8 +55,8 @@ describe("the header's end group", () => {
       throw new Error("the shell has no header");
     }
 
-    // The pill is session state and now lives in the session bar; the header keeps the controls a
-    // thumb reaches for and nothing that changes with the run.
+    // The pill is session state, so it belongs to the session bar; the header keeps only the controls
+    // a thumb reaches for and nothing that changes with the run.
     expect(bar.querySelector('[data-testid="agent-pill"]')).toBeNull();
     expect([...bar.querySelectorAll("button")].map((control) => control.dataset["testid"])).toEqual(
       ["sessions-toggle", "files-toggle"],

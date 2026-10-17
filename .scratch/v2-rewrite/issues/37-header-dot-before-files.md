@@ -54,3 +54,7 @@ rendered seam ticket 36 added).
 
 `npm run verify` is green: typecheck, lint/format, 134 store and component tests, build, and 113
 end-to-end tests across 2 shards in ~47 s.
+
+One later change to the same row: ticket 41 moved the agent pill out of the header and into the
+session bar, so the end group now begins at the connection dot; the order this ticket records is
+unchanged.

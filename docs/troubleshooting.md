@@ -172,7 +172,7 @@ the reason is in pi's own stderr, which the server forwards.
 
 ## The agent pill and agent list are missing
 
-**You see:** a Session works normally but there is no agent pill in the top bar.
+**You see:** a Session works normally but there is no agent pill in the session bar.
 
 **Why:** the Session's pi has not reported any agents. The usual cause is that the
 `@tintinweb/pi-subagents` extension is not installed for pi. The server does not install it, and it

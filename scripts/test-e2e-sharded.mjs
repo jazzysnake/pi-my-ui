@@ -35,10 +35,8 @@ const PLAYWRIGHT_BIN = join(
  */
 const DEFAULT_SHARDS = 2;
 const SHARDS_ENV_VAR = "PI_MY_UI_E2E_SHARDS";
-/** The product goal for the whole run. A run above this warns; it does not fail by itself. */
+/** The product promise for the whole run, so a run above it fails the gate rather than warning. */
 const WALL_BUDGET_MS = 60_000;
-/** A run this far over budget is a regression, not machine noise, so it fails the gate. */
-const WALL_CEILING_MS = 120_000;
 
 class E2eShardError extends Error {
   constructor(message) {
@@ -223,7 +221,7 @@ function reportSummary(shards, expectedCount, elapsedMs) {
   );
   if (elapsedMs > WALL_BUDGET_MS) {
     console.warn(
-      `[e2e-shards] WARNING: over the ${String(WALL_BUDGET_MS)}ms budget; ` +
+      `[e2e-shards] OVER BUDGET by ${String(elapsedMs - WALL_BUDGET_MS)}ms; ` +
         "re-balance the shards or the suite has outgrown them",
     );
   }
@@ -259,9 +257,9 @@ async function main() {
     if (problems.length > 0) {
       throw new E2eShardError(`the gate is not green:\n  - ${problems.join("\n  - ")}`);
     }
-    if (elapsedMs > WALL_CEILING_MS) {
+    if (elapsedMs > WALL_BUDGET_MS) {
       throw new E2eShardError(
-        `the run took ${String(elapsedMs)}ms, over the ${String(WALL_CEILING_MS)}ms ceiling`,
+        `the run took ${String(elapsedMs)}ms, over the ${String(WALL_BUDGET_MS)}ms budget`,
       );
     }
   } finally {

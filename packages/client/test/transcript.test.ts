@@ -130,6 +130,37 @@ describe("markdown in the transcript", () => {
   });
 });
 
+describe("a Snapshot for another Session", () => {
+  it("does not replace the transcript the slice is watching", () => {
+    const store = new ClientStore();
+    const target = mountShell(store);
+    flushSync(() => {
+      store.receive(snapshotOf([entry("entry-1", MessageRole.User, "the watched session")]));
+    });
+
+    flushSync(() => {
+      store.receive({
+        type: ServerMessageType.Snapshot,
+        sessionId: "session-2",
+        cursor: 1,
+        projection: {
+          sessionId: "session-2",
+          cwd: "/elsewhere",
+          leafId: "other-1",
+          entries: [entry("other-1", MessageRole.User, "a different session")],
+          runState: { kind: "idle" },
+          subagents: [],
+          subagentTranscripts: [],
+        },
+      });
+    });
+
+    const transcript = target.querySelector('[data-testid="transcript"]');
+    expect(transcript?.textContent).toContain("the watched session");
+    expect(transcript?.textContent).not.toContain("a different session");
+  });
+});
+
 describe("notifications in the transcript", () => {
   it("renders an extension message as a card named by its summary", () => {
     const store = new ClientStore();

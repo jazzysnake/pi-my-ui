@@ -52,7 +52,8 @@ function roleOf(entry: SessionEntry): MessageRole | null {
     case "bashExecution":
       return MessageRole.Bash;
     case "custom":
-      return MessageRole.Notification;
+      // The transcript has no row for a hidden custom message, so the tree must not offer one either.
+      return entry.message.display === false ? null : MessageRole.Notification;
     default:
       return null;
   }
@@ -123,16 +124,54 @@ function toTreeEntry(entry: SessionEntry, label: string | undefined): TreeEntry 
   };
 }
 
-function toTreeNode(node: SessionTreeNode): TreeNode {
-  return {
-    entry: toTreeEntry(node.entry, node.label),
-    children: node.children.map(toTreeNode),
-  };
+/** A custom message pi marks hidden has no transcript row, so the tree must not offer one either. */
+function isHidden(entry: SessionEntry): boolean {
+  return entry.type === "custom_message" && entry.display === false;
+}
+
+function toTreeNodes(nodes: readonly SessionTreeNode[]): TreeNode[] {
+  const projected: TreeNode[] = [];
+  for (const node of nodes) {
+    const children = toTreeNodes(node.children);
+    // Dropping the node keeps its children, exactly as the transcript drops the message while the
+    // entries above and below it stay on the path.
+    if (isHidden(node.entry)) {
+      projected.push(...children);
+      continue;
+    }
+    projected.push({ entry: toTreeEntry(node.entry, node.label), children });
+  }
+  return projected;
+}
+
+function nodesById(nodes: readonly SessionTreeNode[], found = new Map<string, SessionTreeNode>()) {
+  for (const node of nodes) {
+    found.set(node.entry.id, node);
+    nodesById(node.children, found);
+  }
+  return found;
+}
+
+/** The Leaf the visible tree can mark: a hidden message hands it back to its parent. */
+function visibleLeafId(tree: readonly SessionTreeNode[], leafId: string | null): string | null {
+  const byId = nodesById(tree);
+  let current = leafId;
+  while (current !== null) {
+    const node = byId.get(current);
+    if (node === undefined) {
+      return leafId;
+    }
+    if (!isHidden(node.entry)) {
+      return current;
+    }
+    current = node.entry.parentId;
+  }
+  return null;
 }
 
 /** Narrow pi's tree answer into the shape the modal renders. */
 export function projectTree(tree: readonly SessionTreeNode[], leafId: string | null): SessionTree {
-  return { roots: tree.map(toTreeNode), leafId };
+  return { roots: toTreeNodes(tree), leafId: visibleLeafId(tree, leafId) };
 }
 
 function findNode(nodes: readonly SessionTreeNode[], entryId: string): SessionTreeNode | undefined {

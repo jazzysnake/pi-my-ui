@@ -184,13 +184,14 @@ describe("Escape in the composer", () => {
           onSetThinkingLevel: () => undefined,
           onSetAutoCompaction: () => undefined,
           onBranch: () => undefined,
-          onEscape: () => true,
         },
       });
     });
+    type(target, "/");
     const event = keydown(target, { key: "Escape" });
     expect(event.defaultPrevented).toBe(true);
     expect(onAbort).not.toHaveBeenCalled();
+    expect(target.querySelector('[data-testid="command-palette"]')).toBeNull();
   });
 
   it("cancels a running turn", () => {

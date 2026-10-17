@@ -10,7 +10,8 @@ import { chmodSync, mkdirSync, rmdirSync, statSync, unlinkSync } from "node:fs";
 import { createConnection, type Server } from "node:net";
 import { dirname } from "node:path";
 
-import { BridgeSocketError, errorText } from "./errors.js";
+import { errorText } from "../error-text.js";
+import { BridgeSocketError } from "./errors.js";
 
 /** Only the user may enter the bridge's per-run directory. */
 export const BRIDGE_SOCKET_DIR_MODE = 0o700;

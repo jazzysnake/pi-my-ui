@@ -7,6 +7,7 @@
 import { realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
+import { errorText } from "../error-text.js";
 import { isNotFoundError, PathEscapeError, PathNotFoundError } from "./errors.js";
 
 /** A request that passed path safety, resolved against the served root. */
@@ -68,7 +69,7 @@ export function resolvePath(root: string, requested: string): ResolvedPath {
     }
     // A denial or any other failure is a refusal: the caller must never receive a path this helper
     // could not verify is inside the root.
-    throw new PathEscapeError(requested, `could not be resolved: ${describe(error)}`);
+    throw new PathEscapeError(requested, `could not be resolved: ${errorText(error)}`);
   }
 
   if (escapes(relative(realRoot, absolute))) {
@@ -76,8 +77,4 @@ export function resolvePath(root: string, requested: string): ResolvedPath {
   }
 
   return { requested, relative: rel, absolute, root: realRoot };
-}
-
-function describe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

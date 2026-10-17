@@ -60,6 +60,57 @@ const SPAWN_SCRIPT: Script = [
   },
 ];
 
+/**
+ * A background spawn: the parent settles while the subagent is still holding a shell command open, so
+ * the count on `main` is the only thing showing that work continues behind the main view.
+ */
+const BACKGROUND_SCRIPT: Script = [
+  {
+    expect: { role: "user", text: "spawn a helper in the background" },
+    reply: {
+      content: [
+        {
+          type: "toolCall",
+          id: "call_agent_bg",
+          name: "Agent",
+          arguments: {
+            subagent_type: "general-purpose",
+            prompt: "say hi slowly",
+            description: "Say hi slowly",
+            run_in_background: true,
+          },
+        },
+      ],
+      stopReason: "toolUse",
+    },
+  },
+  {
+    expect: { role: "toolResult", toolName: "Agent" },
+    reply: {
+      content: [{ type: "text", text: "the background helper is running" }],
+      stopReason: "stop",
+    },
+  },
+  {
+    expect: { role: "user", text: "say hi slowly" },
+    reply: {
+      content: [
+        {
+          type: "toolCall",
+          id: "call_subagent_bg_bash",
+          name: "bash",
+          arguments: { command: "sleep 5 && echo subagent-ran", timeout: 30 },
+        },
+      ],
+      stopReason: "toolUse",
+    },
+  },
+  {
+    expect: { role: "toolResult", toolName: "bash" },
+    reply: { content: [{ type: "text", text: "the subagent finished" }], stopReason: "stop" },
+  },
+];
+
 const PLAIN_SCRIPT: Script = [
   {
     expect: { role: "user", text: "hello there" },
@@ -119,6 +170,11 @@ test("a scripted Agent call spawns a real subagent and the pill counts it", asyn
   try {
     await openHarness(page, harness);
     await expect(page.getByTestId("agent-pill")).toHaveCount(0);
+    // pi-subagents registers its own `/agents` command, so its presence in the palette proves the
+    // extension is loaded and the absence test below is about the extension, not about a spawn.
+    await page.getByTestId("composer-input").fill("/agents");
+    await expect(page.locator('[data-entry-key$=":agents"]')).toBeVisible();
+    await page.getByTestId("composer-input").fill("");
 
     await sendMessage(page, "spawn a helper");
 
@@ -138,13 +194,47 @@ test("a scripted Agent call spawns a real subagent and the pill counts it", asyn
   }
 });
 
-test("without pi-subagents no agent pill is shown", async ({ page }) => {
+test("a background subagent is counted on main after the parent settles", async ({ page }) => {
+  const harness = await startHarness(BACKGROUND_SCRIPT, { piSubagents: true });
+  try {
+    await openHarness(page, harness);
+    await sendMessage(page, "spawn a helper in the background");
+
+    // The parent's own turn is over, yet the pill keeps the background agent counted.
+    await expect(page.getByTestId("transcript")).toContainText("the background helper is running", {
+      timeout: 30_000,
+    });
+    const pill = page.getByTestId("agent-pill");
+    await expect(pill).toHaveAttribute("data-pill-kind", "main");
+    await expect(page.getByTestId("agent-pill-label")).toHaveText("main +1");
+
+    await expect(page.getByTestId("transcript")).toContainText("the subagent finished", {
+      timeout: 30_000,
+    });
+    await expect(page.getByTestId("agent-pill-label")).toHaveText("main");
+  } finally {
+    await disposeHarness(harness);
+  }
+});
+
+test("without pi-subagents the extension is absent and no agent pill is shown", async ({
+  page,
+}) => {
   const harness = await startHarness(PLAIN_SCRIPT, { piSubagents: false });
   try {
     await openHarness(page, harness);
-    await sendMessage(page, "hello there");
 
+    // pi reports the commands its loaded extensions registered. With pi-subagents not loaded its
+    // `/agents` command is missing, which is evidence about the child's extensions rather than an
+    // absence of agents that a plain prompt would produce anyway.
+    await page.getByTestId("composer-input").fill("/agents");
+    await expect(page.locator('[data-entry-key$=":agents"]')).toHaveCount(0);
+    await page.getByTestId("composer-input").fill("");
+
+    await sendMessage(page, "hello there");
     await expect(page.getByTestId("transcript")).toContainText("a plain reply");
+    // The Session itself still renders normally; only the subagent surface is absent.
+    await expect(page.getByTestId("app-shell")).toBeVisible();
     await expect(page.getByTestId("agent-pill")).toHaveCount(0);
   } finally {
     await disposeHarness(harness);

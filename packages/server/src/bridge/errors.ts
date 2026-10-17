@@ -41,7 +41,3 @@ export class BridgeConnectionError extends BridgeError {
     super(`session ${JSON.stringify(sessionId)}: ${message}`, options);
   }
 }
-
-export function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}

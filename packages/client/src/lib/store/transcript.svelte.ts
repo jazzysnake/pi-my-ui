@@ -24,6 +24,8 @@ export interface TranscriptSlice {
   readonly cwd: string;
   /** No live Projection for the watched Session yet: it is being started. */
   readonly starting: boolean;
+  /** Advances for every Snapshot this slice accepts, so a view can anchor across a resync. */
+  readonly snapshotCount: number;
   receive(message: ServerMessage): void;
   /** Drop the current Projection, so a switched-away Session leaves nothing behind. */
   clear(): void;
@@ -34,6 +36,7 @@ export interface TranscriptSlice {
 export function createTranscriptSlice(): TranscriptSlice {
   let projection = $state<SessionProjection | null>(null);
   let waiting = $state(false);
+  let snapshots = $state(0);
 
   return {
     get entries() {
@@ -48,10 +51,19 @@ export function createTranscriptSlice(): TranscriptSlice {
     get starting() {
       return waiting;
     },
+    get snapshotCount() {
+      return snapshots;
+    },
     receive(message) {
-      if (message.type === ServerMessageType.Snapshot) {
+      // A Snapshot for a Session this slice is not watching would replace the transcript the user is
+      // reading. The first Snapshot is accepted because nothing has named a Session yet.
+      if (
+        message.type === ServerMessageType.Snapshot &&
+        (projection === null || message.sessionId === projection.sessionId)
+      ) {
         projection = message.projection;
         waiting = false;
+        snapshots += 1;
         return;
       }
       // A Delta from a switched-away Session must not advance the Projection that replaced it.

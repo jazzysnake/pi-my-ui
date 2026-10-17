@@ -40,10 +40,29 @@ the idle window returns. An unwatched child that a connected viewer's disconnect
 the one state that never comes back — `packages/e2e/test/pool-defaults.spec.ts` covers it.
 
 **Per Session, not per child.** Inside the server the only state that grows with a Session is what the
-Session itself contains: the projected transcript (one entry per entry pi wrote) and the retained
-Deltas for reconnecting viewers, bounded at 2048 batches and five minutes. Bash executions are
+Session itself contains: the projected transcript (one entry per entry pi wrote). Bash executions are
 transcript entries like any other, so there is no separate per-command record to grow; the stress run
 above opened Sessions with 60 entries each and returned to its starting footprint after eviction.
+Retained Deltas have code bounds rather than measured ones, so they are not claimed here.
+
+## Full end-to-end suite — 2026-10-17
+
+**Command:** `npm run test:e2e:sharded` (the default two shards; `PI_MY_UI_E2E_SHARDS` overrides the
+count).
+
+**Instrument:** The gate itself. It discovers the suite, runs every shard in its own process, and
+reconciles every test against the discovery run. The figure below is the gate's own wall-clock, from
+the discovery run through the last shard's exit.
+
+**Machine:** AMD Ryzen 7 7840HS, 16 CPUs, 27.7 GB RAM, Linux 6.18.52-1-lts, Node v26.9.0,
+pi 0.99.2.
+
+| Run | Shards | Tests accounted for | Wall-clock |
+| --- | --- | --- | --- |
+| Full suite | 2 | 112/112 | 46,830 ms |
+
+The gate fails above its one-minute budget. This run sat at 78% of it, so the shard count has room
+before the suite outgrows the promise.
 
 ## What these numbers set
 

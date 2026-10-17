@@ -107,6 +107,10 @@ function reconnectControl(target: HTMLElement): HTMLButtonElement | null {
   return target.querySelector<HTMLButtonElement>('[data-testid="session-reconnect"]');
 }
 
+function resumeControl(target: HTMLElement): HTMLButtonElement | null {
+  return target.querySelector<HTMLButtonElement>('[data-testid="session-resume"]');
+}
+
 const CRASHED: RunState = { kind: RunStateKind.Crashed, exitCode: null, signal: "SIGKILL" };
 
 describe("a Session whose Pi child is gone", () => {
@@ -121,15 +125,19 @@ describe("a Session whose Pi child is gone", () => {
     expect(row(target)?.getAttribute("data-run-state")).toBe(RunStateKind.Crashed);
     expect(label(target)).toBe("Pi child exited");
     expect(detail(target)).toBe("signal SIGKILL");
+    // A crash offers both ways back from the intact Session file.
+    expect(reconnectControl(target)).not.toBeNull();
+    expect(resumeControl(target)).not.toBeNull();
 
     flushSync(() => {
-      reconnectControl(target)?.click();
+      resumeControl(target)?.click();
     });
     expect(reconnect).toHaveBeenCalledTimes(1);
     // Waiting for the respawn reads as starting, not as the crash that is being recovered from.
     expect(row(target)?.getAttribute("data-run-state")).toBe("starting");
     expect(label(target)).toBe("Starting…");
     expect(reconnectControl(target)).toBeNull();
+    expect(resumeControl(target)).toBeNull();
     // The transcript is not thrown away by the recovery: the file it came from is intact.
     expect(target.querySelector('[data-testid="transcript"]')?.textContent).toContain("seed text");
 
@@ -138,6 +146,7 @@ describe("a Session whose Pi child is gone", () => {
     });
     expect(row(target)).toBeNull();
     expect(reconnectControl(target)).toBeNull();
+    expect(resumeControl(target)).toBeNull();
   });
 
   it("reports an exit code when pi exited by itself", () => {
@@ -160,6 +169,37 @@ describe("a Session whose Pi child is gone", () => {
 
     expect(detail(target)).toBe("exit code 1");
     expect(reconnectControl(target)).not.toBeNull();
+    expect(resumeControl(target)).not.toBeNull();
+  });
+
+  it("offers Resume on an errored run, which v1 recovered from the Session file", () => {
+    const store = new ClientStore();
+    const { target, reconnect } = mountShell(store);
+    flushSync(() => {
+      store.receive(snapshotOf([]));
+      store.receive(
+        runStateDelta(
+          [
+            {
+              kind: ProjectionDeltaKind.RunState,
+              runState: { kind: RunStateKind.Errored, message: "Tool bash failed" },
+            },
+          ],
+          0,
+        ),
+      );
+    });
+
+    expect(row(target)?.getAttribute("data-run-state")).toBe(RunStateKind.Errored);
+    expect(detail(target)).toBe("Tool bash failed");
+    expect(resumeControl(target)).not.toBeNull();
+    expect(reconnectControl(target)).toBeNull();
+
+    flushSync(() => {
+      resumeControl(target)?.click();
+    });
+    expect(reconnect).toHaveBeenCalledTimes(1);
+    expect(row(target)?.getAttribute("data-run-state")).toBe("starting");
   });
 
   it("returns to the crash when the respawn is refused rather than pretending it started", () => {

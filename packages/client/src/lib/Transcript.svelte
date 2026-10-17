@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import {
     ContentBlockType,
     EntryKind,
@@ -13,17 +14,42 @@
   import NotificationCard from "./NotificationCard.svelte";
   import ToolCallCard from "./ToolCallCard.svelte";
   import { entryText } from "./transcript.js";
-  import { windowEntries } from "./transcript-window.js";
+  import {
+    loadOlderWindow,
+    newestWindowPosition,
+    windowEntries,
+    type TranscriptWindowPosition,
+  } from "./transcript-window.js";
 
-  let { entries, empty = null }: { entries: readonly ProjectedEntry[]; empty?: string | null } =
-    $props();
+  let {
+    entries,
+    empty = null,
+    snapshotCount = 0,
+  }: {
+    entries: readonly ProjectedEntry[];
+    empty?: string | null;
+    /** Increments for every Snapshot the store accepts, which is the resync this view anchors. */
+    snapshotCount?: number;
+  } = $props();
 
-  const mounted = $derived(windowEntries(entries));
+  let position = $state<TranscriptWindowPosition>(newestWindowPosition());
+  const mounted = $derived(windowEntries(entries, position));
 
   let container = $state<HTMLElement | null>(null);
   let pinned = $state(true);
 
   const NEAR_BOTTOM_PX = 48;
+
+  /** One row at the top of the viewport, remembered across a resync so its pixels can be restored. */
+  interface ViewAnchor {
+    readonly entryId: string | null;
+    readonly offset: number;
+  }
+
+  interface SavedView {
+    readonly anchor: ViewAnchor;
+    readonly pinned: boolean;
+  }
 
   function handleScroll(): void {
     if (container === null) {
@@ -36,6 +62,125 @@
   function copyRaw(entry: ProjectedMessageEntry): void {
     void navigator.clipboard.writeText(entryText(entry));
   }
+
+  /** The first row the reader can see, and how far below the viewport's top edge it starts. */
+  function currentAnchor(): ViewAnchor {
+    if (container === null) {
+      return { entryId: null, offset: 0 };
+    }
+    const top = container.getBoundingClientRect().top;
+    for (const row of container.querySelectorAll<HTMLElement>("[data-entry-id]")) {
+      const rect = row.getBoundingClientRect();
+      if (rect.bottom > top) {
+        return { entryId: row.dataset["entryId"] ?? null, offset: rect.top - top };
+      }
+    }
+    return { entryId: null, offset: 0 };
+  }
+
+  /** Put the anchored row back where it was, so a replaced Projection does not move the reader. */
+  function restoreAnchor(anchor: ViewAnchor): void {
+    const element = container;
+    if (element === null || anchor.entryId === null) {
+      return;
+    }
+    const row = element.querySelector<HTMLElement>(`[data-entry-id="${anchor.entryId}"]`);
+    if (row === null) {
+      return;
+    }
+    const offsetNow = row.getBoundingClientRect().top - element.getBoundingClientRect().top;
+    element.scrollTop += offsetNow - anchor.offset;
+  }
+
+  async function withAnchor(change: () => void): Promise<void> {
+    const anchor = currentAnchor();
+    change();
+    await tick();
+    restoreAnchor(anchor);
+  }
+
+  function showOlder(): void {
+    pinned = false;
+    void withAnchor(() => {
+      position = loadOlderWindow(entries, position);
+    });
+  }
+
+  function returnToNewest(): void {
+    position = newestWindowPosition();
+    pinned = true;
+    void tick().then(() => {
+      if (container !== null) {
+        container.scrollTop = container.scrollHeight;
+      }
+    });
+  }
+
+  let lastLength = 0;
+  let seenSnapshots = 0;
+  let pendingSnapshot: SavedView | null = null;
+
+  // A Snapshot replaces every entry id at once. Before the DOM changes, remember the row under the
+  // reader's eye and keep the same absolute range mounted, so the replacement does not jump them.
+  $effect.pre(() => {
+    const count = snapshotCount;
+    if (count === seenSnapshots) {
+      return;
+    }
+    seenSnapshots = count;
+    if (lastLength === 0) {
+      // The first Snapshot fills an empty view; there is no range to preserve yet.
+      position = newestWindowPosition();
+      lastLength = entries.length;
+      return;
+    }
+    const oldStart = Math.max(0, lastLength - position.hiddenNewer - position.size);
+    const oldSize = Math.min(position.size, Math.max(0, lastLength - oldStart));
+    pendingSnapshot = { anchor: currentAnchor(), pinned };
+    // Only a window that already hid older rows needs its absolute range kept. A short transcript
+    // has nothing above it to preserve, so it shows the whole replacement.
+    position =
+      pinned || oldStart === 0
+        ? {
+            size: Math.max(oldSize, Math.min(entries.length, position.size)),
+            hiddenNewer: 0,
+          }
+        : {
+            size: oldSize,
+            hiddenNewer: Math.max(0, entries.length - (oldStart + oldSize)),
+          };
+    lastLength = entries.length;
+  });
+
+  $effect(() => {
+    void snapshotCount;
+    const saved = pendingSnapshot;
+    pendingSnapshot = null;
+    if (saved === null || saved.pinned) {
+      return;
+    }
+    void tick().then(() => {
+      restoreAnchor(saved.anchor);
+    });
+  });
+
+  // New output grows the transcript below the reader. While following the bottom the window slides
+  // with it; a reader who scrolled up keeps their range and the new output becomes "newer".
+  $effect(() => {
+    const length = entries.length;
+    const added = length - lastLength;
+    if (length === 0) {
+      position = newestWindowPosition();
+      pinned = true;
+      lastLength = 0;
+      return;
+    }
+    const hiddenOlder = Math.max(0, lastLength - position.hiddenNewer - position.size);
+    if (added > 0 && !pinned && hiddenOlder > 0) {
+      position = { size: position.size, hiddenNewer: position.hiddenNewer + added };
+    }
+    lastLength = length;
+  });
 
   // Auto-scroll follows the stream only while the reader is already at the bottom; a reader who
   // scrolled up is never yanked back to the newest output.
@@ -75,14 +220,16 @@
   {#if entries.length === 0 && empty !== null}
     <p class="text-body text-dim" data-testid="transcript-empty">{empty}</p>
   {/if}
-  {#if mounted.hiddenCount > 0}
-    <p
-      class="mb-3 text-meta text-faint"
+  {#if mounted.hiddenOlder > 0}
+    <button
+      type="button"
+      class="mb-3 min-h-11 w-full rounded border border-hairline-strong px-3 text-meta text-dim"
       data-testid="hidden-older"
-      data-hidden-count={mounted.hiddenCount}
+      data-hidden-count={mounted.hiddenOlder}
+      onclick={showOlder}
     >
-      {mounted.hiddenCount} older messages are not shown
-    </p>
+      Show {mounted.hiddenOlder} older message{mounted.hiddenOlder === 1 ? "" : "s"}
+    </button>
   {/if}
   {#each mounted.visible as entry (entry.id)}
     <article
@@ -144,4 +291,15 @@
       {/if}
     </article>
   {/each}
+  {#if mounted.hiddenNewer > 0}
+    <button
+      type="button"
+      class="mt-3 min-h-11 w-full rounded border border-hairline-strong px-3 text-meta text-dim"
+      data-testid="hidden-newer"
+      data-hidden-count={mounted.hiddenNewer}
+      onclick={returnToNewest}
+    >
+      {mounted.hiddenNewer} newer message{mounted.hiddenNewer === 1 ? "" : "s"} hidden · return to newest
+    </button>
+  {/if}
 </main>

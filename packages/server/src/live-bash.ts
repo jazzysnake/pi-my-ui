@@ -15,6 +15,8 @@ import {
 
 /** The Projection operations a live command needs, injected so this module owns no reducer state. */
 export interface LiveBashHost {
+  /** The server clock, so a synthesized timestamp is the same time a test injected. */
+  now(): number;
   nextId(): string;
   entry(id: string): ProjectedEntry | undefined;
   leafId(): string | null;
@@ -50,7 +52,7 @@ export function createLiveBash(host: LiveBashHost): LiveBash {
       id: bash.id,
       parentId: existing?.parentId ?? host.leafId(),
       role: MessageRole.Bash,
-      timestamp: existing?.timestamp ?? Date.now(),
+      timestamp: existing?.timestamp ?? host.now(),
       blocks: [
         {
           type: ContentBlockType.BashExecution,

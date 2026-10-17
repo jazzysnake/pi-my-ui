@@ -170,13 +170,14 @@ test("/resume opens the list, /name renames, /session shows pi's statistics, /ex
     await expect(valueFor("cost")).toContainText("$");
     await expect(valueFor("context")).not.toHaveText("0");
 
-    // `/export` writes pi's HTML inside the served directory and offers it as a download.
-    await send(page, "/export");
-    await expect(page.getByTestId("session-export-path")).toContainText(".html");
+    // `/export` writes pi's HTML inside the served directory and starts the download itself: one
+    // command, one download, and no second control to tap.
     const downloadPromise = page.waitForEvent("download", { timeout: DOWNLOAD_TIMEOUT_MS });
-    await page.getByTestId("session-export-download").click();
+    await send(page, "/export");
     const download = await downloadPromise;
     expect(download.suggestedFilename()).toMatch(/\.html$/);
+    await expect(page.getByTestId("session-export-path")).toContainText(".html");
+    await expect(page.getByTestId("session-export-download")).toHaveCount(0);
   } finally {
     await disposeHarness(harness);
   }

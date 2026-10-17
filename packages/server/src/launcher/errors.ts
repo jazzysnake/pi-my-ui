@@ -56,7 +56,3 @@ export class LauncherBindError extends LauncherError {
     );
   }
 }
-
-export function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}

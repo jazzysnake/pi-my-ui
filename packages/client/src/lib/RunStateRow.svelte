@@ -7,10 +7,12 @@
     runState,
     starting = false,
     onReconnect = () => undefined,
+    onResume = onReconnect,
   }: {
     runState: RunState;
     starting?: boolean;
     onReconnect?: () => void;
+    onResume?: () => void;
   } = $props();
 
   const display = $derived(starting ? STARTING_DISPLAY : runStateDisplay(runState));
@@ -50,6 +52,14 @@
         class="min-h-11 shrink-0 rounded border border-hairline-strong px-3 text-ink"
         data-testid="session-reconnect"
         onclick={onReconnect}>Reconnect</button
+      >
+    {/if}
+    {#if display.resume}
+      <button
+        type="button"
+        class="min-h-11 shrink-0 rounded border border-hairline-strong px-3 text-ink"
+        data-testid="session-resume"
+        onclick={onResume}>Resume</button
       >
     {/if}
   </div>

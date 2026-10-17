@@ -136,6 +136,38 @@ test("every control the composer's own states put on screen meets the minimum", 
     await expect(page.getByTestId("message-tree-select").first()).toBeVisible();
     await expectEveryControlMeetsTouchTarget(page, "the message tree open");
     await page.getByTestId("message-tree-close").click();
+
+    await page.getByTestId("composer-input").fill("/fork");
+    await page.getByTestId("composer-send").click();
+    await expect(page.getByTestId("fork-picker")).toBeVisible();
+    await expect(page.getByTestId("fork-picker-row").first()).toBeVisible();
+    await expectEveryControlMeetsTouchTarget(page, "the fork picker open");
+    await page.getByTestId("fork-picker-close").click();
+  } finally {
+    await disposeHarness(harness);
+  }
+});
+
+test("a Session that is still starting meets the minimum", async ({ page }) => {
+  const harness = await startHarness(
+    [
+      {
+        expect: { role: "user", text: "a prompt this recording never saw" },
+        reply: { content: [{ type: "text", text: "unused" }], stopReason: "stop" },
+      },
+    ],
+    "plain",
+  );
+  try {
+    // The row exists from the first frame, before any Snapshot: recovery and a cold start are waits,
+    // and every control they put on screen must still be tappable.
+    const url = `${harness.client.url}?session=${encodeURIComponent(harness.seeded.id)}&ws=${encodeURIComponent(harness.server.url)}`;
+    await page.goto(url);
+    await expect(page.getByTestId("run-state")).toHaveAttribute("data-run-state", "starting");
+    await expectEveryControlMeetsTouchTarget(page, "a Session starting");
+    await expect(page.getByTestId("transcript")).toContainText("Seed text block 3.", {
+      timeout: 30_000,
+    });
   } finally {
     await disposeHarness(harness);
   }
@@ -163,6 +195,13 @@ test("the agent list and the transcript's own controls meet the minimum", async 
     await expect(page.getByTestId("agent-list")).toBeVisible();
     await expect(page.getByTestId("agent-row").first()).toBeVisible();
     await expectEveryControlMeetsTouchTarget(page, "the agent list open");
+
+    // Focusing a settled subagent explains that steering is unavailable, in the composer that would
+    // otherwise send into the void.
+    await page.locator('[data-testid="agent-row"][data-row-kind="agent"]').first().click();
+    await expect(page.getByTestId("agent-list")).toHaveCount(0);
+    await expect(page.getByTestId("steer-refusal")).toBeVisible();
+    await expectEveryControlMeetsTouchTarget(page, "a focused subagent's composer");
   } finally {
     await disposeHarness(harness);
   }

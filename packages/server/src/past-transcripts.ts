@@ -31,6 +31,7 @@ import {
 } from "@pi-my-ui/protocol";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 
+import { errorText } from "./error-text.js";
 import { projectionBatch } from "./projection.js";
 
 /** Characters of the run id that pi-subagents puts in a child session's name. */
@@ -85,10 +86,6 @@ function ambiguous(): SubagentTranscriptLookup {
 interface Sibling {
   readonly path: string;
   readonly manager: SessionManager;
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 /**

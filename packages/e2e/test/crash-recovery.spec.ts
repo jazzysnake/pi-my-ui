@@ -7,6 +7,7 @@ import { startClientPageServer, type ClientPageServer } from "../src/client-page
 import { seedSession, type FixtureSession } from "../src/fixture-builder";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 import { piChildPids } from "../src/pi-processes";
+import { expectEveryControlMeetsTouchTarget } from "../src/touch-targets";
 
 const PI_TEST_TIMEOUT_MS = 120_000;
 const PI_START_TIMEOUT_MS = 30_000;
@@ -63,7 +64,7 @@ async function openHarness(page: Page, harness: Harness): Promise<void> {
   });
 }
 
-test("a crashed Pi child shows its exit details and Reconnect restores the Session", async ({
+test("a crashed Pi child shows its exit details, and Reconnect and Resume both restore it", async ({
   page,
 }) => {
   const harness = await startHarness();
@@ -83,14 +84,34 @@ test("a crashed Pi child shows its exit details and Reconnect restores the Sessi
     await expect(page.getByTestId("run-state-label")).toHaveText("Pi child exited");
     await expect(page.getByTestId("run-state-detail")).toHaveText("signal SIGKILL");
 
-    await page.getByTestId("session-reconnect").click();
+    // Both recovery controls are offered while the child is gone.
+    await expect(page.getByTestId("session-reconnect")).toBeVisible();
+    await expect(page.getByTestId("session-resume")).toBeVisible();
+
+    await page.getByTestId("session-resume").click();
     await expect(row).toHaveAttribute("data-run-state", "starting");
+    // The Starting row is a state the sweep must cover too: recovery is a wait, not an error.
+    await expectEveryControlMeetsTouchTarget(page, "a Session starting after a crash");
 
     // The respawn restores the transcript from the intact Session file and clears the crash.
     await expect(row).toHaveCount(0, { timeout: PI_START_TIMEOUT_MS });
     await expect(page.getByTestId("transcript")).toContainText(NAMED_MARKER);
     await expect.poll(() => piChildPids().length).toBe(1);
     expect(piChildPids()).not.toContain(child);
+
+    // Reconnect is the other name for the same recovery, and it restores the Session the same way.
+    const resumed = piChildPids()[0];
+    if (resumed === undefined) {
+      throw new Error("Resume started no Pi child");
+    }
+    process.kill(resumed, "SIGKILL");
+    await expect(row).toHaveAttribute("data-run-state", "crashed");
+    await page.getByTestId("session-reconnect").click();
+    await expect(row).toHaveAttribute("data-run-state", "starting");
+    await expect(row).toHaveCount(0, { timeout: PI_START_TIMEOUT_MS });
+    await expect(page.getByTestId("transcript")).toContainText(NAMED_MARKER);
+    await expect.poll(() => piChildPids().length).toBe(1);
+    expect(piChildPids()).not.toContain(resumed);
   } finally {
     await disposeHarness(harness);
   }

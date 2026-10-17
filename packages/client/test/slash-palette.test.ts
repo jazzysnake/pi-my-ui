@@ -336,7 +336,7 @@ describe("session commands", () => {
     expect(valueFor("context", panel as HTMLElement)).toBe("unavailable");
   });
 
-  it("offers a download of pi's exported path with /export", () => {
+  it("downloads pi's exported HTML as the single result of /export", () => {
     const store = new ClientStore();
     const { target, exportSession, downloadFile } = mountShell(store);
     flushSync(() => {
@@ -350,16 +350,16 @@ describe("session commands", () => {
       send(target);
     });
     expect(exportSession).toHaveBeenCalledTimes(1);
+    expect(downloadFile).not.toHaveBeenCalled();
 
+    // The server naming the file starts the download; there is no second control to tap.
     flushSync(() => {
       store.receive(exportedOf("pi-session-session-1.html"));
     });
+    expect(downloadFile).toHaveBeenCalledWith("pi-session-session-1.html");
     expect(target.querySelector('[data-testid="session-export-path"]')?.textContent).toBe(
       "pi-session-session-1.html",
     );
-    flushSync(() => {
-      target.querySelector<HTMLButtonElement>('[data-testid="session-export-download"]')?.click();
-    });
-    expect(downloadFile).toHaveBeenCalledWith("pi-session-session-1.html");
+    expect(target.querySelector('[data-testid="session-export-download"]')).toBeNull();
   });
 });

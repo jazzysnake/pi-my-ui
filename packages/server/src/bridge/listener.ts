@@ -29,7 +29,8 @@ import {
 } from "@pi-my-ui/protocol";
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 
-import { BridgeConfigurationError, BridgeConnectionError, errorText } from "./errors.js";
+import { errorText } from "../error-text.js";
+import { BridgeConfigurationError, BridgeConnectionError } from "./errors.js";
 import { bindAndSecureSocket, removeBridgeSocket } from "./socket.js";
 
 /** How long a connection may sit before sending its `hello`. */

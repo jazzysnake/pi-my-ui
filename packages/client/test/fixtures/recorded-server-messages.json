@@ -1,0 +1,1487 @@
+{
+  "provenance": {
+    "command": "npm run capture:store-sequences",
+    "piVersion": "0.99.2",
+    "session": "plain seed, real pi with the scripted provider",
+    "prompt": "stream a reply",
+    "reply": "A streamed answer recorded from a real server run."
+  },
+  "streaming": [
+    {
+      "type": "snapshot",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "cursor": 13,
+      "projection": {
+        "sessionId": "01a10000-0000-7000-8000-000000000001",
+        "cwd": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "leafId": "18b3b9b9",
+        "entries": [
+          {
+            "kind": "message",
+            "id": "ede235b1",
+            "parentId": "f02a11a2",
+            "role": "user",
+            "timestamp": 1735689606000,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "Seed text block 3."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "e7e4dec0",
+            "parentId": "ede235b1",
+            "role": "assistant",
+            "timestamp": 1735689607000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 4."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-5",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-6",
+                  "timeout": 60
+                },
+                "status": "success",
+                "output": "Seed text block 9."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-7",
+                "name": "read",
+                "arguments": {
+                  "path": "seed-a-8",
+                  "offset": 1,
+                  "limit": 100
+                },
+                "status": "error",
+                "output": "Seed text block 10."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "0373e23a",
+            "parentId": "e13f998d",
+            "role": "toolResult",
+            "timestamp": 1735689610000,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "Seed text block 12."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "82e18362",
+            "parentId": "0373e23a",
+            "role": "assistant",
+            "timestamp": 1735689611000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 13."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-14",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-15",
+                  "timeout": 60
+                },
+                "status": "success",
+                "output": "Seed text block 18."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-16",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-17",
+                  "timeout": 60
+                },
+                "status": "success",
+                "output": "Seed text block 19."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "37aec71f",
+            "parentId": "b8c66b46",
+            "role": "assistant",
+            "timestamp": 1735689614000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 20."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-21",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-22",
+                  "timeout": 60
+                },
+                "status": "success",
+                "output": "Seed text block 23."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "bd129450",
+            "parentId": "d9d61c79",
+            "role": "assistant",
+            "timestamp": 1735689616000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 24."
+              },
+              {
+                "type": "text",
+                "text": "Seed text block 25."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-26",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-27",
+                  "timeout": 120
+                },
+                "status": "success",
+                "output": "Seed text block 28."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "78329bb8",
+            "parentId": "24bafb5b",
+            "role": "assistant",
+            "timestamp": 1735689618000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 29."
+              },
+              {
+                "type": "text",
+                "text": "Seed text block 30."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-31",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-32",
+                  "timeout": 60
+                },
+                "status": "error",
+                "output": "Seed text block 33."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "90ed2320",
+            "parentId": "6b4dcb05",
+            "role": "assistant",
+            "timestamp": 1735689620000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 34."
+              },
+              {
+                "type": "text",
+                "text": "Seed text block 35."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-36",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-37",
+                  "timeout": 900
+                },
+                "status": "success",
+                "output": "Seed text block 38."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "b9fc1da2",
+            "parentId": "bd87dcaf",
+            "role": "assistant",
+            "timestamp": 1735689622000,
+            "blocks": [
+              {
+                "type": "toolCall",
+                "id": "seed-call-39",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-40",
+                  "timeout": 600
+                },
+                "status": "success",
+                "output": "Seed text block 43."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-41",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-42",
+                  "timeout": 120
+                },
+                "status": "success",
+                "output": "Seed text block 44."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "26611734",
+            "parentId": "62eb091e",
+            "role": "assistant",
+            "timestamp": 1735689625000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 45."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-46",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-47",
+                  "timeout": 60
+                },
+                "status": "success",
+                "output": "Seed text block 48."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "cfa5340f",
+            "parentId": "55d6a1d6",
+            "role": "assistant",
+            "timestamp": 1735689627000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 49."
+              },
+              {
+                "type": "text",
+                "text": "Seed text block 50."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-51",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-52",
+                  "timeout": 60
+                },
+                "status": "success",
+                "output": "Seed text block 53."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "18b3b9b9",
+            "parentId": "0e50572f",
+            "role": "assistant",
+            "timestamp": 1735689629000,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "Seed text block 54."
+              }
+            ]
+          }
+        ],
+        "runState": {
+          "kind": "idle"
+        },
+        "subagents": [],
+        "subagentTranscripts": []
+      }
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 13,
+      "cursor": 14,
+      "deltas": [
+        {
+          "kind": "runState",
+          "runState": {
+            "kind": "streaming"
+          }
+        }
+      ]
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 14,
+      "cursor": 16,
+      "deltas": [
+        {
+          "kind": "entryUpsert",
+          "entry": {
+            "kind": "message",
+            "id": "pending:1",
+            "parentId": "18b3b9b9",
+            "role": "user",
+            "timestamp": 1792213173571,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "stream a reply"
+              }
+            ]
+          }
+        },
+        {
+          "kind": "leafChanged",
+          "leafId": "pending:1"
+        }
+      ]
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 16,
+      "cursor": 18,
+      "deltas": [
+        {
+          "kind": "entryUpsert",
+          "entry": {
+            "kind": "message",
+            "id": "pending:2",
+            "parentId": "pending:1",
+            "role": "assistant",
+            "timestamp": 1792213173575,
+            "blocks": []
+          }
+        },
+        {
+          "kind": "leafChanged",
+          "leafId": "pending:2"
+        }
+      ]
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 18,
+      "cursor": 19,
+      "deltas": [
+        {
+          "kind": "entryUpsert",
+          "entry": {
+            "kind": "message",
+            "id": "pending:2",
+            "parentId": "pending:1",
+            "role": "assistant",
+            "timestamp": 1792213173575,
+            "blocks": [
+              {
+                "type": "text",
+                "text": ""
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 19,
+      "cursor": 20,
+      "deltas": [
+        {
+          "kind": "entryUpsert",
+          "entry": {
+            "kind": "message",
+            "id": "pending:2",
+            "parentId": "pending:1",
+            "role": "assistant",
+            "timestamp": 1792213173575,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "A streamed answer re"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 20,
+      "cursor": 21,
+      "deltas": [
+        {
+          "kind": "entryUpsert",
+          "entry": {
+            "kind": "message",
+            "id": "pending:2",
+            "parentId": "pending:1",
+            "role": "assistant",
+            "timestamp": 1792213173575,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "A streamed answer recorded from "
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 21,
+      "cursor": 22,
+      "deltas": [
+        {
+          "kind": "entryUpsert",
+          "entry": {
+            "kind": "message",
+            "id": "pending:2",
+            "parentId": "pending:1",
+            "role": "assistant",
+            "timestamp": 1792213173575,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "A streamed answer recorded from a real server ru"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 22,
+      "cursor": 23,
+      "deltas": [
+        {
+          "kind": "entryUpsert",
+          "entry": {
+            "kind": "message",
+            "id": "pending:2",
+            "parentId": "pending:1",
+            "role": "assistant",
+            "timestamp": 1792213173575,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "A streamed answer recorded from a real server run."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 23,
+      "cursor": 24,
+      "deltas": [
+        {
+          "kind": "entryUpsert",
+          "entry": {
+            "kind": "message",
+            "id": "pending:2",
+            "parentId": "pending:1",
+            "role": "assistant",
+            "timestamp": 1792213173575,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "A streamed answer recorded from a real server run."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 24,
+      "cursor": 25,
+      "deltas": [
+        {
+          "kind": "entryUpsert",
+          "entry": {
+            "kind": "message",
+            "id": "pending:2",
+            "parentId": "pending:1",
+            "role": "assistant",
+            "timestamp": 1792213173575,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "A streamed answer recorded from a real server run."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 25,
+      "cursor": 26,
+      "deltas": [
+        {
+          "kind": "runState",
+          "runState": {
+            "kind": "idle"
+          }
+        }
+      ]
+    }
+  ],
+  "resync": [
+    {
+      "type": "snapshot",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "cursor": 13,
+      "projection": {
+        "sessionId": "01a10000-0000-7000-8000-000000000001",
+        "cwd": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "leafId": "18b3b9b9",
+        "entries": [
+          {
+            "kind": "message",
+            "id": "ede235b1",
+            "parentId": "f02a11a2",
+            "role": "user",
+            "timestamp": 1735689606000,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "Seed text block 3."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "e7e4dec0",
+            "parentId": "ede235b1",
+            "role": "assistant",
+            "timestamp": 1735689607000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 4."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-5",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-6",
+                  "timeout": 60
+                },
+                "status": "success",
+                "output": "Seed text block 9."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-7",
+                "name": "read",
+                "arguments": {
+                  "path": "seed-a-8",
+                  "offset": 1,
+                  "limit": 100
+                },
+                "status": "error",
+                "output": "Seed text block 10."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "0373e23a",
+            "parentId": "e13f998d",
+            "role": "toolResult",
+            "timestamp": 1735689610000,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "Seed text block 12."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "82e18362",
+            "parentId": "0373e23a",
+            "role": "assistant",
+            "timestamp": 1735689611000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 13."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-14",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-15",
+                  "timeout": 60
+                },
+                "status": "success",
+                "output": "Seed text block 18."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-16",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-17",
+                  "timeout": 60
+                },
+                "status": "success",
+                "output": "Seed text block 19."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "37aec71f",
+            "parentId": "b8c66b46",
+            "role": "assistant",
+            "timestamp": 1735689614000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 20."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-21",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-22",
+                  "timeout": 60
+                },
+                "status": "success",
+                "output": "Seed text block 23."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "bd129450",
+            "parentId": "d9d61c79",
+            "role": "assistant",
+            "timestamp": 1735689616000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 24."
+              },
+              {
+                "type": "text",
+                "text": "Seed text block 25."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-26",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-27",
+                  "timeout": 120
+                },
+                "status": "success",
+                "output": "Seed text block 28."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "78329bb8",
+            "parentId": "24bafb5b",
+            "role": "assistant",
+            "timestamp": 1735689618000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 29."
+              },
+              {
+                "type": "text",
+                "text": "Seed text block 30."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-31",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-32",
+                  "timeout": 60
+                },
+                "status": "error",
+                "output": "Seed text block 33."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "90ed2320",
+            "parentId": "6b4dcb05",
+            "role": "assistant",
+            "timestamp": 1735689620000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 34."
+              },
+              {
+                "type": "text",
+                "text": "Seed text block 35."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-36",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-37",
+                  "timeout": 900
+                },
+                "status": "success",
+                "output": "Seed text block 38."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "b9fc1da2",
+            "parentId": "bd87dcaf",
+            "role": "assistant",
+            "timestamp": 1735689622000,
+            "blocks": [
+              {
+                "type": "toolCall",
+                "id": "seed-call-39",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-40",
+                  "timeout": 600
+                },
+                "status": "success",
+                "output": "Seed text block 43."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-41",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-42",
+                  "timeout": 120
+                },
+                "status": "success",
+                "output": "Seed text block 44."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "26611734",
+            "parentId": "62eb091e",
+            "role": "assistant",
+            "timestamp": 1735689625000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 45."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-46",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-47",
+                  "timeout": 60
+                },
+                "status": "success",
+                "output": "Seed text block 48."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "cfa5340f",
+            "parentId": "55d6a1d6",
+            "role": "assistant",
+            "timestamp": 1735689627000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 49."
+              },
+              {
+                "type": "text",
+                "text": "Seed text block 50."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-51",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-52",
+                  "timeout": 60
+                },
+                "status": "success",
+                "output": "Seed text block 53."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "18b3b9b9",
+            "parentId": "0e50572f",
+            "role": "assistant",
+            "timestamp": 1735689629000,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "Seed text block 54."
+              }
+            ]
+          }
+        ],
+        "runState": {
+          "kind": "idle"
+        },
+        "subagents": [],
+        "subagentTranscripts": []
+      }
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 13,
+      "cursor": 14,
+      "deltas": [
+        {
+          "kind": "runState",
+          "runState": {
+            "kind": "streaming"
+          }
+        }
+      ]
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 14,
+      "cursor": 16,
+      "deltas": [
+        {
+          "kind": "entryUpsert",
+          "entry": {
+            "kind": "message",
+            "id": "pending:1",
+            "parentId": "18b3b9b9",
+            "role": "user",
+            "timestamp": 1792213173571,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "stream a reply"
+              }
+            ]
+          }
+        },
+        {
+          "kind": "leafChanged",
+          "leafId": "pending:1"
+        }
+      ]
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 16,
+      "cursor": 18,
+      "deltas": [
+        {
+          "kind": "entryUpsert",
+          "entry": {
+            "kind": "message",
+            "id": "pending:2",
+            "parentId": "pending:1",
+            "role": "assistant",
+            "timestamp": 1792213173575,
+            "blocks": []
+          }
+        },
+        {
+          "kind": "leafChanged",
+          "leafId": "pending:2"
+        }
+      ]
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 18,
+      "cursor": 19,
+      "deltas": [
+        {
+          "kind": "entryUpsert",
+          "entry": {
+            "kind": "message",
+            "id": "pending:2",
+            "parentId": "pending:1",
+            "role": "assistant",
+            "timestamp": 1792213173575,
+            "blocks": [
+              {
+                "type": "text",
+                "text": ""
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 19,
+      "cursor": 20,
+      "deltas": [
+        {
+          "kind": "entryUpsert",
+          "entry": {
+            "kind": "message",
+            "id": "pending:2",
+            "parentId": "pending:1",
+            "role": "assistant",
+            "timestamp": 1792213173575,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "A streamed answer re"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 20,
+      "cursor": 21,
+      "deltas": [
+        {
+          "kind": "entryUpsert",
+          "entry": {
+            "kind": "message",
+            "id": "pending:2",
+            "parentId": "pending:1",
+            "role": "assistant",
+            "timestamp": 1792213173575,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "A streamed answer recorded from "
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 21,
+      "cursor": 22,
+      "deltas": [
+        {
+          "kind": "entryUpsert",
+          "entry": {
+            "kind": "message",
+            "id": "pending:2",
+            "parentId": "pending:1",
+            "role": "assistant",
+            "timestamp": 1792213173575,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "A streamed answer recorded from a real server ru"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 22,
+      "cursor": 23,
+      "deltas": [
+        {
+          "kind": "entryUpsert",
+          "entry": {
+            "kind": "message",
+            "id": "pending:2",
+            "parentId": "pending:1",
+            "role": "assistant",
+            "timestamp": 1792213173575,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "A streamed answer recorded from a real server run."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 23,
+      "cursor": 24,
+      "deltas": [
+        {
+          "kind": "entryUpsert",
+          "entry": {
+            "kind": "message",
+            "id": "pending:2",
+            "parentId": "pending:1",
+            "role": "assistant",
+            "timestamp": 1792213173575,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "A streamed answer recorded from a real server run."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 24,
+      "cursor": 25,
+      "deltas": [
+        {
+          "kind": "entryUpsert",
+          "entry": {
+            "kind": "message",
+            "id": "pending:2",
+            "parentId": "pending:1",
+            "role": "assistant",
+            "timestamp": 1792213173575,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "A streamed answer recorded from a real server run."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "delta",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "fromCursor": 25,
+      "cursor": 26,
+      "deltas": [
+        {
+          "kind": "runState",
+          "runState": {
+            "kind": "idle"
+          }
+        }
+      ]
+    },
+    {
+      "type": "snapshot",
+      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "cursor": 15,
+      "projection": {
+        "sessionId": "01a10000-0000-7000-8000-000000000001",
+        "cwd": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "leafId": "4d8ec213",
+        "entries": [
+          {
+            "kind": "message",
+            "id": "ede235b1",
+            "parentId": "f02a11a2",
+            "role": "user",
+            "timestamp": 1735689606000,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "Seed text block 3."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "e7e4dec0",
+            "parentId": "ede235b1",
+            "role": "assistant",
+            "timestamp": 1735689607000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 4."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-5",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-6",
+                  "timeout": 60
+                },
+                "status": "success",
+                "output": "Seed text block 9."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-7",
+                "name": "read",
+                "arguments": {
+                  "path": "seed-a-8",
+                  "offset": 1,
+                  "limit": 100
+                },
+                "status": "error",
+                "output": "Seed text block 10."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "0373e23a",
+            "parentId": "e13f998d",
+            "role": "toolResult",
+            "timestamp": 1735689610000,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "Seed text block 12."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "82e18362",
+            "parentId": "0373e23a",
+            "role": "assistant",
+            "timestamp": 1735689611000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 13."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-14",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-15",
+                  "timeout": 60
+                },
+                "status": "success",
+                "output": "Seed text block 18."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-16",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-17",
+                  "timeout": 60
+                },
+                "status": "success",
+                "output": "Seed text block 19."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "37aec71f",
+            "parentId": "b8c66b46",
+            "role": "assistant",
+            "timestamp": 1735689614000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 20."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-21",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-22",
+                  "timeout": 60
+                },
+                "status": "success",
+                "output": "Seed text block 23."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "bd129450",
+            "parentId": "d9d61c79",
+            "role": "assistant",
+            "timestamp": 1735689616000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 24."
+              },
+              {
+                "type": "text",
+                "text": "Seed text block 25."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-26",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-27",
+                  "timeout": 120
+                },
+                "status": "success",
+                "output": "Seed text block 28."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "78329bb8",
+            "parentId": "24bafb5b",
+            "role": "assistant",
+            "timestamp": 1735689618000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 29."
+              },
+              {
+                "type": "text",
+                "text": "Seed text block 30."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-31",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-32",
+                  "timeout": 60
+                },
+                "status": "error",
+                "output": "Seed text block 33."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "90ed2320",
+            "parentId": "6b4dcb05",
+            "role": "assistant",
+            "timestamp": 1735689620000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 34."
+              },
+              {
+                "type": "text",
+                "text": "Seed text block 35."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-36",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-37",
+                  "timeout": 900
+                },
+                "status": "success",
+                "output": "Seed text block 38."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "b9fc1da2",
+            "parentId": "bd87dcaf",
+            "role": "assistant",
+            "timestamp": 1735689622000,
+            "blocks": [
+              {
+                "type": "toolCall",
+                "id": "seed-call-39",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-40",
+                  "timeout": 600
+                },
+                "status": "success",
+                "output": "Seed text block 43."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-41",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-42",
+                  "timeout": 120
+                },
+                "status": "success",
+                "output": "Seed text block 44."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "26611734",
+            "parentId": "62eb091e",
+            "role": "assistant",
+            "timestamp": 1735689625000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 45."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-46",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-47",
+                  "timeout": 60
+                },
+                "status": "success",
+                "output": "Seed text block 48."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "cfa5340f",
+            "parentId": "55d6a1d6",
+            "role": "assistant",
+            "timestamp": 1735689627000,
+            "blocks": [
+              {
+                "type": "reasoning",
+                "text": "Seed reasoning 49."
+              },
+              {
+                "type": "text",
+                "text": "Seed text block 50."
+              },
+              {
+                "type": "toolCall",
+                "id": "seed-call-51",
+                "name": "bash",
+                "arguments": {
+                  "command": "seed-a-52",
+                  "timeout": 60
+                },
+                "status": "success",
+                "output": "Seed text block 53."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "18b3b9b9",
+            "parentId": "0e50572f",
+            "role": "assistant",
+            "timestamp": 1735689629000,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "Seed text block 54."
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "0ef5a0b8",
+            "parentId": "9e4968b6",
+            "role": "user",
+            "timestamp": 1792213173570,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "stream a reply"
+              }
+            ]
+          },
+          {
+            "kind": "message",
+            "id": "4d8ec213",
+            "parentId": "0ef5a0b8",
+            "role": "assistant",
+            "timestamp": 1792213173574,
+            "blocks": [
+              {
+                "type": "text",
+                "text": "A streamed answer recorded from a real server run."
+              }
+            ]
+          }
+        ],
+        "runState": {
+          "kind": "idle"
+        },
+        "subagents": [],
+        "subagentTranscripts": []
+      }
+    }
+  ]
+}

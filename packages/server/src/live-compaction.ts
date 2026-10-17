@@ -27,6 +27,8 @@ export interface CompactionOutcome {
 
 /** The Projection operations a compaction needs, injected so this module owns no reducer state. */
 export interface LiveCompactionHost {
+  /** The server clock, so a synthesized timestamp is the same time a test injected. */
+  now(): number;
   nextId(): string;
   leafId(): string | null;
   runState(): RunState;
@@ -73,7 +75,7 @@ export function createLiveCompaction(host: LiveCompactionHost): LiveCompaction {
             kind: EntryKind.CompactionBoundary,
             id,
             parentId: host.leafId(),
-            timestamp: Date.now(),
+            timestamp: host.now(),
             summary: result.summary,
             tokensBefore: result.tokensBefore,
             firstKeptEntryId: result.firstKeptEntryId,

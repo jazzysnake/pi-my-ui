@@ -5,17 +5,10 @@
 
 import { parseArgs } from "node:util";
 
-import { DEFAULT_IDLE_TIMEOUT_SECONDS } from "../config.js";
+import { DEFAULT_HOST, DEFAULT_IDLE_TIMEOUT_SECONDS, DEFAULT_PORT } from "../config.js";
 import { allowedOriginError, validateAllowedOrigin } from "../origin.js";
 import { LauncherArgumentError } from "./errors.js";
-import {
-  DEFAULT_LAUNCH_HOST,
-  DEFAULT_LAUNCH_PORT,
-  FLAG,
-  FLAG_SPECS,
-  LAUNCHER_COMMAND_NAME,
-  flagLabel,
-} from "./flags.js";
+import { FLAG, FLAG_SPECS, LAUNCHER_COMMAND_NAME, flagLabel } from "./flags.js";
 
 export const MIN_TCP_PORT = 0;
 export const MAX_TCP_PORT = 65_535;
@@ -134,10 +127,10 @@ export function parseLauncherArgs(argv: readonly string[]): ParsedLauncherArgs {
     kind: "launch",
     values: {
       cwd: readString(parsedValues, FLAG.cwd),
-      host: readString(parsedValues, FLAG.host) ?? DEFAULT_LAUNCH_HOST,
+      host: readString(parsedValues, FLAG.host) ?? DEFAULT_HOST,
       port:
         portValue === undefined
-          ? DEFAULT_LAUNCH_PORT
+          ? DEFAULT_PORT
           : parseBoundedInteger(FLAG.port, portValue, MIN_TCP_PORT, MAX_TCP_PORT),
       idleTimeoutSeconds:
         idleTimeoutValue === undefined

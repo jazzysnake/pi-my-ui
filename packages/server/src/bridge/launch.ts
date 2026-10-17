@@ -12,7 +12,8 @@ import { fileURLToPath } from "node:url";
 import { BRIDGE_SOCKET_ENV_VAR } from "@pi-my-ui/protocol";
 
 import type { PiLaunchOptions } from "../config.js";
-import { BridgeConfigurationError, errorText } from "./errors.js";
+import { errorText } from "../error-text.js";
+import { BridgeConfigurationError } from "./errors.js";
 
 /** The workspace package whose compiled entry pi loads. */
 export const BRIDGE_EXTENSION_SPECIFIER = "@pi-my-ui/bridge-extension";

@@ -15,6 +15,8 @@ export interface RunStateDisplay {
   readonly detail: string | null;
   /** Whether the row offers the respawn control; only a lost Pi child can be respawned from here. */
   readonly reconnect: boolean;
+  /** Whether the row offers to continue the Session from its intact file. */
+  readonly resume: boolean;
 }
 
 /**
@@ -28,6 +30,7 @@ export const STARTING_DISPLAY: RunStateDisplay = {
   label: "Starting…",
   detail: null,
   reconnect: false,
+  resume: false,
 };
 
 /** The exit facts as one line, so the transcript names what happened rather than "an error". */
@@ -58,6 +61,7 @@ export function runStateDisplay(runState: RunState): RunStateDisplay | null {
         label: "Compacting context",
         detail: null,
         reconnect: false,
+        resume: false,
       };
     case RunStateKind.Retrying:
       return {
@@ -65,15 +69,23 @@ export function runStateDisplay(runState: RunState): RunStateDisplay | null {
         label: "Retrying",
         detail: `Attempt ${String(runState.attempt)} of ${String(runState.maxAttempts)} · ${runState.errorMessage}`,
         reconnect: false,
+        resume: false,
       };
     case RunStateKind.Aborted:
-      return { kind: runState.kind, label: "Aborted", detail: "stopped by you", reconnect: false };
+      return {
+        kind: runState.kind,
+        label: "Aborted",
+        detail: "stopped by you",
+        reconnect: false,
+        resume: false,
+      };
     case RunStateKind.Errored:
       return {
         kind: runState.kind,
         label: "Error",
         detail: runState.message,
         reconnect: false,
+        resume: true,
       };
     case RunStateKind.Crashed:
       return {
@@ -81,6 +93,7 @@ export function runStateDisplay(runState: RunState): RunStateDisplay | null {
         label: "Pi child exited",
         detail: exitDetail(runState),
         reconnect: true,
+        resume: true,
       };
   }
 }

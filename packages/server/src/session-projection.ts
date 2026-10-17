@@ -30,6 +30,7 @@ import {
 } from "@pi-my-ui/protocol";
 import type { JsonAgentSessionEvent, SessionEntry } from "@earendil-works/pi-coding-agent";
 
+import type { ServerClock } from "./clock.js";
 import { createLiveBash, type LiveBash } from "./live-bash.js";
 import { createLiveCompaction } from "./live-compaction.js";
 import { blocksFromMessage, projectionBatch, roleOf, toolResultOutput } from "./projection.js";
@@ -65,6 +66,7 @@ export interface SessionProjectionMachine {
 export function createSessionProjectionMachine(
   sessionId: string,
   cwd: string,
+  clock: ServerClock,
 ): SessionProjectionMachine {
   let projection: SessionProjection = {
     sessionId,
@@ -80,10 +82,11 @@ export function createSessionProjectionMachine(
   let abortRequested = false;
 
   const agentTranscripts = createSubagentTranscripts((agentId) =>
-    createSessionProjectionMachine(agentId, cwd),
+    createSessionProjectionMachine(agentId, cwd, clock),
   );
 
   const compaction = createLiveCompaction({
+    now: () => clock.now(),
     nextId,
     leafId: () => projection.leafId,
     runState: () => projection.runState,
@@ -100,6 +103,7 @@ export function createSessionProjectionMachine(
   });
 
   const bash = createLiveBash({
+    now: () => clock.now(),
     nextId,
     entry: entryById,
     leafId: () => projection.leafId,
@@ -173,7 +177,7 @@ export function createSessionProjectionMachine(
     }
     const id = nextId();
     return emit([
-      upsert(messageEntry(role, id, projection.leafId, Date.now(), blocksFromMessage(message))),
+      upsert(messageEntry(role, id, projection.leafId, clock.now(), blocksFromMessage(message))),
       setLeaf(id),
     ]);
   }
@@ -200,7 +204,7 @@ export function createSessionProjectionMachine(
       id: newId,
       blocks: [],
       deltas: [
-        upsert(messageEntry(MessageRole.Assistant, newId, projection.leafId, Date.now(), [])),
+        upsert(messageEntry(MessageRole.Assistant, newId, projection.leafId, clock.now(), [])),
         setLeaf(newId),
       ],
     };
@@ -218,7 +222,7 @@ export function createSessionProjectionMachine(
           MessageRole.Assistant,
           streaming.id,
           existing?.parentId ?? projection.leafId,
-          existing?.timestamp ?? Date.now(),
+          existing?.timestamp ?? clock.now(),
           update(streaming.blocks),
         ),
       ),
@@ -233,7 +237,7 @@ export function createSessionProjectionMachine(
     const id = nextId();
     streamingEntryId = id;
     return emit([
-      upsert(messageEntry(MessageRole.Assistant, id, projection.leafId, Date.now(), [])),
+      upsert(messageEntry(MessageRole.Assistant, id, projection.leafId, clock.now(), [])),
       setLeaf(id),
     ]);
   }
@@ -312,7 +316,7 @@ export function createSessionProjectionMachine(
           MessageRole.Assistant,
           id,
           existing?.parentId ?? projection.leafId,
-          existing?.timestamp ?? Date.now(),
+          existing?.timestamp ?? clock.now(),
           blocks,
         ),
       ),

@@ -80,7 +80,11 @@ function stagedFiles(root) {
     },
   );
   if (result.status !== 0) {
-    return [];
+    // Failing open here would inspect nothing and print success, which is the one outcome the gate
+    // exists to prevent: a missing git or a broken repository is a hard error, not an empty list.
+    const detail = result.stderr.trim() === "" ? "no stderr" : result.stderr.trim();
+    const status = result.status ?? result.signal ?? "unknown";
+    throw new Error(`could not list staged files (git exited ${String(status)}): ${detail}`);
   }
   return result.stdout.split("\n").filter((line) => line.trim() !== "");
 }

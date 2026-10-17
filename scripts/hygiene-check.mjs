@@ -9,7 +9,22 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const DEFAULT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+/** Scan a different tree when a test injects one; the gate itself always scans the repo. */
+function rootFromArgs(argv) {
+  const flag = argv.indexOf("--root");
+  if (flag === -1) {
+    return DEFAULT_ROOT;
+  }
+  const value = argv[flag + 1];
+  if (value === undefined) {
+    throw new Error("--root needs a directory");
+  }
+  return resolve(value);
+}
+
+const REPO_ROOT = rootFromArgs(process.argv.slice(2));
 
 const SCAN_ROOTS = ["packages", "scripts"];
 
@@ -40,10 +55,14 @@ const MAX_COMMENT_RATIO = 0.3;
 
 // A ticket reference in any of the shapes a ticket is written in: a prefixed id, a bare numbered
 // id, or a hash reference. The lookarounds keep a longer identifier from matching a fragment.
+// A decision reference such as `ADR 0003` names the record the comment explains, so it stays
+// allowed; the ticket-shaped patterns below are what fail.
 const TICKET_REFERENCES = [
-  /(?<![\w-])([A-Z][A-Za-z]*\d*-T\d+)(?![\w-])/,
-  /(?<![\w-])(T\d{2,})(?![\w-])/,
+  /(?<![\w-])([A-Z][A-Za-z]*\d*-T\d+)(?![\w-])/i,
+  /(?<![\w-])(T\d{2,})(?![\w-])/i,
   /(?<![\w])(#\d+)(?![\w])/,
+  /\bticket\s+\d+\b/i,
+  /\bstory\s+\d+\b/i,
 ];
 
 // A date in the two shapes a comment carries: an ISO prefix and a month name with a year.

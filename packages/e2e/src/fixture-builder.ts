@@ -26,6 +26,8 @@ export interface GenerateOptions {
   readonly depth?: number;
   /** Persisted subagent records in the `subagents` shape. */
   readonly subagentRecords?: number;
+  /** Append one custom message pi marks hidden, so it must appear in neither tree nor transcript. */
+  readonly hiddenCustomMessage?: boolean;
 }
 
 /** A Session file a test can hand to a Pi child: enough to find it and assert what it holds. */
@@ -276,6 +278,13 @@ export async function generateSession(
 
   if (shape === "transcript") {
     appendTranscript(manager, options.transcriptEntries ?? DEFAULT_TRANSCRIPT_ENTRIES);
+    if (options.hiddenCustomMessage === true) {
+      manager.appendCustomMessageEntry(
+        "hidden-extension-message",
+        "A hidden custom message the transcript must not show.",
+        false,
+      );
+    }
   } else if (shape === "deep-tree") {
     appendDeepTree(manager, options.depth ?? DEFAULT_DEPTH);
   } else {

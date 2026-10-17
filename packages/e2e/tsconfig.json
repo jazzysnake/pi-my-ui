@@ -11,8 +11,10 @@
     "src/**/*.ts",
     "test/**/*.ts",
     "measure/**/*.ts",
+    "capture/**/*.ts",
     "playwright.config.ts",
     "playwright.smoke.config.ts",
-    "playwright.measure.config.ts"
+    "playwright.measure.config.ts",
+    "playwright.capture.config.ts"
   ]
 }

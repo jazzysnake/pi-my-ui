@@ -10,19 +10,13 @@
 import { statSync } from "node:fs";
 import { resolve } from "node:path";
 
-import type { ServerConfig } from "../config.js";
+import { DEFAULT_HOST, type ServerConfig } from "../config.js";
 import { isLoopbackHostname } from "../loopback.js";
 import { parseLauncherArgs, type LauncherArguments } from "./args.js";
 import { launcherBindError } from "./bind.js";
-import { LauncherArgumentError, LauncherConfigurationError, errorText } from "./errors.js";
-import {
-  DEFAULT_LAUNCH_HOST,
-  FLAG,
-  LAUNCHER_USAGE,
-  SHUTDOWN_SIGNALS,
-  flagLabel,
-  type ShutdownSignal,
-} from "./flags.js";
+import { errorText } from "../error-text.js";
+import { LauncherArgumentError, LauncherConfigurationError } from "./errors.js";
+import { FLAG, LAUNCHER_USAGE, SHUTDOWN_SIGNALS, flagLabel, type ShutdownSignal } from "./flags.js";
 import { ServerBindError, startServer, type RunningServer } from "../server.js";
 
 export const EXIT_OK = 0;
@@ -104,7 +98,7 @@ export function resolveLauncherConfig(
     // silently widen exposure.
     throw new LauncherConfigurationError(
       flagLabel(FLAG.host),
-      `${flagLabel(FLAG.host)} must not be blank; pass a real address such as ${DEFAULT_LAUNCH_HOST}`,
+      `${flagLabel(FLAG.host)} must not be blank; pass a real address such as ${DEFAULT_HOST}`,
     );
   }
 

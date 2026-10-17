@@ -14,6 +14,7 @@
   import FileTreePanel from "./files/FileTreePanel.svelte";
   import { ROOT_PATH } from "./files/rows.js";
   import type { ClientStore } from "./store/client-store.svelte.js";
+  import { sessionDisplayName } from "./store/sessions.svelte.js";
   import { isSteerable, steerTargetOf } from "./subagents/steering.js";
   import type { ConnectionStatus } from "./transport.js";
 
@@ -83,6 +84,8 @@
   let agentsOpen = $state(false);
   /** The composer's draft, so the message tree can hand one of the user's messages back to it. */
   let composerText = $state("");
+  /** The exported path already handed to the browser, so a re-render does not download twice. */
+  let downloadedExport = $state<string | null>(null);
 
   /**
    * The rows the transcript draws: the Session's own conversation, or the focused agent's. Both are
@@ -153,6 +156,20 @@
     onPrompt(text, images, behavior);
   }
 
+  // `/export` is one action: pi writes the HTML and the browser starts the download as soon as the
+  // server names the file. The path stays visible as the record of what was written.
+  $effect(() => {
+    const path = store.commands.exportedPath;
+    if (path === null) {
+      downloadedExport = null;
+      return;
+    }
+    if (path !== downloadedExport) {
+      downloadedExport = path;
+      onDownloadFile(path);
+    }
+  });
+
   /**
    * The respawn the transcript's crash row offers. The store records the wait before the transport is
    * asked, so the row reads Starting… from the click and falls back to the crash if the ask fails.
@@ -175,12 +192,11 @@
     onSteerSubagent(agentId, message);
   }
 
-  /** The active Session's name as the drawer has it; a Session with none is named honestly. */
+  /** The active Session's name, using the same rule the drawer renders it with. */
   function currentSessionName(): string {
     const active = store.sessions.activeSessionId;
     const row = store.sessions.rows?.find((candidate) => candidate.summary.id === active);
-    const name = row?.summary.name?.trim();
-    return name === undefined || name === "" ? "unnamed" : name;
+    return row === undefined || active === null ? "unnamed" : sessionDisplayName(row.summary);
   }
 
   /**
@@ -254,7 +270,11 @@
       agentsOpen = true;
     }}
   />
-  <Transcript entries={shownEntries} empty={shownEmpty} />
+  <Transcript
+    entries={shownEntries}
+    empty={shownEmpty}
+    snapshotCount={store.transcript.snapshotCount}
+  />
   <RunStateRow
     runState={store.transcript.runState}
     starting={store.transcript.starting}
@@ -278,16 +298,6 @@
             <p class="text-dim" data-testid="session-export-path">
               {store.commands.exportedPath}
             </p>
-            <button
-              type="button"
-              class="mt-1 min-h-11 rounded border border-hairline-strong px-3"
-              data-testid="session-export-download"
-              onclick={() => {
-                onDownloadFile(store.commands.exportedPath ?? "");
-              }}
-            >
-              Download
-            </button>
           {/if}
         </div>
         <button

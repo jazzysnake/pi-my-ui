@@ -14,6 +14,7 @@
  * (`URL.origin` would widen the entry to its whole origin).
  */
 
+import { errorText } from "./error-text.js";
 import { isLoopbackAddress, isLoopbackHostname } from "./loopback.js";
 
 export const ALLOWED_ORIGIN_FLAG_NAME = "allowed-origin";
@@ -71,7 +72,7 @@ export function allowedOriginError(value: string, rejection: AllowedOriginReject
     case "unusable":
       return (
         `${ALLOWED_ORIGIN_FLAG} is not a usable origin, got ${JSON.stringify(value)} ` +
-        `(${rejection.cause instanceof Error ? rejection.cause.message : String(rejection.cause)})`
+        `(${errorText(rejection.cause)})`
       );
   }
 }

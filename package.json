@@ -29,7 +29,8 @@
     "test:e2e:sharded": "node scripts/test-e2e-sharded.mjs",
     "test:smoke": "npm run build --workspace @pi-my-ui/scripted-provider && playwright test --config packages/e2e/playwright.smoke.config.ts",
     "measure:pool": "npm run build && playwright test --config packages/e2e/playwright.measure.config.ts",
-    "rerecord": "npm run build --workspace @pi-my-ui/scripted-provider && node scripts/rerecord.mjs"
+    "rerecord": "npm run build --workspace @pi-my-ui/scripted-provider && node scripts/rerecord.mjs",
+    "capture:store-sequences": "playwright test --config packages/e2e/playwright.capture.config.ts"
   },
   "devDependencies": {
     "@earendil-works/pi-ai": "0.99.2",

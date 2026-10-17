@@ -122,7 +122,11 @@ export interface SessionHostOptions {
 }
 
 export function createSessionHost(options: SessionHostOptions): SessionHost {
-  const machine = createSessionProjectionMachine(options.sessionId, options.launch.cwd);
+  const machine = createSessionProjectionMachine(
+    options.sessionId,
+    options.launch.cwd,
+    options.clock,
+  );
   const viewers = new Set<SessionViewer>();
   const history = createDeltaHistory();
   let cursor = 0;
@@ -191,9 +195,7 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
     history.retain(message, options.clock.now());
     reportActivity();
     touch();
-    for (const viewer of [...viewers]) {
-      viewer.onMessage(message);
-    }
+    broadcast(message);
   }
 
   function onEvent(event: JsonAgentSessionEvent): void {
@@ -321,9 +323,7 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
   async function reseedProjection(): Promise<void> {
     seeded = false;
     await seedNow();
-    for (const viewer of [...viewers]) {
-      viewer.onMessage(snapshot());
-    }
+    broadcast(snapshot());
   }
 
   async function doRestart(): Promise<void> {
@@ -360,9 +360,7 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
   /** Re-read pi's settings and hand them to every viewer, so the status strip shows pi's values. */
   async function broadcastSettings(): Promise<void> {
     const message = settingsMessage(options.sessionId, await (await child.ensure()).settings());
-    for (const viewer of [...viewers]) {
-      viewer.onMessage(message);
-    }
+    broadcast(message);
   }
 
   /**

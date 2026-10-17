@@ -48,11 +48,18 @@ function compactionSteps(customInstructions?: string): Script {
       reply: { content: [{ type: "text", text: SUMMARY }], stopReason: "stop" },
     },
     {
-      expect: { role: "compaction" },
-      reply: { content: [{ type: "text", text: TURN_PREFIX_SUMMARY }], stopReason: "stop" },
+      expect: { role: "user", text: MEASURE_AFTER_COMPACTION_PROMPT },
+      reply: {
+        content: [{ type: "text", text: MEASURE_AFTER_COMPACTION_REPLY }],
+        stopReason: "stop",
+      },
     },
   ];
 }
+
+/** A follow-up turn, because pi measures the compacted context on the next model call. */
+const MEASURE_AFTER_COMPACTION_PROMPT = "measure the compacted context";
+const MEASURE_AFTER_COMPACTION_REPLY = "the compacted context was measured";
 
 /** The start of the reply a test can wait for; the padding is what makes the turn summable. */
 const NOTE_REPLY_START = "The note is added.";
@@ -236,11 +243,24 @@ test("compaction from the palette leaves a boundary and clears the context reado
     await expect(boundary).toContainText(SUMMARY);
     expect(Number(await boundary.getAttribute("data-tokens-before"))).toBeGreaterThan(0);
 
-    // The readout is re-read from pi, so the old figure is gone: the compacted context is the
-    // summary plus what pi kept, and pi reports either that smaller figure or that it is recomputing.
-    await expect.poll(async () => tokenFigure(await readout(page).textContent())).not.toBe(before);
+    // pi has no figure until a model call gives it one, so a follow-up turn is what lets the readout
+    // stop recalculating. A readout stuck on "Recalculating…" forever must fail this, not pass it.
+    await send(page, MEASURE_AFTER_COMPACTION_PROMPT);
+    await expect(page.getByTestId("transcript")).toContainText(MEASURE_AFTER_COMPACTION_REPLY);
+    await expect
+      .poll(
+        async () => {
+          const state = await readout(page).getAttribute("data-state");
+          return state === "recalculating" || state === "unavailable"
+            ? null
+            : tokenFigure(await readout(page).textContent());
+        },
+        { timeout: 30_000 },
+      )
+      .not.toBeNull();
     const after = tokenFigure(await readout(page).textContent());
-    expect(after === null || after < (before ?? 0)).toBe(true);
+    expect(after).not.toBeNull();
+    expect(after).toBeLessThan(before ?? 0);
   } finally {
     await disposeHarness(harness);
   }

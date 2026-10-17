@@ -5,11 +5,7 @@
  */
 
 import { ALLOWED_ORIGIN_FLAG_NAME } from "../origin.js";
-import { DEFAULT_IDLE_TIMEOUT_SECONDS } from "../config.js";
-
-/** Loopback binding is the default; a deliberate `--host` is required to expose the server. */
-export const DEFAULT_LAUNCH_HOST = "127.0.0.1";
-export const DEFAULT_LAUNCH_PORT = 8787;
+import { DEFAULT_HOST, DEFAULT_IDLE_TIMEOUT_SECONDS, DEFAULT_PORT } from "../config.js";
 
 /** The executable name as the user types it, used in help and error messages. */
 export const LAUNCHER_COMMAND_NAME = "pi-my-ui";
@@ -54,13 +50,13 @@ export const FLAG_SPECS: Readonly<Record<string, FlagSpec>> = {
     type: "string",
     placeholder: "<port>",
     multiple: false,
-    summary: `TCP port to listen on (default: ${String(DEFAULT_LAUNCH_PORT)})`,
+    summary: `TCP port to listen on (default: ${String(DEFAULT_PORT)})`,
   },
   [FLAG.host]: {
     type: "string",
     placeholder: "<address>",
     multiple: false,
-    summary: `Address to bind (default: ${DEFAULT_LAUNCH_HOST}); beyond loopback requires ${flagLabel(
+    summary: `Address to bind (default: ${DEFAULT_HOST}); beyond loopback requires ${flagLabel(
       FLAG.allowedOrigin,
     )}`,
   },

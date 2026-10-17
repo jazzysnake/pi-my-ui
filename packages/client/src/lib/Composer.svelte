@@ -54,7 +54,6 @@
     steerInFlight = null,
     onSteer = () => undefined,
     text = $bindable(""),
-    onEscape,
   }: {
     runState: RunState;
     status: ConnectionStatus;
@@ -85,8 +84,6 @@
     onSteer?: (agentId: string, message: string) => void;
     /** The draft itself, so a view can put a message back here for editing and resubmitting. */
     text?: string;
-    /** Consume Escape before the composer does; returns whether it was handled. */
-    onEscape?: (() => boolean) | undefined;
   } = $props();
 
   let attachments = $state<readonly ComposerAttachment[]>([]);
@@ -288,10 +285,6 @@
     }
     if (event.key === "Escape") {
       // The palette owns the first Escape when it is open, so it can dismiss without aborting.
-      if (onEscape?.() === true) {
-        event.preventDefault();
-        return;
-      }
       if (paletteOpen) {
         paletteDismissed = true;
         event.preventDefault();

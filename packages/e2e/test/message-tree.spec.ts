@@ -268,6 +268,42 @@ test("a linear Session opens the whole tree with no toggles", async ({ page }) =
   }
 });
 
+test("a hidden custom message has no tree row, exactly as the transcript has none", async ({
+  page,
+}) => {
+  const home = await createHermeticHome();
+  const generated = await generateSession(home, "transcript", {
+    transcriptEntries: 8,
+    hiddenCustomMessage: true,
+  });
+  const launch = await scriptedPiLaunch(home, UNUSED_SCRIPT);
+  const server = await startServer({
+    cwd: launch.cwd,
+    sessionDir: home.sessionsDir,
+    port: home.ports.allocate(),
+    pi: { args: launch.args, env: launch.env, provider: launch.provider, model: launch.model },
+  });
+  const client = await startClientPageServer();
+  const harness: Harness = { home, seeded: generated, server, client };
+  try {
+    await openHarness(page, harness, generated.id);
+    await expect(page.getByTestId("transcript")).toContainText("Generated user message 0.", {
+      timeout: PI_START_TIMEOUT_MS,
+    });
+    await expect(page.getByTestId("transcript")).not.toContainText("hidden custom message");
+
+    await page.getByTestId("composer-branch").click();
+    await expect(modal(page)).toBeVisible();
+    await expect(page.getByTestId("message-tree-row").first()).toBeVisible();
+    // The hidden entry is a real Session entry, so the tree holds one row fewer than the file and
+    // no row carries the text the transcript also refuses to draw.
+    expect(await page.getByTestId("message-tree-row").count()).toBe(generated.entryCount - 1);
+    await expect(modal(page)).not.toContainText("hidden custom message");
+  } finally {
+    await disposeHarness(harness);
+  }
+});
+
 test("a Leaf move is confirmed by pi, and an unconfirmed one is refused honestly", async () => {
   const harness = await startHarness();
   const client = await connectWsSession(harness.server.url);

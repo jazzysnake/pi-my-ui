@@ -1,26 +1,25 @@
-import { flushSync } from "svelte";
+import { flushSync, tick } from "svelte";
 import { describe, expect, it } from "vitest";
 
 import {
   EntryKind,
   MessageRole,
-  ProjectionDeltaKind,
   type ProjectedEntry,
+  type ServerMessage,
 } from "@pi-my-ui/protocol";
 
 import { ClientStore } from "../src/lib/store/client-store.svelte.js";
-import { deltaOf, mountShell, snapshotOf, userEntry } from "./composer-harness.js";
+import { mountShell, snapshotOf } from "./composer-harness.js";
+import recorded from "./fixtures/recorded-server-messages.json";
 
-function assistantEntry(id: string, text: string): ProjectedEntry {
-  return {
-    id,
-    parentId: "entry-1",
-    kind: EntryKind.Message,
-    role: MessageRole.Assistant,
-    timestamp: 1,
-    blocks: [{ type: "text", text }],
-  };
-}
+/**
+ * Frames captured from a real hermetic run (`npm run capture:store-sequences`): real pi, the real
+ * server and the scripted provider. The store tests replay them rather than inventing a sequence the
+ * server would not send.
+ */
+const RECORDED_STREAMING = recorded.streaming as unknown as readonly ServerMessage[];
+const RECORDED_RESYNC = recorded.resync as unknown as readonly ServerMessage[];
+const RECORDED_REPLY: string = recorded.provenance.reply;
 
 /**
  * The mounted window is a literal, not the component's own constant: reading the constant would let
@@ -48,11 +47,53 @@ describe("bounded transcript window", () => {
     });
 
     expect(target.querySelectorAll('[data-testid="transcript-entry"]')).toHaveLength(WINDOW_SIZE);
-    expect(target.querySelector('[data-testid="hidden-older"]')?.textContent).toBe(
-      "460 older messages are not shown",
+    expect(target.querySelector('[data-testid="hidden-older"]')?.textContent?.trim()).toBe(
+      "Show 460 older messages",
     );
     expect(target.querySelector('[data-entry-id="entry-0"]')).toBeNull();
     expect(target.querySelector('[data-entry-id="entry-519"]')).not.toBeNull();
+  });
+
+  it("loads older entries in bounded pages and returns to the newest output", async () => {
+    const store = new ClientStore();
+    const { target } = mountShell(store);
+    flushSync(() => {
+      store.receive(snapshotOf(longTranscript(520)));
+    });
+
+    // The window grows to its ceiling and then slides, so older entries become reachable without
+    // ever mounting the whole transcript.
+    for (let step = 0; step < 4; step += 1) {
+      flushSync(() => {
+        target.querySelector<HTMLButtonElement>('[data-testid="hidden-older"]')?.click();
+      });
+      await tick();
+    }
+    expect(target.querySelectorAll('[data-testid="transcript-entry"]')).toHaveLength(240);
+    expect(target.querySelector('[data-testid="hidden-newer"]')).not.toBeNull();
+
+    for (let step = 0; step < 10; step += 1) {
+      const older = target.querySelector<HTMLButtonElement>('[data-testid="hidden-older"]');
+      if (older === null || target.querySelector('[data-entry-id="entry-0"]') !== null) {
+        break;
+      }
+      flushSync(() => {
+        older.click();
+      });
+      await tick();
+    }
+    expect(target.querySelector('[data-entry-id="entry-0"]')).not.toBeNull();
+    expect(target.querySelectorAll('[data-testid="transcript-entry"]').length).toBeLessThanOrEqual(
+      240,
+    );
+
+    flushSync(() => {
+      target.querySelector<HTMLButtonElement>('[data-testid="hidden-newer"]')?.click();
+    });
+    await tick();
+    expect(target.querySelector('[data-entry-id="entry-519"]')).not.toBeNull();
+    expect(target.querySelector('[data-testid="hidden-newer"]')).toBeNull();
+    expect(target.querySelectorAll('[data-testid="transcript-entry"]')).toHaveLength(WINDOW_SIZE);
   });
 
   it("mounts every entry and no notice when the transcript fits the window", () => {
@@ -68,43 +109,73 @@ describe("bounded transcript window", () => {
 });
 
 describe("streamed Deltas and row identity", () => {
-  it("updates a streamed row in place instead of remounting the rows", () => {
+  it("applies a captured real streaming run without remounting the rows", () => {
     const store = new ClientStore();
     const { target } = mountShell(store);
+    const first = RECORDED_STREAMING[0];
+    if (first === undefined) {
+      throw new Error("the captured stream has no Snapshot");
+    }
     flushSync(() => {
-      store.receive(snapshotOf([userEntry("entry-1", "hello")]));
-      store.receive(
-        deltaOf(
-          [{ kind: ProjectionDeltaKind.EntryUpsert, entry: assistantEntry("entry-2", "Hel") }],
-          1,
-        ),
-      );
+      store.receive(first);
     });
 
-    const userRow = target.querySelector('[data-entry-id="entry-1"]');
-    const streamingRow = target.querySelector('[data-entry-id="entry-2"]');
-    expect(userRow).not.toBeNull();
-    expect(streamingRow).not.toBeNull();
-
-    flushSync(() => {
-      store.receive(
-        deltaOf(
-          [
-            {
-              kind: ProjectionDeltaKind.EntryUpsert,
-              entry: assistantEntry("entry-2", "Hello there"),
-            },
-          ],
-          2,
-        ),
-      );
-    });
-
-    // The same DOM nodes, so the text went into the existing row rather than a fresh one.
-    expect(target.querySelector('[data-entry-id="entry-1"]')).toBe(userRow);
-    expect(target.querySelector('[data-entry-id="entry-2"]')).toBe(streamingRow);
-    expect(target.querySelector('[data-testid="transcript"]')?.textContent).toContain(
-      "Hello there",
+    const before = new Map(
+      [...target.querySelectorAll<HTMLElement>('[data-testid="transcript-entry"]')].map((row) => [
+        row.dataset["entryId"] ?? "",
+        row,
+      ]),
     );
+    expect(before.size).toBeGreaterThan(0);
+
+    for (const message of RECORDED_STREAMING.slice(1)) {
+      flushSync(() => {
+        store.receive(message);
+      });
+    }
+
+    // Every row the capture started with is still the same DOM node: the deltas grew one row in
+    // place rather than replacing the transcript per frame.
+    for (const [id, row] of before) {
+      expect(target.querySelector(`[data-entry-id="${id}"]`)).toBe(row);
+    }
+    expect(target.querySelector('[data-testid="transcript"]')?.textContent).toContain(
+      RECORDED_REPLY,
+    );
+    const replyRows = [...target.querySelectorAll('[data-testid="transcript-entry"]')].filter(
+      (row) => row.textContent?.includes(RECORDED_REPLY) === true,
+    );
+    expect(replyRows).toHaveLength(1);
+  });
+
+  it("replaces the streamed entries with the durable ids a resync Snapshot carries", () => {
+    const store = new ClientStore();
+    const { target } = mountShell(store);
+    for (const message of RECORDED_RESYNC) {
+      flushSync(() => {
+        store.receive(message);
+      });
+    }
+
+    const final = RECORDED_RESYNC.at(-1);
+    if (final === undefined || final.type !== "snapshot") {
+      throw new Error("the captured resync does not end with a Snapshot");
+    }
+    const durableReply = final.projection.entries.find(
+      (entry) =>
+        entry.kind === EntryKind.Message &&
+        entry.blocks.some((block) => block.type === "text" && block.text === RECORDED_REPLY),
+    );
+    expect(durableReply).toBeDefined();
+    const replyRow = target.querySelector(`[data-entry-id="${durableReply?.id ?? ""}"]`);
+    expect(replyRow).not.toBeNull();
+    expect(replyRow?.textContent).toContain(RECORDED_REPLY);
+    // The provisional id the streamed row was built with is gone, and the row was not duplicated.
+    expect(target.querySelector('[data-entry-id^="pending:"]')).toBeNull();
+    expect(
+      [...target.querySelectorAll('[data-testid="transcript-entry"]')].filter(
+        (row) => row.textContent?.includes(RECORDED_REPLY) === true,
+      ),
+    ).toHaveLength(1);
   });
 });

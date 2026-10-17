@@ -5,18 +5,21 @@ import type { Script } from "@pi-my-ui/scripted-provider";
 
 import { startClientPageServer, type ClientPageServer } from "../src/client-page-server";
 import { generateSession, type FixtureSession } from "../src/fixture-builder";
+import { createManualClock, type ManualClock } from "../src/manual-clock";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
-import { connectWsSession } from "../src/ws-session-client";
-import { readUntilText } from "../src/ws-transcript";
+import { piChildPids } from "../src/pi-processes";
 
 const PI_TEST_TIMEOUT_MS = 120_000;
 test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
 
 /**
- * The mounted-row bound is a literal, not the client's exported constant: reading the constant would
- * let a change to it pass this spec by construction, and the bound is the claim under test.
+ * The mounted-row bounds are literals, not the client's exported constants: reading them would let a
+ * change pass this spec by construction, and the bounds are the claim under test.
  */
 const WINDOW_SIZE = 60;
+const WINDOW_MAX = 240;
+/** The transport's first reconnect delay, so the page rejoins exactly when it is due. */
+const FIRST_RECONNECT_DELAY_MS = 500;
 /** The client's own load of an already-seeded Session, in ms; see the measurement the spec prints. */
 const LOAD_BUDGET_MS = 3_000;
 const MIN_ENTRIES = 500;
@@ -24,6 +27,8 @@ const MIN_ENTRIES = 500;
 const LARGE_ENTRIES = 600;
 /** Comfortably inside the window, so a streaming reply cannot push a mounted row out. */
 const SMALL_ENTRIES = 40;
+/** Longer than the mounted window, so a resync has a range to preserve. */
+const LONGER_TRANSCRIPT_ENTRIES = 200;
 
 const UNUSED_SCRIPT: Script = [
   {
@@ -57,12 +62,14 @@ interface Harness {
   readonly session: FixtureSession;
   readonly server: RunningServer;
   readonly client: ClientPageServer;
+  readonly clock: ManualClock;
 }
 
 async function startHarness(script: Script, transcriptEntries: number): Promise<Harness> {
   const home = await createHermeticHome();
   const session = await generateSession(home, "transcript", { transcriptEntries });
   const launch = await scriptedPiLaunch(home, script);
+  const clock = createManualClock();
   const server = await startServer({
     cwd: launch.cwd,
     sessionDir: home.sessionsDir,
@@ -73,9 +80,10 @@ async function startHarness(script: Script, transcriptEntries: number): Promise<
       provider: launch.provider,
       model: launch.model,
     },
+    clock: clock.clock,
   });
   const client = await startClientPageServer();
-  return { home, session, server, client };
+  return { home, session, server, client, clock };
 }
 
 async function disposeHarness(harness: Harness): Promise<void> {
@@ -149,6 +157,10 @@ test("a 500+ entry Session loads within the budget with a bounded, scrolling win
     expect(loadMs).toBeLessThanOrEqual(LOAD_BUDGET_MS);
 
     const transcript = page.getByTestId("transcript");
+    const newestId = await page
+      .getByTestId("transcript-entry")
+      .last()
+      .getAttribute("data-entry-id");
     await expect(page.getByTestId("hidden-older")).toBeVisible();
     const hidden = Number(await page.getByTestId("hidden-older").getAttribute("data-hidden-count"));
     expect(hidden + (await mountedRows(page))).toBeGreaterThanOrEqual(MIN_ENTRIES);
@@ -158,6 +170,35 @@ test("a 500+ entry Session loads within the budget with a bounded, scrolling win
     await scrollTo(transcript, "top");
     expect(await mountedRows(page)).toBe(WINDOW_SIZE);
     await scrollTo(transcript, "bottom");
+    expect(await mountedRows(page)).toBe(WINDOW_SIZE);
+
+    // Loading older grows the mounted range only up to its ceiling.
+    for (let step = 0; step < 4; step += 1) {
+      await page.getByTestId("hidden-older").click();
+      await page.waitForTimeout(50);
+    }
+    expect(await mountedRows(page)).toBe(WINDOW_MAX);
+    await expect(page.getByTestId("hidden-newer")).toBeVisible();
+
+    // Older entries are reachable, and reaching them never mounts the whole Session.
+    for (let step = 0; step < 20; step += 1) {
+      if (await transcript.getByText("Generated user message 0.", { exact: true }).count()) {
+        break;
+      }
+      const older = page.getByTestId("hidden-older");
+      if (!(await older.isVisible())) {
+        break;
+      }
+      await older.click();
+      await page.waitForTimeout(50);
+    }
+    await expect(transcript).toContainText("Generated user message 0.");
+    expect(await mountedRows(page)).toBeLessThanOrEqual(WINDOW_MAX);
+
+    // Returning to the newest output restores the starting page, newest entry and all.
+    await page.getByTestId("hidden-newer").click();
+    await expect(page.getByTestId("hidden-newer")).toHaveCount(0);
+    await expect(page.locator(`[data-entry-id="${newestId ?? ""}"]`)).toHaveCount(1);
     expect(await mountedRows(page)).toBe(WINDOW_SIZE);
   } finally {
     await disposeHarness(harness);
@@ -232,13 +273,21 @@ test("a streaming Delta updates text without remounting the mounted rows", async
   }
 });
 
-test("preserves the reader's scroll position across a reconnect and Delta replay", async ({
+test("preserves the reader's scroll position when a stale Cursor is answered with a Snapshot", async ({
   page,
 }) => {
-  const harness = await startHarness(AWAY_SCRIPT, SMALL_ENTRIES);
+  // A longer transcript than one page, so the mounted window would otherwise slide and change which
+  // rows are on screen when the Snapshot arrives.
+  const harness = await startHarness(AWAY_SCRIPT, LONGER_TRANSCRIPT_ENTRIES);
   try {
     await openHarness(page, harness);
     const transcript = page.getByTestId("transcript");
+
+    // A settled turn advances this page's Cursor past the seeded one, so a reseed cannot equal it.
+    await page.getByTestId("composer-input").fill(AWAY_PROMPT);
+    await page.getByTestId("composer-send").click();
+    await expect(transcript).toContainText(AWAY_REPLY);
+
     const metrics = await transcript.evaluate((element) => {
       const container = element as HTMLElement;
       return { scrollHeight: container.scrollHeight, clientHeight: container.clientHeight };
@@ -248,28 +297,59 @@ test("preserves the reader's scroll position across a reconnect and Delta replay
     await scrollTo(transcript, Math.floor((metrics.scrollHeight - metrics.clientHeight) / 2));
     const before = await scrollTopOf(transcript);
     expect(before).toBeGreaterThan(0);
+    const firstMountedId = await page
+      .getByTestId("transcript-entry")
+      .first()
+      .getAttribute("data-entry-id");
+    const streamedReplyId = await page
+      .locator('[data-testid="transcript-entry"]', { hasText: AWAY_REPLY })
+      .getAttribute("data-entry-id");
 
+    // Freeze the browser's own clock, so the page stays down until the server's state is ready.
+    await page.clock.install();
+    const pageNow = await page.evaluate(() => Date.now());
+    await page.clock.pauseAt(pageNow + 100);
     harness.server.dropViewerConnections();
     await expect(page.getByTestId("connection-status")).toHaveAttribute(
       "data-status",
       "reconnecting",
     );
 
-    // Output produced by another viewer while this page is down: the only way for the page to show
-    // it is the reconnect's replay from its Cursor.
-    const writer = await connectWsSession(harness.server.url);
-    try {
-      writer.send({ type: "subscribe", sessionId: harness.session.id });
-      await writer.next();
-      writer.send({ type: "prompt", sessionId: harness.session.id, text: AWAY_PROMPT });
-      await readUntilText(writer, AWAY_REPLY);
-    } finally {
-      await writer.close();
-    }
+    // Let the server process the dropped socket before time moves: the detach is what makes the
+    // Session unwatched and starts its idle window.
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
+    // Age the idle window out. The child is evicted, and the page's rejoin is a restart: the
+    // Projection is rebuilt from the Session file, which renumbers the entries and makes the stale
+    // Cursor unknown, so the answer is a fresh Snapshot rather than a Delta replay.
+    harness.clock.advance(6 * 60_000);
+    await expect.poll(() => piChildPids().length).toBe(0);
+
+    await page.clock.runFor(FIRST_RECONNECT_DELAY_MS);
     await expect(page.getByTestId("connection-status")).toHaveAttribute("data-status", "connected");
     await expect(transcript).toContainText(AWAY_REPLY);
-    expect(await scrollTopOf(transcript)).toBe(before);
+
+    // A fresh Snapshot renumbers entries with the durable ids pi wrote; a Delta replay would keep the
+    // provisional id the streamed row was built with, so this is what proves the resync happened.
+    // The reconnect's Snapshot is a separate frame from the socket opening, so wait for the durable
+    // id rather than reading the row the socket open happened to leave on screen.
+    const replyRowId = () =>
+      page
+        .locator('[data-testid="transcript-entry"]', { hasText: AWAY_REPLY })
+        .getAttribute("data-entry-id");
+    await expect.poll(replyRowId, { timeout: 30_000 }).not.toBe(streamedReplyId);
+    const resyncedReplyId = await replyRowId();
+    expect(resyncedReplyId ?? "").not.toMatch(/^pending:/);
+
+    // The window stays on the same absolute range, so the same rows are still mounted, and the
+    // anchored row is at the same pixel the reader left it at.
+    await expect
+      .poll(
+        async () =>
+          await page.getByTestId("transcript-entry").first().getAttribute("data-entry-id"),
+      )
+      .toBe(firstMountedId);
+    expect(Math.abs((await scrollTopOf(transcript)) - before)).toBeLessThanOrEqual(2);
   } finally {
     await disposeHarness(harness);
   }

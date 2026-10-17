@@ -15,6 +15,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { FILE_DOWNLOAD_PATH, FILE_PATH_PARAM } from "@pi-my-ui/protocol";
 
+import { errorText } from "../error-text.js";
 import type { TrustPolicy } from "../origin.js";
 import { openFileTarget, streamFile } from "./download.js";
 import {
@@ -134,9 +135,7 @@ export function handleFileDownload(
       response.end(error.message);
       return;
     }
-    options.log(
-      `files: unexpected download failure: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    options.log(`files: unexpected download failure: ${errorText(error)}`);
     response.writeHead(500);
     response.end();
     return;

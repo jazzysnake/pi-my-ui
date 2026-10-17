@@ -27,3 +27,12 @@ Reference: the committed transcript-row prototype's code-block treatment is norm
 - [x] Layout holds at 320 px.
 - [x] Component tests cover control presence, copying code only, and confirmation; an end-to-end test
       covers the clipboard contents and the touch target.
+
+## Comments
+
+Resolved on `integration/ui-pass-2` by merge `3e19219`; the code-review follow-up is `f460a60`.
+`code-copy.ts` upgrades the sanitized markdown after render, wrapping each `pre` in a frame with a
+28 px strip and mounting the shared `CopyButton`; the code text is read from the DOM at tap time with
+the fence's trailing newline removed. `markdown.spec.ts` covers exact clipboard contents,
+strip/tap-box geometry, no overlay, horizontal scrolling, whole-message copy and 320 px;
+`code-copy.test.ts` covers presence, confirmation, rejection and streaming re-render.

@@ -31,3 +31,14 @@ Reference: the committed transcript-row prototype's error-card treatment is norm
       label and lack of copy control.
 - [x] An end-to-end test with a real failed turn shows the error text live and again after reload; a
       seeded empty assistant message produces no row.
+
+## Comments
+
+Resolved on `integration/ui-pass-2` by merge `d022818`; the code-review follow-up is `f460a60`.
+`ContentBlockType.Error` and `ErrorBlock` are in the protocol. `blocksFromMessage` appends the
+failure after content through `failureText`, so seed and live share one rule, and `projectMessage`
+drops empty projected messages. `MessageCard` renders the danger block with no copy control;
+error-only cards have no card control. Coverage is `message-card.test.ts` plus `failed-turn.spec.ts`
+(live failure, restart-and-reload from the Session file, seeded empty and whitespace fallback, and
+an aborted attempt leaving no row). The spec's "Server, seed/live through `projectionBatch`" bullets
+describe a server test layer ADR 0005 does not allow; the behaviour is proven end-to-end instead.

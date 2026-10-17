@@ -46,3 +46,12 @@ feature's evidence folder are normative for appearance. Use their look, not thei
       on fake timers, rejected writes, and the first-block yield measured through the DOM.
 - [x] The end-to-end touch-target check covers the new copy control.
 - [x] The existing markdown copy assertion points at the message card's control.
+
+## Comments
+
+Resolved on `integration/ui-pass-2` by merge `7454d1f`; the code-review follow-up is `f460a60`.
+The transcript now has `MessageCard.svelte` (role surface, in-card copy control, first-block yield),
+`CopyButton.svelte` (1.4 s check, stable name, polite announcement, rejected-write no-op), and
+`ThinkingRow.svelte` (chevron, collapsed, no visible header rule, no copy control). Tool and bash
+cards keep their markup; notifications and compaction boundaries stay outside the card. Coverage is
+the component suite plus `markdown.spec.ts` at 320 px and the touch-target sweep.

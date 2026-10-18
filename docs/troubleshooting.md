@@ -9,11 +9,12 @@ are in the repository folder on the laptop.
 transcript arrives, and — when an origin was refused — the browser console shows the WebSocket
 handshake failing with 403.
 
-**Why:** one of two things. The address has no `?session=<id>`, so the page has no Session to open; or
-the server refused the browser's `Origin` because it is not the one you configured.
+**Why:** the server refused the browser's `Origin` because it is not the one you configured. A page
+that connects but shows the Project picker is not this failure: it is the normal first screen when no
+Project is remembered, and choosing one opens its Sessions.
 
-**What to do:** first check the address. It must name a Session, for example
-`https://laptop.tailnet-name.ts.net/?session=<id>` (see
+**What to do:** first check the address. A full link names a Project and may name a Session, for
+example `https://laptop.tailnet-name.ts.net/?project=/home/you/projects/api&session=<id>` (see
 [Opening a Session](guide.md#5-opening-a-session)). Then read the server's terminal. A refusal is one
 line per attempt, quoting the origin the browser actually sent:
 
@@ -65,7 +66,8 @@ and the check commands.
 pi-my-ui: could not bind "127.0.0.1":8787: the port is already in use; change --port (EADDRINUSE)
 ```
 
-**Why:** another server (a second project, or another app) already has that port.
+**Why:** another app, or a second copy of this server, already has that port. One server serves every
+Project you pass as `--project`, so a second Project does not need a port of its own.
 
 **What to do:** start this server on a different `--port`, and update the Caddy `reverse_proxy`
 upstream to match. Find the holder on Linux with `ss -ltn`; on macOS with
@@ -185,9 +187,9 @@ Session (or resume one) so the extension loads. When a Session reports an agent,
 
 **You see:** tapping a file or **Download** does nothing, or Caddy answers 404/405.
 
-**Why:** downloads are `POST /files/download`. Caddy only reverse-proxies the paths in its matcher; a
-path it does not match falls through to `file_server`, which does not accept that method. The Vite dev
-server does not proxy the download route at all.
+**Why:** downloads are `POST /files/download?project=…&path=…`. Caddy only reverse-proxies the paths
+in its matcher; a path it does not match falls through to `file_server`, which does not accept that
+method. The Vite dev server does not proxy the download route at all.
 
 **What to do:** add `/files/download` to the Caddy matcher exactly as the
 [Caddy + Tailscale guide](deploy/caddy.md) shows, then reload Caddy. For development, use the Caddy

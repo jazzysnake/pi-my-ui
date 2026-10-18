@@ -6,9 +6,9 @@ A phone user with four repositories had to run four servers on four ports, each 
 pool of Pi children, and switch by changing port. One server now serves a launch-time list of
 Projects: `--project /path/to/project` is repeatable, and with no `--project` the server serves
 exactly the current directory, as before. A Project has no identity beyond its absolute path: one
-Project is one cwd, one Session belongs to exactly one Project, and a Project's Sessions and files
-are found by its path. `cwd` is retired as a domain noun and survives only as the string handed to
-`spawn`.
+Project is one absolute path, one Session belongs to exactly one Project, and a Project's Sessions
+and files are found by its path. `cwd` is retired as a domain noun and survives only as the string
+handed to `spawn`.
 
 The alternatives were a supervisor that spawns a per-project server and a proxy the browser talks to
 instead, and a second mode in which the server is single-project unless told otherwise. Both were
@@ -56,5 +56,5 @@ Consequences:
 - Session ids stay `randomUUID()`, but the pool's id map becomes a map keyed by the pair; the
   absolute Session file path stays canonical, and remains what a Session is keyed by once its file
   exists.
-- The roughly three dozen e2e specs that start a server with one `cwd` are renamed mechanically in
-  the same change, so the vocabulary lands once rather than in a later cleanup pass.
+- The roughly three dozen e2e specs that start a server for one Project pass a one-entry Project
+  list in the same change, so the vocabulary lands once rather than in a later cleanup pass.

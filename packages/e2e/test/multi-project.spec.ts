@@ -270,6 +270,45 @@ test("a run keeps working while another Project is viewed", async ({ page }) => 
   }
 });
 
+test("a connection watching one Project is pushed no other Project's list", async () => {
+  const harness = await startHarness();
+  const firstViewer = await connectWsSession(harness.server.url);
+  const secondViewer = await connectWsSession(harness.server.url);
+  try {
+    firstViewer.send({ type: "listSessions", project: harness.first });
+    expect(await firstViewer.next()).toMatchObject({ type: "sessions", project: harness.first });
+
+    secondViewer.send({ type: "listSessions", project: harness.second });
+    expect(await secondViewer.next()).toMatchObject({ type: "sessions", project: harness.second });
+
+    // A fresh Session pushes the list of the Project it was created in. The two connections watch
+    // different Projects, so only the one that asked for the second may hear about it.
+    secondViewer.send({ type: "createSession", project: harness.second });
+    expect(await secondViewer.next()).toMatchObject({
+      type: "sessionCreated",
+      session: { project: harness.second },
+    });
+    expect(await secondViewer.next()).toMatchObject({
+      type: "sessions",
+      project: harness.second,
+    });
+
+    // The server writes that push before it answers anything else this connection sends, so a list
+    // for the second Project would arrive ahead of this answer if the push had been widened.
+    firstViewer.send({ type: "listSessions", project: harness.first });
+    const afterPush = await firstViewer.next();
+    expect(afterPush).toMatchObject({ type: "sessions", project: harness.first });
+    if (afterPush.type !== "sessions") {
+      return;
+    }
+    expect(afterPush.sessions.map((session) => session.id)).toEqual([harness.firstSession.id]);
+  } finally {
+    await firstViewer.close();
+    await secondViewer.close();
+    await disposeHarness(harness);
+  }
+});
+
 test("a pair naming an id from another Project is refused and nothing is searched", async () => {
   const harness = await startHarness();
   const client = await connectWsSession(harness.server.url);

@@ -50,14 +50,10 @@ export interface TransportHandlers {
   onMessage(message: ServerMessage): void;
   /** A Session this client asked for exists; the owner watches it. */
   onSessionOpened?(session: SessionRef): void;
-  /** The registry chose a Project for this page; the owner draws that Project's state. */
-  onProjectChosen?(project: string): void;
 }
 
 export interface TransportOptions {
   readonly url: string;
-  /** The Project named by the page address, or absent when the address names none. */
-  readonly project?: string | null;
   /** The Session named by the page address, or absent when the reader has not picked one yet. */
   readonly sessionId?: string | null;
   readonly handlers: TransportHandlers;
@@ -115,17 +111,12 @@ export interface Transport {
 }
 
 export function createTransport(options: TransportOptions): Transport {
-  const linkedProject = options.project ?? null;
-  const linkedSessionId = options.sessionId ?? null;
   let socket: WebSocket | null = null;
   let cursor: Cursor | undefined;
-  let activeProject: string | null = linkedProject;
-  let activeSession: SessionRef | null =
-    linkedProject !== null && linkedSessionId !== null
-      ? { project: linkedProject, id: linkedSessionId }
-      : null;
-  /** An `?session=` without `?project=` waits for the registry to pick the Project it belongs to. */
-  let unpairedSessionId: string | null = linkedProject === null ? linkedSessionId : null;
+  let activeProject: string | null = null;
+  let activeSession: SessionRef | null = null;
+  /** The Session the page address named, waiting for the browser to choose its Project. */
+  let pendingSessionId: string | null = options.sessionId ?? null;
   let failedAttempts = 0;
   let started = false;
   let stopped = false;
@@ -173,36 +164,20 @@ export function createTransport(options: TransportOptions): Transport {
     }
   }
 
-  /** Choose from the registry the same way every reload does: the linked Project, else the first. */
-  function projectFrom(served: readonly string[]): string | null {
-    if (linkedProject !== null) {
-      return served.includes(linkedProject) ? linkedProject : null;
-    }
-    return served[0] ?? null;
-  }
-
-  function adoptProject(project: string | null): void {
-    if (project === activeProject) {
+  /**
+   * A Session the page named opens once its Project has been chosen, as one pair. The address named
+   * no Project of its own when the choice came from the registry, so the id waits for that answer.
+   */
+  function pairPendingSession(): void {
+    if (activeSession !== null || pendingSessionId === null || activeProject === null) {
       return;
     }
-    activeProject = project;
-    activeSession = null;
+    const session = { project: activeProject, id: pendingSessionId };
+    pendingSessionId = null;
+    activeSession = session;
     cursor = undefined;
-    if (project !== null) {
-      options.handlers.onProjectChosen?.(project);
-      sendListSessions();
-    }
-  }
-
-  /** A Session the page named before the registry chose its Project becomes a pair now. */
-  function pairInitialSession(): void {
-    if (activeSession !== null || unpairedSessionId === null || activeProject === null) {
-      return;
-    }
-    activeSession = { project: activeProject, id: unpairedSessionId };
-    unpairedSessionId = null;
     sendSubscription();
-    options.handlers.onSessionOpened?.(activeSession);
+    options.handlers.onSessionOpened?.(session);
   }
 
   function nextBackoffDelay(): number {
@@ -252,12 +227,6 @@ export function createTransport(options: TransportOptions): Transport {
         return;
       }
       const message = JSON.parse(String(event.data)) as ServerMessage;
-      if (message.type === ServerMessageType.Projects) {
-        adoptProject(projectFrom(message.projects));
-        pairInitialSession();
-        options.handlers.onMessage(message);
-        return;
-      }
       // A created Session and a fork or clone both produce one this client should watch; a vetoed
       // mutation names no Session, so it only reaches the store's notice.
       const opened: SessionRef | undefined =
@@ -269,6 +238,7 @@ export function createTransport(options: TransportOptions): Transport {
       if (opened !== undefined) {
         // Opening it is this socket's own follow-up, so the subscribe goes out before the owner is
         // told and a later frame cannot overtake it.
+        pendingSessionId = null;
         activeSession = opened;
         activeProject = opened.project;
         cursor = undefined;
@@ -324,15 +294,17 @@ export function createTransport(options: TransportOptions): Transport {
     },
     switchProject(project) {
       if (project === activeProject) {
+        pairPendingSession();
         return;
       }
       activeProject = project;
       activeSession = null;
-      unpairedSessionId = null;
       cursor = undefined;
       sendListSessions();
+      pairPendingSession();
     },
     switchSession(session) {
+      pendingSessionId = null;
       if (
         activeSession !== null &&
         session.project === activeSession.project &&

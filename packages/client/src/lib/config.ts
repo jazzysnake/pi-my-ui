@@ -10,6 +10,8 @@ export const WS_PATH = "/ws";
 
 export interface ClientConfig {
   readonly wsUrl: string;
+  /** The `?ws=` value when the address overrides the origin, so a rewritten address keeps it. */
+  readonly wsOverride: string | null;
   /** The Project named by `?project=`, an absolute path, or `null` when the address names none. */
   readonly project: string | null;
   readonly sessionId: string | null;
@@ -26,8 +28,10 @@ export function resolveClientConfig(href: string, search: string): ClientConfig 
   const params = new URLSearchParams(search);
   const session = params.get("session");
   const project = params.get("project");
+  const wsOverride = params.get("ws");
   return {
-    wsUrl: params.get("ws") ?? defaultWebSocketUrl(href),
+    wsUrl: wsOverride ?? defaultWebSocketUrl(href),
+    wsOverride: wsOverride === null || wsOverride === "" ? null : wsOverride,
     project: project === null || project === "" ? null : project,
     sessionId: session === null || session === "" ? null : session,
   };

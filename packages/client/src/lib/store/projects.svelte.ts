@@ -3,32 +3,71 @@
  * browser is looking at. It is the one owner of that choice, so the drawer, the transport and the
  * files panel cannot disagree about which Project is current.
  *
- * A linked Project the registry does not serve selects nothing; with no chosen Project there is no
- * Project's Session list to show.
+ * A linked or remembered Project the registry does not serve selects nothing and says which path was
+ * missing; nothing has failed, so that notice is a warning rather than an error. With nothing linked
+ * or remembered, one served Project selects itself and several leave the choice to the picker.
  */
 
 import { ServerMessageType, type ServerMessage } from "@pi-my-ui/protocol";
+
+import {
+  createNoopProjectStorage,
+  type ProjectStorage,
+} from "../projects/storage.js";
 
 export interface ProjectsSlice {
   /** The served Projects, or `null` until the server answers. */
   readonly projects: readonly string[] | null;
   /** The Project the browser is looking at, or `null` when none could be chosen. */
   readonly chosen: string | null;
+  /** Why the picker is showing instead of a remembered or linked Project, or `null`. */
+  readonly warning: string | null;
   receive(message: ServerMessage): void;
   /** Choose a served Project; a path outside the registry selects nothing. */
   select(project: string): void;
   clear(): void;
 }
 
-export function createProjectsSlice(linkedProject: string | null = null): ProjectsSlice {
+export function createProjectsSlice(
+  linkedProject: string | null = null,
+  storage: ProjectStorage = createNoopProjectStorage(),
+): ProjectsSlice {
   let projects = $state<readonly string[] | null>(null);
   let chosen = $state<string | null>(null);
+  let warning = $state<string | null>(null);
 
-  function chooseFrom(served: readonly string[]): string | null {
+  function choose(project: string): void {
+    chosen = project;
+    warning = null;
+    storage.write(project);
+  }
+
+  function decideFrom(served: readonly string[]): void {
     if (linkedProject !== null) {
-      return served.includes(linkedProject) ? linkedProject : null;
+      if (served.includes(linkedProject)) {
+        choose(linkedProject);
+      } else {
+        warning = `This server does not serve ${linkedProject}. Choose a Project below.`;
+      }
+      return;
     }
-    return served[0] ?? null;
+
+    const remembered = storage.read();
+    if (remembered !== null) {
+      if (served.includes(remembered)) {
+        choose(remembered);
+      } else {
+        warning = `This server no longer serves ${remembered}. Choose a Project below.`;
+      }
+      return;
+    }
+
+    if (served.length === 1) {
+      const only = served[0];
+      if (only !== undefined) {
+        choose(only);
+      }
+    }
   }
 
   return {
@@ -38,25 +77,23 @@ export function createProjectsSlice(linkedProject: string | null = null): Projec
     get chosen() {
       return chosen;
     },
+    get warning() {
+      return warning;
+    },
     receive(message) {
-      if (message.type === ServerMessageType.Projects) {
-        projects = message.projects;
-        if (chosen === null) {
-          chosen = chooseFrom(message.projects);
-        }
+      if (message.type !== ServerMessageType.Projects) {
         return;
       }
-      // A Sessions answer is only ever for the chosen Project's list, so its name confirms the
-      // choice when the Projects answer has already been applied.
-      if (message.type === ServerMessageType.Sessions && chosen === null) {
-        chosen = message.project;
+      projects = message.projects;
+      if (chosen === null) {
+        decideFrom(message.projects);
       }
     },
     select(project) {
       if (projects === null || !projects.includes(project)) {
         return;
       }
-      chosen = project;
+      choose(project);
     },
     clear() {
       chosen = null;

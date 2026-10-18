@@ -5,6 +5,7 @@
   import AgentList from "./AgentList.svelte";
   import ForkPicker from "./ForkPicker.svelte";
   import MessageTreeModal from "./MessageTreeModal.svelte";
+  import ProjectPicker from "./ProjectPicker.svelte";
   import RunStateRow from "./RunStateRow.svelte";
   import SessionDrawer from "./SessionDrawer.svelte";
   import SessionStatsPanel from "./SessionStatsPanel.svelte";
@@ -23,6 +24,7 @@
     store,
     status,
     onSelectSession,
+    onSelectProject = () => undefined,
     onPrompt,
     onBash,
     onAbort,
@@ -50,6 +52,7 @@
     store: ClientStore;
     status: ConnectionStatus;
     onSelectSession: (sessionId: string) => void;
+    onSelectProject?: (project: string) => void;
     onPrompt: (
       text: string,
       images: readonly ImageAttachment[],
@@ -84,6 +87,12 @@
 
   let filesOpen = $state(false);
   let sessionsOpen = $state(false);
+  /**
+   * File requests still resolve against the server's first Project, so only a server serving exactly
+   * one Project can show files without showing another Project's tree. Scoping every file request to
+   * a Project removes this guard.
+   */
+  const filesAllowed = $derived(store.projects.projects?.length === 1);
   let forkOpen = $state(false);
   let agentsOpen = $state(false);
   /** The composer's draft, so the message tree can hand one of the user's messages back to it. */
@@ -127,6 +136,14 @@
   $effect(() => {
     if (startWithSessionsOpen && !sessionOpen && store.sessions.rows !== null) {
       sessionsOpen = true;
+    }
+  });
+
+  // A file panel opened before the registry answered must close rather than fall back to another
+  // Project's first root once a multi-Project server is known.
+  $effect(() => {
+    if (!filesAllowed && filesOpen) {
+      filesOpen = false;
     }
   });
 
@@ -287,11 +304,15 @@
       sessionsOpen = !sessionsOpen;
     }}
     onToggleFiles={() => {
+      if (!filesAllowed) {
+        return;
+      }
       filesOpen = !filesOpen;
       if (filesOpen) {
         onListDirectory(ROOT_PATH);
       }
     }}
+    filesEnabled={filesAllowed}
     onOpenAgents={() => {
       agentsOpen = true;
     }}
@@ -405,11 +426,21 @@
       }}
     />
   {/if}
+  {#if store.projects.projects !== null && store.projects.chosen === null}
+    <ProjectPicker
+      projects={store.projects.projects}
+      warning={store.projects.warning}
+      onChoose={onSelectProject}
+    />
+  {/if}
   {#if sessionsOpen}
     <SessionDrawer
       rows={store.sessions.rows}
+      projects={store.projects.projects}
+      chosenProject={store.projects.chosen}
       activeSessionId={store.sessions.activeSessionId}
       onSelect={onSelectSession}
+      {onSelectProject}
       {onCreateSession}
       onClose={() => {
         sessionsOpen = false;

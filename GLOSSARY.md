@@ -4,6 +4,10 @@ A phone-first web UI for `pi`. A local server drives pi processes and keeps each
 
 ## Language
 
+**Project**:
+The folder a Session's Pi child runs in, and whose files the server serves. One Project is one absolute path.
+_Avoid_: Cwd, workspace, repo, folder
+
 **Session**:
 One pi conversation, a tree of entries, persisted as a file.
 _Avoid_: Chat, thread, conversation

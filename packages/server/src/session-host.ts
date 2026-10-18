@@ -411,7 +411,9 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
 
   return {
     session,
-    sessionId,
+    get sessionId() {
+      return session.id;
+    },
     get activity() {
       return sessionActivityOf(machine.projection.runState);
     },

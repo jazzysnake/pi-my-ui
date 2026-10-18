@@ -24,7 +24,7 @@ import {
 import { DEFAULT_IDLE_TIMEOUT_MS, type ServerConfig } from "./config.js";
 import { systemClock, type ServerClock, type ServerTimer } from "./clock.js";
 import { withBridgeLaunch } from "./bridge/launch.js";
-import { createProjectRegistry, type ProjectRegistry } from "./projects.js";
+import type { ProjectRegistry } from "./projects.js";
 import { createSessionHost, type BridgeGate, type SessionHost } from "./session-host.js";
 import type { PiSessionTarget } from "./pi-child.js";
 
@@ -57,8 +57,8 @@ function pairKey(session: SessionRef): string {
 export function createSessionPool(
   config: ServerConfig,
   bridge: SessionPoolBridge,
-  listeners: SessionPoolListeners = {},
-  registry: ProjectRegistry = createProjectRegistry(config.projects),
+  listeners: SessionPoolListeners,
+  registry: ProjectRegistry,
 ): SessionPool {
   const hostsByPair = new Map<string, SessionHost>();
   const hostsByFile = new Map<string, SessionHost>();

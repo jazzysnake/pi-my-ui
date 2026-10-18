@@ -25,6 +25,7 @@ import {
   type ProjectedEntry,
   type ServerMessage,
   type SessionProjection,
+  type SessionRef,
   type SubagentAgent,
   type SubagentTranscriptLookup,
 } from "@pi-my-ui/protocol";
@@ -91,6 +92,7 @@ function withoutDelivered(
 
 export function createSubagentsSlice(): SubagentsSlice {
   let projection = $state<SessionProjection | null>(null);
+  let active: SessionRef | null = null;
   let focusedAgentId = $state<string | null>(null);
   /** The agents a steer is on its way to, oldest first. */
   let pending = $state<readonly string[]>([]);
@@ -239,6 +241,13 @@ export function createSubagentsSlice(): SubagentsSlice {
         return;
       }
       if (message.type === ServerMessageType.Snapshot) {
+        if (
+          active !== null &&
+          (message.session.project !== active.project || message.session.id !== active.id)
+        ) {
+          return;
+        }
+        active = message.session;
         projection = message.projection;
         // A Snapshot describes the Session as it is now, so a conversation read before it is not
         // evidence about this one, and a run that streamed in the meantime needs no file at all.
@@ -254,8 +263,10 @@ export function createSubagentsSlice(): SubagentsSlice {
       if (message.type === ServerMessageType.Error) {
         if (
           focusedAgentId !== null &&
-          message.sessionId !== undefined &&
-          message.sessionId === projection?.sessionId
+          message.session !== undefined &&
+          active !== null &&
+          message.session.project === active.project &&
+          message.session.id === active.id
         ) {
           pending = pending.filter((agentId) => agentId !== focusedAgentId);
         }
@@ -264,8 +275,10 @@ export function createSubagentsSlice(): SubagentsSlice {
       // A Delta from a switched-away Session must not change the agents that replaced it.
       if (
         message.type !== ServerMessageType.Delta ||
+        active === null ||
         projection === null ||
-        message.sessionId !== projection.sessionId
+        message.session.project !== active.project ||
+        message.session.id !== active.id
       ) {
         return;
       }
@@ -283,6 +296,7 @@ export function createSubagentsSlice(): SubagentsSlice {
       pending = [...pending, agentId];
     },
     clear() {
+      active = null;
       projection = null;
       focusedAgentId = null;
       pending = [];

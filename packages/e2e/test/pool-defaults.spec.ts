@@ -63,9 +63,13 @@ async function dispose(harness: Harness): Promise<void> {
  * the context figure is the last thing attach sends, so receiving it means the subscription is
  * registered and the socket owns a detach.
  */
-async function open(server: RunningServer, sessionId: string): Promise<WsSessionClient> {
+async function open(
+  server: RunningServer,
+  project: string,
+  sessionId: string,
+): Promise<WsSessionClient> {
   const client = await connectWsSession(server.url);
-  client.send({ type: "subscribe", sessionId });
+  client.send({ type: "subscribe", session: { project, id: sessionId } });
   let snapshot = false;
   for (;;) {
     const message = await client.next();
@@ -73,7 +77,7 @@ async function open(server: RunningServer, sessionId: string): Promise<WsSession
       throw new Error(`subscribing to ${sessionId} was refused: ${message.error.code}`);
     }
     if (message.type === "snapshot") {
-      expect(message.sessionId).toBe(sessionId);
+      expect(message.session.id).toBe(sessionId);
       snapshot = true;
       continue;
     }
@@ -104,11 +108,11 @@ test("the idle window --help documents is the one the pool evicts on", async () 
     const watched = await seedSession(harness.home, "plain");
     const abandoned = await generateSession(harness.home, "transcript", { transcriptEntries: 20 });
 
-    const watchedViewer = await open(harness.server, watched.id);
+    const watchedViewer = await open(harness.server, harness.home.workspace, watched.id);
     await expect.poll(() => piChildPids().length).toBe(1);
     const watchedChild = piChildPids()[0];
 
-    const abandonedViewer = await open(harness.server, abandoned.id);
+    const abandonedViewer = await open(harness.server, harness.home.workspace, abandoned.id);
     await expect.poll(() => piChildPids().length).toBe(2);
     const abandonedChild = piChildPids().find((pid) => pid !== watchedChild);
     expect(abandonedChild).toBeDefined();
@@ -127,7 +131,7 @@ test("the idle window --help documents is the one the pool evicts on", async () 
     await watchedViewer.close();
 
     // The evicted Session still opens, from the child's own Session file.
-    const reopened = await open(harness.server, abandoned.id);
+    const reopened = await open(harness.server, harness.home.workspace, abandoned.id);
     await reopened.close();
   } finally {
     await dispose(harness);
@@ -143,8 +147,8 @@ test("switching Session before the first Snapshot is built leaves neither Sessio
     // One socket, two subscriptions: the second arrives while the first Session's child is still
     // starting, so the first attach finishes with a detach the socket no longer owns.
     const viewer = await connectWsSession(harness.server.url);
-    viewer.send({ type: "subscribe", sessionId: first.id });
-    viewer.send({ type: "subscribe", sessionId: second.id });
+    viewer.send({ type: "subscribe", session: { project: harness.home.workspace, id: first.id } });
+    viewer.send({ type: "subscribe", session: { project: harness.home.workspace, id: second.id } });
     await expect.poll(() => piChildPids().length).toBe(2);
     await viewer.close();
 

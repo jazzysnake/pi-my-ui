@@ -56,7 +56,10 @@ test("a client reattaching at a known Cursor receives the missed Deltas", async 
   const writer = await connectWsSession(harness.server.url);
   let detachedAt: number;
   try {
-    writer.send({ type: "subscribe", sessionId: harness.seeded.id });
+    writer.send({
+      type: "subscribe",
+      session: { project: harness.home.workspace, id: harness.seeded.id },
+    });
     const snapshot = await writer.next();
     expect(snapshot.type).toBe("snapshot");
     if (snapshot.type !== "snapshot") {
@@ -64,7 +67,11 @@ test("a client reattaching at a known Cursor receives the missed Deltas", async 
     }
     detachedAt = snapshot.cursor;
 
-    writer.send({ type: "prompt", sessionId: harness.seeded.id, text: PROMPT });
+    writer.send({
+      type: "prompt",
+      session: { project: harness.home.workspace, id: harness.seeded.id },
+      text: PROMPT,
+    });
     const missed = await readUntilText(writer, REPLY);
     expect(missed.at(-1)?.cursor).toBeGreaterThan(detachedAt);
   } finally {
@@ -73,7 +80,11 @@ test("a client reattaching at a known Cursor receives the missed Deltas", async 
 
   const reader = await connectWsSession(harness.server.url);
   try {
-    reader.send({ type: "subscribe", sessionId: harness.seeded.id, cursor: detachedAt });
+    reader.send({
+      type: "subscribe",
+      session: { project: harness.home.workspace, id: harness.seeded.id },
+      cursor: detachedAt,
+    });
     const first = await nextDelta(reader);
     expect(first.fromCursor).toBe(detachedAt);
 
@@ -90,7 +101,11 @@ test("an unknown Cursor is answered with a fresh Snapshot", async () => {
   const reader = await connectWsSession(harness.server.url);
   try {
     // Zero is older than any Cursor the seeded Session can be at, so the server cannot bridge it.
-    reader.send({ type: "subscribe", sessionId: harness.seeded.id, cursor: 0 });
+    reader.send({
+      type: "subscribe",
+      session: { project: harness.home.workspace, id: harness.seeded.id },
+      cursor: 0,
+    });
     const stale = await reader.next();
     expect(stale.type).toBe("snapshot");
     if (stale.type !== "snapshot") {
@@ -104,7 +119,7 @@ test("an unknown Cursor is answered with a fresh Snapshot", async () => {
     // A Cursor ahead of the stream is unknown for the same reason.
     reader.send({
       type: "subscribe",
-      sessionId: harness.seeded.id,
+      session: { project: harness.home.workspace, id: harness.seeded.id },
       cursor: stale.cursor + 1_000,
     });
     const ahead = await reader.next();

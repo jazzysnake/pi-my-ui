@@ -1,7 +1,12 @@
 /**
- * The one module that opens a WebSocket. It owns the socket, the subscribe handshake, the link
- * status, the Cursor and the reconnect; every decoded frame is handed to the consumer unchanged, so
- * the store sees plain `ServerMessage` values and never the transport (ADR 0005).
+ * The one module that opens a WebSocket. It owns the socket, the Project and Session it watches, the
+ * subscribe handshake, the link status, the Cursor and the reconnect; every decoded frame is handed
+ * to the consumer unchanged, so the store sees plain `ServerMessage` values and never the transport
+ * (ADR 0005).
+ *
+ * A Session is watched as a pair, because an id alone does not name one: the Project travels with it
+ * on every subscribe and every accepted Snapshot or Delta, so switching Project can never let the
+ * previous Project's stream move the Cursor.
  *
  * On reconnect the transport asks for the Deltas after the Cursor it last applied, so a Session
  * that kept running while the link was down is caught up without a user action.
@@ -14,6 +19,7 @@ import {
   type Cursor,
   type ImageAttachment,
   type ServerMessage,
+  type SessionRef,
   type StreamingBehavior,
   type ThinkingLevel,
 } from "@pi-my-ui/protocol";
@@ -43,11 +49,15 @@ export interface TransportHandlers {
   onStatus(status: ConnectionStatus): void;
   onMessage(message: ServerMessage): void;
   /** A Session this client asked for exists; the owner watches it. */
-  onSessionOpened?(sessionId: string): void;
+  onSessionOpened?(session: SessionRef): void;
+  /** The registry chose a Project for this page; the owner draws that Project's state. */
+  onProjectChosen?(project: string): void;
 }
 
 export interface TransportOptions {
   readonly url: string;
+  /** The Project named by the page address, or absent when the address names none. */
+  readonly project?: string | null;
   /** The Session named by the page address, or absent when the reader has not picked one yet. */
   readonly sessionId?: string | null;
   readonly handlers: TransportHandlers;
@@ -56,9 +66,11 @@ export interface TransportOptions {
 export interface Transport {
   start(): void;
   stop(): void;
+  /** Watch another Project's list without closing the link, and clear the watched Session. */
+  switchProject(project: string): void;
   /** Watch another Session without closing the link, from the start of its stream. */
-  switchSession(sessionId: string): void;
-  /** Ask the server to start a fresh Session; the answer opens it. Ignored while the link is down. */
+  switchSession(session: SessionRef): void;
+  /** Ask the server to start a fresh Session in the watched Project; the answer opens it. */
   createSession(): void;
   /** Send one message to the Session's Pi child. Ignored while the link is down. */
   prompt(text: string, images?: readonly ImageAttachment[], behavior?: StreamingBehavior): void;
@@ -96,16 +108,24 @@ export interface Transport {
   getTree(): void;
   /** Move the Session's Leaf to an existing entry. Ignored while the link is down. */
   moveLeaf(entryId: string): void;
-  /** Ask for one directory of the server's working directory. Ignored while the link is down. */
+  /** Ask for one directory of the watched Project. Ignored while the link is down. */
   listDirectory(path: string): void;
   /** Ask for a bounded text preview of one file. Ignored while the link is down. */
   previewFile(path: string): void;
 }
 
 export function createTransport(options: TransportOptions): Transport {
+  const linkedProject = options.project ?? null;
+  const linkedSessionId = options.sessionId ?? null;
   let socket: WebSocket | null = null;
   let cursor: Cursor | undefined;
-  let activeSessionId: string | null = options.sessionId ?? null;
+  let activeProject: string | null = linkedProject;
+  let activeSession: SessionRef | null =
+    linkedProject !== null && linkedSessionId !== null
+      ? { project: linkedProject, id: linkedSessionId }
+      : null;
+  /** An `?session=` without `?project=` waits for the registry to pick the Project it belongs to. */
+  let unpairedSessionId: string | null = linkedProject === null ? linkedSessionId : null;
   let failedAttempts = 0;
   let started = false;
   let stopped = false;
@@ -119,12 +139,18 @@ export function createTransport(options: TransportOptions): Transport {
   }
 
   /** Send a frame that names the watched Session; a no-op until one is selected. */
-  function sendForSession(build: (sessionId: string) => ClientMessage): void {
-    const sessionId = activeSessionId;
-    if (sessionId === null) {
+  function sendForSession(build: (session: SessionRef) => ClientMessage): void {
+    const session = activeSession;
+    if (session === null) {
       return;
     }
-    send(build(sessionId));
+    send(build(session));
+  }
+
+  function sendListSessions(): void {
+    if (activeProject !== null) {
+      send({ type: ClientMessageType.ListSessions, project: activeProject });
+    }
   }
 
   /**
@@ -132,12 +158,51 @@ export function createTransport(options: TransportOptions): Transport {
    * subscription, so a bare page still opens the link and can show the list.
    */
   function subscription(): ClientMessage | null {
-    if (activeSessionId === null) {
+    if (activeSession === null) {
       return null;
     }
     return cursor === undefined
-      ? { type: ClientMessageType.Subscribe, sessionId: activeSessionId }
-      : { type: ClientMessageType.Subscribe, sessionId: activeSessionId, cursor };
+      ? { type: ClientMessageType.Subscribe, session: activeSession }
+      : { type: ClientMessageType.Subscribe, session: activeSession, cursor };
+  }
+
+  function sendSubscription(): void {
+    const message = subscription();
+    if (message !== null) {
+      send(message);
+    }
+  }
+
+  /** Choose from the registry the same way every reload does: the linked Project, else the first. */
+  function projectFrom(served: readonly string[]): string | null {
+    if (linkedProject !== null) {
+      return served.includes(linkedProject) ? linkedProject : null;
+    }
+    return served[0] ?? null;
+  }
+
+  function adoptProject(project: string | null): void {
+    if (project === activeProject) {
+      return;
+    }
+    activeProject = project;
+    activeSession = null;
+    cursor = undefined;
+    if (project !== null) {
+      options.handlers.onProjectChosen?.(project);
+      sendListSessions();
+    }
+  }
+
+  /** A Session the page named before the registry chose its Project becomes a pair now. */
+  function pairInitialSession(): void {
+    if (activeSession !== null || unpairedSessionId === null || activeProject === null) {
+      return;
+    }
+    activeSession = { project: activeProject, id: unpairedSessionId };
+    unpairedSessionId = null;
+    sendSubscription();
+    options.handlers.onSessionOpened?.(activeSession);
   }
 
   function nextBackoffDelay(): number {
@@ -172,12 +237,13 @@ export function createTransport(options: TransportOptions): Transport {
         return;
       }
       failedAttempts = 0;
-      const subscriptionMessage = subscription();
-      if (subscriptionMessage !== null) {
-        connecting.send(JSON.stringify(subscriptionMessage));
+      // The registry is re-read on every open: the Project a remembered link named may no longer be
+      // served, and the list has to be current before a Project's Sessions are asked for.
+      connecting.send(JSON.stringify({ type: ClientMessageType.ListProjects }));
+      if (activeProject !== null) {
+        sendListSessions();
       }
-      // The list is refreshed on every open, so a Session started elsewhere appears without a reload.
-      connecting.send(JSON.stringify({ type: ClientMessageType.ListSessions }));
+      sendSubscription();
       options.handlers.onStatus(ConnectionStatus.Connected);
     });
 
@@ -186,22 +252,29 @@ export function createTransport(options: TransportOptions): Transport {
         return;
       }
       const message = JSON.parse(String(event.data)) as ServerMessage;
+      if (message.type === ServerMessageType.Projects) {
+        adoptProject(projectFrom(message.projects));
+        pairInitialSession();
+        options.handlers.onMessage(message);
+        return;
+      }
       // A created Session and a fork or clone both produce one this client should watch; a vetoed
       // mutation names no Session, so it only reaches the store's notice.
-      const opened =
-        message.type === ServerMessageType.SessionCreated ||
-        message.type === ServerMessageType.SessionForked
-          ? message.sessionId
-          : undefined;
+      const opened: SessionRef | undefined =
+        message.type === ServerMessageType.SessionCreated
+          ? message.session
+          : message.type === ServerMessageType.SessionForked &&
+              message.sessionId !== undefined &&
+              activeProject !== null
+            ? { project: activeProject, id: message.sessionId }
+            : undefined;
       if (opened !== undefined) {
         // Opening it is this socket's own follow-up, so the subscribe goes out before the owner is
         // told and a later frame cannot overtake it.
-        activeSessionId = opened;
+        activeSession = opened;
+        activeProject = opened.project;
         cursor = undefined;
-        const subscriptionMessage = subscription();
-        if (subscriptionMessage !== null) {
-          send(subscriptionMessage);
-        }
+        sendSubscription();
         options.handlers.onSessionOpened?.(opened);
         options.handlers.onMessage(message);
         return;
@@ -209,7 +282,11 @@ export function createTransport(options: TransportOptions): Transport {
       if (message.type === ServerMessageType.Snapshot || message.type === ServerMessageType.Delta) {
         // A frame from the Session switched away from is dropped before it can move the Cursor, so
         // the next subscribe starts the new Session from the beginning of its stream.
-        if (message.sessionId !== activeSessionId) {
+        if (
+          activeSession === null ||
+          message.session.project !== activeSession.project ||
+          message.session.id !== activeSession.id
+        ) {
           return;
         }
         // The Cursor recorded here is the last one the store is about to apply, so a reconnect can
@@ -247,112 +324,155 @@ export function createTransport(options: TransportOptions): Transport {
       socket = null;
       current?.close();
     },
-    switchSession(sessionId) {
-      if (sessionId === activeSessionId) {
+    switchProject(project) {
+      if (project === activeProject) {
         return;
       }
-      activeSessionId = sessionId;
+      activeProject = project;
+      activeSession = null;
+      unpairedSessionId = null;
       cursor = undefined;
-      const subscriptionMessage = subscription();
-      if (subscriptionMessage !== null) {
-        send(subscriptionMessage);
+      sendListSessions();
+    },
+    switchSession(session) {
+      if (
+        activeSession !== null &&
+        session.project === activeSession.project &&
+        session.id === activeSession.id
+      ) {
+        return;
       }
+      const projectChanged = session.project !== activeProject;
+      activeProject = session.project;
+      activeSession = session;
+      cursor = undefined;
+      if (projectChanged) {
+        sendListSessions();
+      }
+      sendSubscription();
     },
     createSession() {
-      send({ type: ClientMessageType.CreateSession });
+      if (activeProject === null) {
+        return;
+      }
+      send({ type: ClientMessageType.CreateSession, project: activeProject });
     },
     prompt(text, images, behavior) {
-      sendForSession((sessionId) => ({
+      sendForSession((session) => ({
         type: ClientMessageType.Prompt,
-        sessionId,
+        session,
         text,
         ...(images === undefined || images.length === 0 ? {} : { images }),
         ...(behavior === undefined ? {} : { streamingBehavior: behavior }),
       }));
     },
     bash(command, excludeFromContext) {
-      sendForSession((sessionId) => ({
+      sendForSession((session) => ({
         type: ClientMessageType.Bash,
-        sessionId,
+        sessionId: session.id,
         command,
         excludeFromContext,
       }));
     },
     steerSubagent(agentId, message) {
-      sendForSession((sessionId) => ({
+      sendForSession((session) => ({
         type: ClientMessageType.SteerSubagent,
-        sessionId,
+        sessionId: session.id,
         agentId,
         message,
       }));
     },
     getSubagentTranscript(agentId) {
-      sendForSession((sessionId) => ({
+      sendForSession((session) => ({
         type: ClientMessageType.GetSubagentTranscript,
-        sessionId,
+        sessionId: session.id,
         agentId,
       }));
     },
     abort() {
-      sendForSession((sessionId) => ({ type: ClientMessageType.Abort, sessionId }));
+      sendForSession((session) => ({ type: ClientMessageType.Abort, session }));
     },
     setModel(provider, modelId) {
-      sendForSession((sessionId) => ({
+      sendForSession((session) => ({
         type: ClientMessageType.SetModel,
-        sessionId,
+        sessionId: session.id,
         provider,
         modelId,
       }));
     },
     setThinkingLevel(level) {
-      sendForSession((sessionId) => ({
+      sendForSession((session) => ({
         type: ClientMessageType.SetThinkingLevel,
-        sessionId,
+        sessionId: session.id,
         level,
       }));
     },
     setAutoCompaction(enabled) {
-      sendForSession((sessionId) => ({
+      sendForSession((session) => ({
         type: ClientMessageType.SetAutoCompaction,
-        sessionId,
+        sessionId: session.id,
         enabled,
       }));
     },
     compact(customInstructions) {
-      sendForSession((sessionId) => ({
+      sendForSession((session) => ({
         type: ClientMessageType.Compact,
-        sessionId,
+        sessionId: session.id,
         ...(customInstructions === undefined || customInstructions === ""
           ? {}
           : { customInstructions }),
       }));
     },
     getSessionStats() {
-      sendForSession((sessionId) => ({ type: ClientMessageType.GetSessionStats, sessionId }));
+      sendForSession((session) => ({
+        type: ClientMessageType.GetSessionStats,
+        sessionId: session.id,
+      }));
     },
     setSessionName(name) {
-      sendForSession((sessionId) => ({ type: ClientMessageType.SetSessionName, sessionId, name }));
+      sendForSession((session) => ({
+        type: ClientMessageType.SetSessionName,
+        sessionId: session.id,
+        name,
+      }));
     },
     exportSession() {
-      sendForSession((sessionId) => ({ type: ClientMessageType.ExportSession, sessionId }));
+      sendForSession((session) => ({
+        type: ClientMessageType.ExportSession,
+        sessionId: session.id,
+      }));
     },
     getForkMessages() {
-      sendForSession((sessionId) => ({ type: ClientMessageType.GetForkMessages, sessionId }));
+      sendForSession((session) => ({
+        type: ClientMessageType.GetForkMessages,
+        sessionId: session.id,
+      }));
     },
     forkSession(entryId) {
-      sendForSession((sessionId) => ({ type: ClientMessageType.ForkSession, sessionId, entryId }));
+      sendForSession((session) => ({
+        type: ClientMessageType.ForkSession,
+        sessionId: session.id,
+        entryId,
+      }));
     },
     cloneSession() {
-      sendForSession((sessionId) => ({ type: ClientMessageType.CloneSession, sessionId }));
+      sendForSession((session) => ({
+        type: ClientMessageType.CloneSession,
+        sessionId: session.id,
+      }));
     },
     reconnect() {
-      sendForSession((sessionId) => ({ type: ClientMessageType.Reconnect, sessionId }));
+      sendForSession((session) => ({ type: ClientMessageType.Reconnect, sessionId: session.id }));
     },
     getTree() {
-      sendForSession((sessionId) => ({ type: ClientMessageType.GetTree, sessionId }));
+      sendForSession((session) => ({ type: ClientMessageType.GetTree, sessionId: session.id }));
     },
     moveLeaf(entryId) {
-      sendForSession((sessionId) => ({ type: ClientMessageType.MoveLeaf, sessionId, entryId }));
+      sendForSession((session) => ({
+        type: ClientMessageType.MoveLeaf,
+        sessionId: session.id,
+        entryId,
+      }));
     },
     listDirectory(path) {
       send({ type: ClientMessageType.ListDirectory, path });

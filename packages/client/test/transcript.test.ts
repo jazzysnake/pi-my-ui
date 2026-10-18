@@ -18,11 +18,10 @@ import { ClientStore } from "../src/lib/store/client-store.svelte.js";
 function snapshotOf(entries: readonly ProjectedEntry[]): SnapshotMessage {
   return {
     type: ServerMessageType.Snapshot,
-    sessionId: "session-1",
+    session: { project: "/workspace", id: "session-1" },
     cursor: entries.length,
     projection: {
       sessionId: "session-1",
-      cwd: "/workspace",
       leafId: entries.at(-1)?.id ?? null,
       entries,
       runState: { kind: "idle" },
@@ -143,11 +142,10 @@ describe("a Snapshot for another Session", () => {
     flushSync(() => {
       store.receive({
         type: ServerMessageType.Snapshot,
-        sessionId: "session-2",
+        session: { project: "/workspace", id: "session-2" },
         cursor: 1,
         projection: {
           sessionId: "session-2",
-          cwd: "/elsewhere",
           leafId: "other-1",
           entries: [entry("other-1", MessageRole.User, "a different session")],
           runState: { kind: "idle" },

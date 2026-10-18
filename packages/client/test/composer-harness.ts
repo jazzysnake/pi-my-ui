@@ -25,11 +25,10 @@ const IDLE: RunState = { kind: RunStateKind.Idle };
 export function snapshotOf(entries: readonly ProjectedEntry[]): SnapshotMessage {
   return {
     type: ServerMessageType.Snapshot,
-    sessionId: SESSION_ID,
+    session: { project: "/workspace", id: SESSION_ID },
     cursor: entries.length,
     projection: {
       sessionId: SESSION_ID,
-      cwd: "/workspace",
       leafId: entries.at(-1)?.id ?? null,
       entries,
       runState: IDLE,
@@ -42,7 +41,7 @@ export function snapshotOf(entries: readonly ProjectedEntry[]): SnapshotMessage 
 export function deltaOf(deltas: readonly ProjectionDelta[], fromCursor: number): DeltaMessage {
   return {
     type: ServerMessageType.Delta,
-    sessionId: SESSION_ID,
+    session: { project: "/workspace", id: SESSION_ID },
     fromCursor,
     cursor: fromCursor + deltas.length,
     deltas,
@@ -52,7 +51,7 @@ export function deltaOf(deltas: readonly ProjectionDelta[], fromCursor: number):
 export function settingsOf(overrides: Partial<SettingsMessage> = {}): SettingsMessage {
   return {
     type: ServerMessageType.Settings,
-    sessionId: SESSION_ID,
+    session: { project: "/workspace", id: SESSION_ID },
     model: { provider: "scripted", id: "scripted", name: "Scripted model", reasoning: true },
     availableModels: [
       { provider: "scripted", id: "scripted", name: "Scripted model", reasoning: true },

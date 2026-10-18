@@ -46,11 +46,10 @@ function boundaryEntry(id: string): ProjectedEntry {
 function snapshotOf(entries: readonly ProjectedEntry[]): SnapshotMessage {
   return {
     type: ServerMessageType.Snapshot,
-    sessionId: SESSION_ID,
+    session: { project: "/workspace", id: SESSION_ID },
     cursor: entries.length,
     projection: {
       sessionId: SESSION_ID,
-      cwd: "/workspace",
       leafId: entries.at(-1)?.id ?? null,
       entries,
       runState: { kind: RunStateKind.Idle },
@@ -133,7 +132,7 @@ describe("the session bar's context readout", () => {
     flushSync(() => {
       store.receive({
         type: ServerMessageType.ContextUsage,
-        sessionId: SESSION_ID,
+        session: { project: "/workspace", id: SESSION_ID },
         contextUsage: { tokens: 30_000, contextWindow: 200_000, percent: 15 },
       });
     });
@@ -144,7 +143,7 @@ describe("the session bar's context readout", () => {
     flushSync(() => {
       store.receive({
         type: ServerMessageType.ContextUsage,
-        sessionId: SESSION_ID,
+        session: { project: "/workspace", id: SESSION_ID },
         contextUsage: { tokens: 150_000, contextWindow: 200_000, percent: 75 },
       });
     });
@@ -153,7 +152,7 @@ describe("the session bar's context readout", () => {
     flushSync(() => {
       store.receive({
         type: ServerMessageType.ContextUsage,
-        sessionId: SESSION_ID,
+        session: { project: "/workspace", id: SESSION_ID },
         contextUsage: { tokens: 180_000, contextWindow: 200_000, percent: 90 },
       });
     });
@@ -163,7 +162,7 @@ describe("the session bar's context readout", () => {
     flushSync(() => {
       store.receive({
         type: ServerMessageType.ContextUsage,
-        sessionId: SESSION_ID,
+        session: { project: "/workspace", id: SESSION_ID },
         contextUsage: { tokens: null, contextWindow: 200_000, percent: null },
       });
     });
@@ -174,7 +173,7 @@ describe("the session bar's context readout", () => {
     flushSync(() => {
       store.receive({
         type: ServerMessageType.ContextUsage,
-        sessionId: SESSION_ID,
+        session: { project: "/workspace", id: SESSION_ID },
         contextUsage: null,
       });
     });
@@ -189,14 +188,14 @@ describe("the session bar's context readout", () => {
       store.receive(snapshotOf([]));
       store.receive({
         type: ServerMessageType.ContextUsage,
-        sessionId: SESSION_ID,
+        session: { project: "/workspace", id: SESSION_ID },
         contextUsage: { tokens: 30_000, contextWindow: 200_000, percent: 15 },
       });
     });
     expect(readout(target)).not.toBeNull();
 
     flushSync(() => {
-      store.selectSession("session-2");
+      store.selectSession({ project: "/workspace", id: "session-2" });
     });
     expect(readout(target)).toBeNull();
   });

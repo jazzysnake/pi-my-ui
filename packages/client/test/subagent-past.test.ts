@@ -57,11 +57,10 @@ function snapshotOf(
 ): SnapshotMessage {
   return {
     type: ServerMessageType.Snapshot,
-    sessionId: SESSION_ID,
+    session: { project: "/workspace", id: SESSION_ID },
     cursor: 1,
     projection: {
       sessionId: SESSION_ID,
-      cwd: "/workspace",
       leafId: "main-1",
       entries: [message("main-1", "the Session's own conversation", "user")],
       runState: { kind: "idle" },

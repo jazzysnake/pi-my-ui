@@ -71,12 +71,10 @@ export interface SessionProjectionMachine {
 
 export function createSessionProjectionMachine(
   sessionId: string,
-  cwd: string,
   clock: ServerClock,
 ): SessionProjectionMachine {
   let projection: SessionProjection = {
     sessionId,
-    cwd,
     leafId: null,
     entries: [],
     runState: IDLE_RUN_STATE,
@@ -88,7 +86,7 @@ export function createSessionProjectionMachine(
   let abortRequested = false;
 
   const agentTranscripts = createSubagentTranscripts((agentId) =>
-    createSessionProjectionMachine(agentId, cwd, clock),
+    createSessionProjectionMachine(agentId, clock),
   );
 
   const compaction = createLiveCompaction({
@@ -372,7 +370,6 @@ export function createSessionProjectionMachine(
       const batch = projectionBatch({ entries, leafId, fromCursor: 0 });
       projection = seededProjection({
         sessionId,
-        cwd,
         entries,
         live: projection.subagents,
         batch,

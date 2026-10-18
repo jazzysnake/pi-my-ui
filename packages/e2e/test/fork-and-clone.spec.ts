@@ -187,7 +187,10 @@ test("a fork writes a new Session file and leaves the original on its own child"
   try {
     const originalBytes = await readFile(harness.seeded.path, "utf8");
 
-    client.send({ type: "subscribe", sessionId: harness.seeded.id });
+    client.send({
+      type: "subscribe",
+      session: { project: harness.home.workspace, id: harness.seeded.id },
+    });
     const before = await nextOf(client, "snapshot");
     await readAttachSurfaces(client);
     expect(before.projection.leafId).toBe(harness.seeded.leafId);
@@ -213,7 +216,7 @@ test("a fork writes a new Session file and leaves the original on its own child"
     expect(forkedId).not.toBe(harness.seeded.id);
 
     // The original's Projection is what it was: a fork copies a branch, it changes nothing here.
-    expect(rebuilt.sessionId).toBe(harness.seeded.id);
+    expect(rebuilt.session).toEqual({ project: harness.home.workspace, id: harness.seeded.id });
     expect(rebuilt.projection.leafId).toBe(before.projection.leafId);
     expect(rebuilt.projection.entries).toEqual(before.projection.entries);
     expect(await readFile(harness.seeded.path, "utf8")).toBe(originalBytes);
@@ -236,7 +239,7 @@ test("a fork writes a new Session file and leaves the original on its own child"
     // fork's, which is what forbids two writers on one file.
     client.send({
       type: "prompt",
-      sessionId: harness.seeded.id,
+      session: { project: harness.home.workspace, id: harness.seeded.id },
       text: ORIGINAL_STILL_RUNS_PROMPT,
     });
     await readUntilText(client, ORIGINAL_STILL_RUNS_REPLY);

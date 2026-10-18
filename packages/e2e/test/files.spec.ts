@@ -164,7 +164,10 @@ test("refuses path traversal, out-of-root reads, and anything that would write",
   const harness = await startHarness();
   const client = await connectWsSession(harness.server.url);
   try {
-    client.send({ type: "subscribe", sessionId: harness.seeded.id });
+    client.send({
+      type: "subscribe",
+      session: { project: harness.home.workspace, id: harness.seeded.id },
+    });
     expect((await client.next()).type).toBe("snapshot");
     // Settings and the discoverable commands follow the Snapshot, so consume both before asserting
     // on capability replies.

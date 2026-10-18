@@ -149,9 +149,13 @@ async function dispose(launched: Launched): Promise<void> {
 }
 
 /** Subscribe and wait for the Snapshot, which is the moment a Session is servable. */
-async function open(server: RunningServer, sessionId: string): Promise<WsSessionClient> {
+async function open(
+  server: RunningServer,
+  project: string,
+  sessionId: string,
+): Promise<WsSessionClient> {
   const client = await connectWsSession(server.url);
-  client.send({ type: "subscribe", sessionId });
+  client.send({ type: "subscribe", session: { project, id: sessionId } });
   for (;;) {
     const message = await client.next();
     if (message.type === "snapshot") {
@@ -190,7 +194,7 @@ test("one idle Pi child: cold start, idle footprint, eviction and respawn", asyn
   try {
     const seeded = await seedSession(launched.home, "plain");
     const startedAt = performance.now();
-    const viewer = await open(launched.server, seeded.id);
+    const viewer = await open(launched.server, launched.home.workspace, seeded.id);
     const coldStartMs = performance.now() - startedAt;
     report(`cold start to a served Session: ${coldStartMs.toFixed(0)} ms`);
     report(`a Session's child while seeding: ${childRss()}`);
@@ -204,7 +208,7 @@ test("one idle Pi child: cold start, idle footprint, eviction and respawn", asyn
     report(`after eviction: no child alive; ${hostProcessRss()}`);
 
     const respawnAt = performance.now();
-    const reopened = await open(launched.server, seeded.id);
+    const reopened = await open(launched.server, launched.home.workspace, seeded.id);
     report(`respawn of an evicted Session: ${(performance.now() - respawnAt).toFixed(0)} ms`);
     await reopened.close();
   } finally {
@@ -216,13 +220,17 @@ test("a Pi child streaming a long reply", async () => {
   const launched = await launch(STREAM_SCRIPT);
   try {
     const seeded = await seedSession(launched.home, "plain");
-    const viewer = await open(launched.server, seeded.id);
+    const viewer = await open(launched.server, launched.home.workspace, seeded.id);
     await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
     const idle = residentKb(piChildPids()[0] ?? 0) ?? 0;
     report(`idle child before a streamed reply: ${mb(idle)}`);
 
     const peak = await peakWhile(async () => {
-      viewer.send({ type: "prompt", sessionId: seeded.id, text: STREAM_PROMPT });
+      viewer.send({
+        type: "prompt",
+        session: { project: launched.home.workspace, id: seeded.id },
+        text: STREAM_PROMPT,
+      });
       await readUntilText(viewer, STREAM_END);
     }, piChildPids);
     const highest = Math.max(0, ...Object.values(peak.perPidKb));
@@ -239,13 +247,17 @@ test("a Pi child running a subagent", async () => {
   const launched = await launch(SUBAGENT_SCRIPT, { piSubagents: true });
   try {
     const seeded = await seedSession(launched.home, "plain");
-    const viewer = await open(launched.server, seeded.id);
+    const viewer = await open(launched.server, launched.home.workspace, seeded.id);
     await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
     const idle = residentKb(piChildPids()[0] ?? 0) ?? 0;
     report(`idle child before a subagent: ${mb(idle)}`);
 
     const peak = await peakWhile(async () => {
-      viewer.send({ type: "prompt", sessionId: seeded.id, text: SUBAGENT_PROMPT });
+      viewer.send({
+        type: "prompt",
+        session: { project: launched.home.workspace, id: seeded.id },
+        text: SUBAGENT_PROMPT,
+      });
       await readUntilText(viewer, SUBAGENT_DONE, []);
     }, piChildPids);
     const highest = Math.max(0, ...Object.values(peak.perPidKb));
@@ -264,7 +276,7 @@ test(`stress: ${String(SESSIONS_IN_STRESS)} watched Sessions and the memory evic
     const viewers: WsSessionClient[] = [];
     for (let index = 0; index < SESSIONS_IN_STRESS; index += 1) {
       const seeded = await generateSession(launched.home, "transcript", { transcriptEntries: 60 });
-      viewers.push(await open(launched.server, seeded.id));
+      viewers.push(await open(launched.server, launched.home.workspace, seeded.id));
     }
     expect(piChildPids()).toHaveLength(SESSIONS_IN_STRESS);
 
@@ -286,7 +298,7 @@ test(`stress: ${String(SESSIONS_IN_STRESS)} watched Sessions and the memory evic
     // Eviction that left the server unable to serve the next Session would be a failure, not a
     // measurement, so the last step is a real Session opened after the whole pool was reclaimed.
     const seeded = await seedSession(launched.home, "plain");
-    const reopened = await open(launched.server, seeded.id);
+    const reopened = await open(launched.server, launched.home.workspace, seeded.id);
     await reopened.close();
   } finally {
     await dispose(launched);

@@ -23,7 +23,6 @@ import { workflowRunsFromEntries } from "./workflow-runs.js";
 
 export interface SessionSeed {
   readonly sessionId: string;
-  readonly cwd: string;
   readonly entries: readonly SessionEntry[];
   /** The agents already projected; a run in progress outlives the reseed that describes it. */
   readonly live: readonly SubagentAgent[];
@@ -38,7 +37,6 @@ export function seededProjection(seed: SessionSeed): SessionProjection {
   return reduceDeltaBatch(
     {
       sessionId: seed.sessionId,
-      cwd: seed.cwd,
       leafId: null,
       entries: [],
       runState: { kind: RunStateKind.Idle },

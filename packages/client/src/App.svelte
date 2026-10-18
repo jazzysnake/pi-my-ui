@@ -5,17 +5,15 @@
   import { ClientStore } from "./lib/store/client-store.svelte.js";
   import { ConnectionStatus, createTransport, type Transport } from "./lib/transport.js";
 
-  const store = new ClientStore();
   const config = resolveClientConfig(window.location.href, window.location.search);
+  const store = new ClientStore(config.project);
   let status = $state<ConnectionStatus>(ConnectionStatus.Connecting);
   let transport = $state<Transport | null>(null);
 
   $effect(() => {
-    if (config.sessionId !== null) {
-      store.selectSession(config.sessionId);
-    }
     const created = createTransport({
       url: config.wsUrl,
+      project: config.project,
       sessionId: config.sessionId,
       handlers: {
         onStatus(next) {
@@ -24,8 +22,11 @@
         onMessage(message) {
           store.receive(message);
         },
-        onSessionOpened(sessionId) {
-          store.selectSession(sessionId);
+        onProjectChosen(project) {
+          store.selectProject(project);
+        },
+        onSessionOpened(session) {
+          store.selectSession(session);
         },
       },
     });
@@ -43,8 +44,13 @@
   {status}
   startWithSessionsOpen={config.sessionId === null}
   onSelectSession={(sessionId) => {
-    store.selectSession(sessionId);
-    transport?.switchSession(sessionId);
+    const project = store.projects.chosen;
+    if (project === null) {
+      return;
+    }
+    const session = { project, id: sessionId };
+    store.selectSession(session);
+    transport?.switchSession(session);
   }}
   onCreateSession={() => transport?.createSession()}
   onPrompt={(text, images, behavior) => transport?.prompt(text, images, behavior)}

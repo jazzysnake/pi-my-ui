@@ -169,7 +169,10 @@ test("the focused agent's transcript survives a resync", async ({ page }) => {
     // conversation rather than only the Session's own transcript.
     const viewer = await connectWsSession(harness.server.url);
     try {
-      viewer.send({ type: "subscribe", sessionId: harness.seeded.id });
+      viewer.send({
+        type: "subscribe",
+        session: { project: harness.home.workspace, id: harness.seeded.id },
+      });
       const first = await viewer.next();
       if (first.type !== "snapshot") {
         throw new Error(`expected a snapshot, received ${first.type}`);

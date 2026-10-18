@@ -19,11 +19,10 @@ import { ClientStore } from "../src/lib/store/client-store.svelte.js";
 function snapshotOf(entries: readonly ProjectedEntry[]): SnapshotMessage {
   return {
     type: ServerMessageType.Snapshot,
-    sessionId: "session-1",
+    session: { project: "/workspace", id: "session-1" },
     cursor: entries.length,
     projection: {
       sessionId: "session-1",
-      cwd: "/workspace",
       leafId: null,
       entries,
       runState: { kind: "idle" },
@@ -94,6 +93,7 @@ function mountShell(store: ClientStore): Mounted {
 /** Open the panel and hand it a root listing with one directory and one file. */
 function openTree(store: ClientStore, mounted: Mounted): void {
   flushSync(() => {
+    store.receive({ type: ServerMessageType.Projects, projects: ["/workspace"] });
     store.receive(snapshotOf([]));
   });
   flushSync(() => {

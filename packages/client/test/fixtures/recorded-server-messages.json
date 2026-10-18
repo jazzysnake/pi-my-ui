@@ -9,11 +9,13 @@
   "streaming": [
     {
       "type": "snapshot",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "cursor": 13,
       "projection": {
         "sessionId": "01a10000-0000-7000-8000-000000000001",
-        "cwd": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
         "leafId": "18b3b9b9",
         "entries": [
           {
@@ -327,7 +329,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 13,
       "cursor": 14,
       "deltas": [
@@ -341,7 +346,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 14,
       "cursor": 16,
       "deltas": [
@@ -369,7 +377,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 16,
       "cursor": 18,
       "deltas": [
@@ -392,7 +403,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 18,
       "cursor": 19,
       "deltas": [
@@ -416,7 +430,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 19,
       "cursor": 20,
       "deltas": [
@@ -440,7 +457,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 20,
       "cursor": 21,
       "deltas": [
@@ -464,7 +484,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 21,
       "cursor": 22,
       "deltas": [
@@ -488,7 +511,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 22,
       "cursor": 23,
       "deltas": [
@@ -512,7 +538,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 23,
       "cursor": 24,
       "deltas": [
@@ -536,7 +565,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 24,
       "cursor": 25,
       "deltas": [
@@ -560,7 +592,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 25,
       "cursor": 26,
       "deltas": [
@@ -576,11 +611,13 @@
   "resync": [
     {
       "type": "snapshot",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "cursor": 13,
       "projection": {
         "sessionId": "01a10000-0000-7000-8000-000000000001",
-        "cwd": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
         "leafId": "18b3b9b9",
         "entries": [
           {
@@ -894,7 +931,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 13,
       "cursor": 14,
       "deltas": [
@@ -908,7 +948,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 14,
       "cursor": 16,
       "deltas": [
@@ -936,7 +979,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 16,
       "cursor": 18,
       "deltas": [
@@ -959,7 +1005,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 18,
       "cursor": 19,
       "deltas": [
@@ -983,7 +1032,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 19,
       "cursor": 20,
       "deltas": [
@@ -1007,7 +1059,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 20,
       "cursor": 21,
       "deltas": [
@@ -1031,7 +1086,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 21,
       "cursor": 22,
       "deltas": [
@@ -1055,7 +1113,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 22,
       "cursor": 23,
       "deltas": [
@@ -1079,7 +1140,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 23,
       "cursor": 24,
       "deltas": [
@@ -1103,7 +1167,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 24,
       "cursor": 25,
       "deltas": [
@@ -1127,7 +1194,10 @@
     },
     {
       "type": "delta",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "fromCursor": 25,
       "cursor": 26,
       "deltas": [
@@ -1141,11 +1211,13 @@
     },
     {
       "type": "snapshot",
-      "sessionId": "01a10000-0000-7000-8000-000000000001",
+      "session": {
+        "project": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
+        "id": "01a10000-0000-7000-8000-000000000001"
+      },
       "cursor": 15,
       "projection": {
         "sessionId": "01a10000-0000-7000-8000-000000000001",
-        "cwd": "/tmp/pi-my-ui-e2e-es6XIA/workspace",
         "leafId": "4d8ec213",
         "entries": [
           {

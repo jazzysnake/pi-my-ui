@@ -68,14 +68,17 @@ test("a WebSocket client receives a correct Snapshot for a seeded Session", asyn
   const harness = await startHarness();
   const client = await connectWsSession(harness.server.url);
   try {
-    client.send({ type: "subscribe", sessionId: harness.seeded.id });
+    client.send({
+      type: "subscribe",
+      session: { project: harness.home.workspace, id: harness.seeded.id },
+    });
     const message = await client.next();
 
     expect(message.type).toBe("snapshot");
     if (message.type !== "snapshot") {
       return;
     }
-    expect(message.sessionId).toBe(harness.seeded.id);
+    expect(message.session).toEqual({ project: harness.home.workspace, id: harness.seeded.id });
     expect(message.cursor).toBeGreaterThan(0);
     expect(message.projection.sessionId).toBe(harness.seeded.id);
     expect(message.projection.leafId).toBe(harness.seeded.leafId);
@@ -156,7 +159,17 @@ test("malformed and unknown inbound messages are rejected loudly", async () => {
       error: { code: "malformedPayload" },
     });
 
-    client.send({ type: "subscribe", sessionId: "not-a-session" });
+    // A bare id is no longer a Session identity: it is refused at the boundary, not looked up.
+    client.send({ type: "subscribe", sessionId: harness.seeded.id });
+    expect(await client.next()).toMatchObject({
+      type: "error",
+      error: { code: "malformedPayload" },
+    });
+
+    client.send({
+      type: "subscribe",
+      session: { project: harness.home.workspace, id: "not-a-session" },
+    });
     expect(await client.next()).toMatchObject({
       type: "error",
       error: { code: "unknownSession" },
@@ -164,7 +177,10 @@ test("malformed and unknown inbound messages are rejected loudly", async () => {
 
     // Every rejection was answered and none was coerced: the same connection still serves a real
     // Snapshot.
-    client.send({ type: "subscribe", sessionId: harness.seeded.id });
+    client.send({
+      type: "subscribe",
+      session: { project: harness.home.workspace, id: harness.seeded.id },
+    });
     const snapshot = await client.next();
     expect(snapshot.type).toBe("snapshot");
   } finally {

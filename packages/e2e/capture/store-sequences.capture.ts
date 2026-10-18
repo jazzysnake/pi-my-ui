@@ -88,12 +88,13 @@ test("record the streaming and resync ServerMessage sequences", async () => {
   };
   try {
     const writer = await connectWsSession(server.url);
+    const session = { project: launch.cwd, id: seeded.id };
     const streaming: ServerMessage[] = [];
     let resyncSnapshot: ServerMessage;
     try {
-      writer.send({ type: "subscribe", sessionId: seeded.id });
+      writer.send({ type: "subscribe", session });
       streaming.push(...(await collect(writer, (message) => message.type === "snapshot")));
-      writer.send({ type: "prompt", sessionId: seeded.id, text: PROMPT });
+      writer.send({ type: "prompt", session, text: PROMPT });
       const untilReply = await readUntilText(writer, REPLY);
       for (const delta of untilReply) {
         if (!streaming.some((frame) => frame.type === "delta" && frame.cursor === delta.cursor)) {

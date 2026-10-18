@@ -19,6 +19,7 @@ import {
   type PiChildExit,
   type ProjectionDelta,
   type ServerMessage,
+  type SessionRef,
   type SessionStats,
   type SessionTree,
   type SnapshotMessage,
@@ -47,6 +48,8 @@ export interface SessionViewer {
 }
 
 export interface SessionHost {
+  /** The Project and id that name this Session on the wire and in the pool. */
+  readonly session: SessionRef;
   readonly sessionId: string;
   /** Whether this Session's run is working, as its row shows it. */
   readonly activity: SessionActivity;
@@ -109,24 +112,22 @@ export interface SessionHost {
 export type { BridgeGate } from "./bridge/gate.js";
 
 export interface SessionHostOptions {
-  readonly sessionId: string;
+  readonly session: SessionRef;
   /** Which Session the Pi child opens: a file the pool resolved, or a fresh server-generated id. */
   readonly target: PiSessionTarget;
   readonly launch: PiChildLaunch;
   readonly bridge: BridgeGate;
   readonly clock: ServerClock;
   /** Called once per working-state change, so a server can refresh every viewer's Session list. */
-  readonly onActivity?: ((sessionId: string, activity: SessionActivity) => void) | undefined;
+  readonly onActivity?: ((session: SessionRef, activity: SessionActivity) => void) | undefined;
   /** Called when anything that decides eviction changed: a viewer, a run, or a publish. */
   readonly onIdleChange?: (() => void) | undefined;
 }
 
 export function createSessionHost(options: SessionHostOptions): SessionHost {
-  const machine = createSessionProjectionMachine(
-    options.sessionId,
-    options.launch.cwd,
-    options.clock,
-  );
+  const session = options.session;
+  const sessionId = session.id;
+  const machine = createSessionProjectionMachine(sessionId, options.clock);
   const viewers = new Set<SessionViewer>();
   const history = createDeltaHistory();
   let cursor = 0;
@@ -176,7 +177,7 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       return;
     }
     reportedActivity = activity;
-    options.onActivity?.(options.sessionId, activity);
+    options.onActivity?.(session, activity);
   }
 
   function publish(deltas: readonly ProjectionDelta[]): void {
@@ -187,7 +188,7 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
     cursor += deltas.length;
     const message: DeltaMessage = {
       type: ServerMessageType.Delta,
-      sessionId: options.sessionId,
+      session,
       fromCursor: from,
       cursor,
       deltas,
@@ -231,7 +232,7 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
     contextRead = (async () => {
       try {
         const stats = await (await child.ensure()).stats();
-        broadcast(contextUsageMessage(options.sessionId, stats.contextUsage));
+        broadcast(contextUsageMessage(session, stats.contextUsage));
       } catch {
         // The transcript is served whether or not pi can report its context size.
       }
@@ -259,7 +260,7 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
    * Snapshot; publishing waits for seeding so no viewer receives a Delta against a Projection it has
    * not been sent.
    */
-  const detachBridge = attachBridgeEvents(options.bridge, options.sessionId, {
+  const detachBridge = attachBridgeEvents(options.bridge, sessionId, {
     applyAgent: (agent) => publish(machine.applySubagent(agent)),
     applyTranscript: (agentId, event) => publish(machine.applySubagentEvent(agentId, event)),
   });
@@ -268,7 +269,7 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
     buffering = [];
     // Registered before the child starts: the extension connects on its own session start, which can
     // beat the first read from pi, and a handshake that arrives early must not be refused.
-    const bridgeReady = options.bridge.waitForSession(options.sessionId);
+    const bridgeReady = options.bridge.waitForSession(sessionId);
     void bridgeReady.catch(() => undefined);
     try {
       const pi = await child.ensure();
@@ -351,7 +352,7 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
   function snapshot(): SnapshotMessage {
     return {
       type: ServerMessageType.Snapshot,
-      sessionId: options.sessionId,
+      session,
       cursor,
       projection: machine.projection,
     };
@@ -359,7 +360,7 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
 
   /** Re-read pi's settings and hand them to every viewer, so the status strip shows pi's values. */
   async function broadcastSettings(): Promise<void> {
-    const message = settingsMessage(options.sessionId, await (await child.ensure()).settings());
+    const message = settingsMessage(session, await (await child.ensure()).settings());
     broadcast(message);
   }
 
@@ -375,7 +376,11 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
     touch,
   });
 
-  const steering = createSessionSteering(options, ensureServed, touch);
+  const steering = createSessionSteering(
+    { sessionId, bridge: options.bridge },
+    ensureServed,
+    touch,
+  );
 
   /**
    * A settled run's conversation lives in its own session file, beside the Session's; the reader
@@ -393,7 +398,7 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
    * its own file), and that procedure lives in its own module rather than growing this one.
    */
   const mutations = createSessionMutations({
-    sessionId: options.sessionId,
+    sessionId,
     prepare: ensureServed,
     child: () => child.ensure(),
     stopChild: () => child.stop(),
@@ -405,7 +410,8 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
   });
 
   return {
-    sessionId: options.sessionId,
+    session,
+    sessionId,
     get activity() {
       return sessionActivityOf(machine.projection.runState);
     },
@@ -422,7 +428,7 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       // Registering after the synchronous sends keeps the replayed Deltas ahead of every new one.
       viewers.add(viewer);
       touch();
-      await sendAttachSupplements(viewer, options.sessionId, () => child.ensure());
+      await sendAttachSupplements(viewer, session, () => child.ensure());
       return () => {
         viewers.delete(viewer);
         touch();

@@ -136,7 +136,10 @@ async function startBridgeHarness(
 async function expectSubscribeBridgeFailure(harness: BridgeHarness): Promise<void> {
   const client = await connectWsSession(harness.server.url);
   try {
-    client.send({ type: "subscribe", sessionId: harness.seeded.id });
+    client.send({
+      type: "subscribe",
+      session: { project: harness.home.workspace, id: harness.seeded.id },
+    });
     const message = await client.next(20_000);
     expect(message.type).toBe("error");
     if (message.type === "error") {
@@ -190,7 +193,10 @@ test("a Session is served with the real bridge and the socket path never reaches
   const harness = await startBridgeHarness({ socketPath });
   const client = await connectWsSession(harness.server.url);
   try {
-    client.send({ type: "subscribe", sessionId: harness.seeded.id });
+    client.send({
+      type: "subscribe",
+      session: { project: harness.home.workspace, id: harness.seeded.id },
+    });
     const snapshot = await client.next();
 
     expect(snapshot.type).toBe("snapshot");

@@ -20,6 +20,7 @@ import type {
   ImageAttachment,
   ModelInfo,
   SessionProjection,
+  SessionRef,
   SessionStats,
   SessionSummary,
   SubagentTranscriptLookup,
@@ -35,27 +36,29 @@ export interface ListProjectsMessage {
   readonly type: typeof ClientMessageType.ListProjects;
 }
 
-/** List this server's Sessions. A Session-free capability, so it carries no Session and no Cursor. */
+/** List one Project's Sessions. The server answers only what that Project holds. */
 export interface ListSessionsMessage {
   readonly type: typeof ClientMessageType.ListSessions;
+  readonly project: string;
 }
 
-/** Start a fresh Session. The server generates its id; a client never names one. */
+/** Start a fresh Session in one Project. The server generates its id; a client never names one. */
 export interface CreateSessionMessage {
   readonly type: typeof ClientMessageType.CreateSession;
+  readonly project: string;
 }
 
 /** Identify the Session to watch, and the Cursor the browser already holds when it has one. */
 export interface SubscribeMessage {
   readonly type: typeof ClientMessageType.Subscribe;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   readonly cursor?: Cursor;
 }
 
 /** Send one message to the Session's Pi child, starting or steering its run. */
 export interface PromptMessage {
   readonly type: typeof ClientMessageType.Prompt;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   readonly text: string;
   /** Images to send with the message, in the order the composer shows them. */
   readonly images?: readonly ImageAttachment[];
@@ -112,7 +115,7 @@ export interface CompactMessage {
 /** Cancel the Session's running turn. */
 export interface AbortMessage {
   readonly type: typeof ClientMessageType.Abort;
-  readonly sessionId: string;
+  readonly session: SessionRef;
 }
 
 /**
@@ -260,12 +263,13 @@ export interface ProjectsMessage {
 }
 
 /**
- * Every Session this server can serve, most recently active first. `sessions` stays the disk facts
- * pi wrote; `activity` is the server's live overlay for the Sessions that currently have a child,
- * so a refreshed list cannot overwrite a row's working state with a stale file.
+ * One Project's Sessions, most recently active first. `sessions` stays the disk facts pi wrote;
+ * `activity` is the server's live overlay for the Sessions that currently have a child, so a
+ * refreshed list cannot overwrite a row's working state with a stale file.
  */
 export interface SessionsMessage {
   readonly type: typeof ServerMessageType.Sessions;
+  readonly project: string;
   readonly sessions: readonly SessionSummary[];
   readonly activity: Readonly<Record<string, SessionActivity>>;
 }
@@ -273,13 +277,13 @@ export interface SessionsMessage {
 /** The Session a `createSession` request produced, so the client can open it. */
 export interface SessionCreatedMessage {
   readonly type: typeof ServerMessageType.SessionCreated;
-  readonly sessionId: string;
+  readonly session: SessionRef;
 }
 
 /** A full Projection at a Cursor. */
 export interface SnapshotMessage {
   readonly type: typeof ServerMessageType.Snapshot;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   readonly cursor: Cursor;
   readonly projection: SessionProjection;
 }
@@ -287,7 +291,7 @@ export interface SnapshotMessage {
 /** A cursor-addressed batch of Deltas. */
 export interface DeltaMessage extends DeltaBatch {
   readonly type: typeof ServerMessageType.Delta;
-  readonly sessionId: string;
+  readonly session: SessionRef;
 }
 
 /**
@@ -297,7 +301,7 @@ export interface DeltaMessage extends DeltaBatch {
  */
 export interface SettingsMessage {
   readonly type: typeof ServerMessageType.Settings;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   readonly model: ModelInfo | null;
   readonly availableModels: readonly ModelInfo[];
   readonly thinkingLevel: ThinkingLevel;
@@ -312,7 +316,7 @@ export interface SettingsMessage {
  */
 export interface ContextUsageMessage {
   readonly type: typeof ServerMessageType.ContextUsage;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   readonly contextUsage: ContextUsage | null;
 }
 
@@ -321,7 +325,7 @@ export interface ErrorMessage {
   readonly type: typeof ServerMessageType.Error;
   readonly error: ProtocolErrorInfo;
   /** The Session the failed request named, when it named one; absent for a malformed frame. */
-  readonly sessionId?: string;
+  readonly session?: SessionRef;
 }
 
 /** One directory's entries, echoing the normalized relative `path` the request named. */
@@ -344,7 +348,7 @@ export interface FilePreviewMessage {
 /** Every command this Session's Pi child offers: prompt templates, skills and extension commands. */
 export interface CommandsMessage {
   readonly type: typeof ServerMessageType.Commands;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   readonly commands: readonly CommandInfo[];
 }
 

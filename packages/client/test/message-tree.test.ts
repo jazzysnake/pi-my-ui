@@ -506,7 +506,7 @@ describe("the message tree modal", () => {
     flushSync(() => {
       store.receive({
         type: ServerMessageType.Error,
-        sessionId: SESSION_ID,
+        session: { project: "/workspace", id: SESSION_ID },
         error: {
           code: "commandFailed",
           message: "pi left the active leaf at null; the move was refused",
@@ -534,7 +534,7 @@ describe("the message tree modal", () => {
     flushSync(() => {
       store.receive({
         type: ServerMessageType.Error,
-        sessionId: SESSION_ID,
+        session: { project: "/workspace", id: SESSION_ID },
         error: { code: "internalError", message: "pi could not read this Session's tree" },
       });
     });

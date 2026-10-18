@@ -19,7 +19,7 @@ export class PathEscapeError extends FileAccessError {
   public constructor(requested: string, rule: string) {
     super(
       ProtocolErrorCode.PathEscape,
-      `path ${JSON.stringify(requested)} escapes the served working directory: ${rule}`,
+      `path ${JSON.stringify(requested)} escapes the Project root: ${rule}`,
       requested,
     );
     this.name = "PathEscapeError";

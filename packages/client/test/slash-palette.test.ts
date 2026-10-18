@@ -402,11 +402,14 @@ describe("session commands", () => {
     expect(exportSession).toHaveBeenCalledTimes(1);
     expect(downloadFile).not.toHaveBeenCalled();
 
-    // The server naming the file starts the download; there is no second control to tap.
+    // The exported file is written inside the chosen Project, so the download names it.
+    flushSync(() => {
+      store.receive({ type: ServerMessageType.Projects, projects: ["/workspace"] });
+    });
     flushSync(() => {
       store.receive(exportedOf("pi-session-session-1.html"));
     });
-    expect(downloadFile).toHaveBeenCalledWith("pi-session-session-1.html");
+    expect(downloadFile).toHaveBeenCalledWith("/workspace", "pi-session-session-1.html");
     expect(target.querySelector('[data-testid="session-export-path"]')?.textContent).toBe(
       "pi-session-session-1.html",
     );

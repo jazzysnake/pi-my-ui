@@ -33,6 +33,9 @@ export class ClientStore {
   receive(message: ServerMessage): void {
     this.projects.receive(message);
     this.transcript.receive(message);
+    // The files slice follows the choice before it reads the frame, so an answer about another
+    // Project is dropped rather than drawn under the chosen one.
+    this.files.follow(this.projects.chosen);
     this.files.receive(message);
     this.sessions.receive(message, this.projects.chosen);
     this.settings.receive(message);
@@ -57,6 +60,7 @@ export class ClientStore {
     this.subagents.clear();
     this.context.clear();
     this.tree.clear();
+    this.files.follow(this.projects.chosen);
   }
 
   /**
@@ -77,5 +81,6 @@ export class ClientStore {
     this.subagents.clear();
     this.context.clear();
     this.tree.clear();
+    this.files.follow(this.projects.chosen);
   }
 }

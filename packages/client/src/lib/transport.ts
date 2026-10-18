@@ -104,10 +104,10 @@ export interface Transport {
   getTree(): void;
   /** Move the Session's Leaf to an existing entry. Ignored while the link is down. */
   moveLeaf(entryId: string): void;
-  /** Ask for one directory of the watched Project. Ignored while the link is down. */
-  listDirectory(path: string): void;
-  /** Ask for a bounded text preview of one file. Ignored while the link is down. */
-  previewFile(path: string): void;
+  /** Ask for one directory of `project`. Ignored while the link is down. */
+  listDirectory(project: string, path: string): void;
+  /** Ask for a bounded text preview of one file of `project`. Ignored while the link is down. */
+  previewFile(project: string, path: string): void;
 }
 
 export function createTransport(options: TransportOptions): Transport {
@@ -444,11 +444,11 @@ export function createTransport(options: TransportOptions): Transport {
         entryId,
       }));
     },
-    listDirectory(path) {
-      send({ type: ClientMessageType.ListDirectory, path });
+    listDirectory(project, path) {
+      send({ type: ClientMessageType.ListDirectory, project, path });
     },
-    previewFile(path) {
-      send({ type: ClientMessageType.PreviewFile, path });
+    previewFile(project, path) {
+      send({ type: ClientMessageType.PreviewFile, project, path });
     },
   };
 }

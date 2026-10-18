@@ -13,7 +13,13 @@ import { FileEntryType } from "./constants.js";
 /** The download route, relative to the server origin. */
 export const FILE_DOWNLOAD_PATH = "/files/download";
 
-/** Query parameter carrying the requested path, relative to the session working directory. */
+/**
+ * Query parameter naming the Project a file request is about. Every file request carries one, so a
+ * request can never be read as "whichever Project the server serves first".
+ */
+export const FILE_PROJECT_PARAM = "project";
+
+/** Query parameter carrying the requested path, relative to that Project's root. */
 export const FILE_PATH_PARAM = "path";
 
 /**

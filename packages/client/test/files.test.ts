@@ -12,14 +12,18 @@ import {
   type SnapshotMessage,
 } from "@pi-my-ui/protocol";
 
+import { fileDownloadUrl } from "../src/lib/files/download.js";
 import Shell from "../src/lib/Shell.svelte";
 import { ConnectionStatus } from "../src/lib/transport.js";
 import { ClientStore } from "../src/lib/store/client-store.svelte.js";
 
+const PROJECT = "/workspace";
+const OTHER_PROJECT = "/other-project";
+
 function snapshotOf(entries: readonly ProjectedEntry[]): SnapshotMessage {
   return {
     type: ServerMessageType.Snapshot,
-    session: { project: "/workspace", id: "session-1" },
+    session: { project: PROJECT, id: "session-1" },
     cursor: entries.length,
     projection: {
       sessionId: "session-1",
@@ -40,17 +44,22 @@ function entry(
   return { name, type, size, mtimeMs: null };
 }
 
-function listingOf(path: string, entries: readonly DirectoryEntry[]): DirectoryListingMessage {
-  return { type: ServerMessageType.DirectoryListing, path, entries };
+function listingOf(
+  project: string,
+  path: string,
+  entries: readonly DirectoryEntry[],
+): DirectoryListingMessage {
+  return { type: ServerMessageType.DirectoryListing, project, path, entries };
 }
 
 function previewOf(
+  project: string,
   path: string,
   text: string,
   size: number,
   truncated: boolean,
 ): FilePreviewMessage {
-  return { type: ServerMessageType.FilePreview, path, text, size, truncated };
+  return { type: ServerMessageType.FilePreview, project, path, text, size, truncated };
 }
 
 function fileErrorOf(detail: string, message: string): ErrorMessage {
@@ -91,17 +100,21 @@ function mountShell(store: ClientStore): Mounted {
 }
 
 /** Open the panel and hand it a root listing with one directory and one file. */
-function openTree(store: ClientStore, mounted: Mounted): void {
+function openTree(
+  store: ClientStore,
+  mounted: Mounted,
+  projects: readonly string[] = [PROJECT],
+): void {
   flushSync(() => {
-    store.receive({ type: ServerMessageType.Projects, projects: ["/workspace"] });
+    store.receive({ type: ServerMessageType.Projects, projects });
     store.receive(snapshotOf([]));
   });
   flushSync(() => {
-    mounted.target.querySelector<HTMLElement>('[data-testid="files-toggle"]')?.click();
+    toggleFiles(mounted);
   });
   flushSync(() => {
     store.receive(
-      listingOf("", [
+      listingOf(PROJECT, "", [
         entry("src", FileEntryType.Directory),
         entry("README.md", FileEntryType.File, 12),
       ]),
@@ -109,8 +122,16 @@ function openTree(store: ClientStore, mounted: Mounted): void {
   });
 }
 
+function toggleFiles(mounted: Mounted): void {
+  mounted.target.querySelector<HTMLElement>('[data-testid="files-toggle"]')?.click();
+}
+
 function rows(mounted: Mounted, testId: string): HTMLElement[] {
   return [...mounted.target.querySelectorAll<HTMLElement>(`[data-testid="${testId}"]`)];
+}
+
+function rootLabel(mounted: Mounted): string | null | undefined {
+  return mounted.target.querySelector('[data-testid="file-tree-root"]')?.textContent;
 }
 
 describe("the file tree", () => {
@@ -119,14 +140,12 @@ describe("the file tree", () => {
     const mounted = mountShell(store);
     openTree(store, mounted);
 
-    expect(mounted.listDirectory.mock.calls).toEqual([[""]]);
+    expect(mounted.listDirectory.mock.calls).toEqual([[PROJECT, ""]]);
     expect(rows(mounted, "file-tree-directory").map((row) => row.dataset["path"])).toEqual(["src"]);
     expect(rows(mounted, "file-tree-file").map((row) => row.dataset["path"])).toContain(
       "README.md",
     );
-    expect(mounted.target.querySelector('[data-testid="file-tree-cwd"]')?.textContent).toBe(
-      "/workspace",
-    );
+    expect(rootLabel(mounted)).toBe(PROJECT);
   });
 
   it("fetches a directory's children only when it is expanded", () => {
@@ -137,10 +156,13 @@ describe("the file tree", () => {
     flushSync(() => {
       rows(mounted, "file-tree-directory")[0]?.click();
     });
-    expect(mounted.listDirectory.mock.calls).toEqual([[""], ["src"]]);
+    expect(mounted.listDirectory.mock.calls).toEqual([
+      [PROJECT, ""],
+      [PROJECT, "src"],
+    ]);
 
     flushSync(() => {
-      store.receive(listingOf("src", [entry("index.ts", FileEntryType.File, 3)]));
+      store.receive(listingOf(PROJECT, "src", [entry("index.ts", FileEntryType.File, 3)]));
     });
     expect(rows(mounted, "file-tree-file").map((row) => row.dataset["path"])).toContain(
       "src/index.ts",
@@ -155,7 +177,7 @@ describe("the file tree", () => {
     flushSync(() => {
       rows(mounted, "file-tree-file")[0]?.click();
     });
-    expect(mounted.downloadFile).toHaveBeenCalledWith("README.md");
+    expect(mounted.downloadFile).toHaveBeenCalledWith(PROJECT, "README.md");
   });
 
   it("states that a preview was truncated", () => {
@@ -166,10 +188,10 @@ describe("the file tree", () => {
     flushSync(() => {
       rows(mounted, "file-tree-preview")[0]?.click();
     });
-    expect(mounted.previewFile).toHaveBeenCalledWith("README.md");
+    expect(mounted.previewFile).toHaveBeenCalledWith(PROJECT, "README.md");
 
     flushSync(() => {
-      store.receive(previewOf("README.md", "the whole file", 90_000, true));
+      store.receive(previewOf(PROJECT, "README.md", "the whole file", 90_000, true));
     });
     expect(mounted.target.querySelector('[data-testid="file-preview-text"]')?.textContent).toBe(
       "the whole file",
@@ -179,7 +201,7 @@ describe("the file tree", () => {
     ).toContain("truncated");
 
     flushSync(() => {
-      store.receive(previewOf("README.md", "a small file", 12, false));
+      store.receive(previewOf(PROJECT, "README.md", "a small file", 12, false));
     });
     expect(mounted.target.querySelector('[data-testid="file-preview-truncated"]')).toBeNull();
   });
@@ -191,9 +213,57 @@ describe("the file tree", () => {
 
     flushSync(() => {
       rows(mounted, "file-tree-directory")[0]?.click();
-      store.receive(fileErrorOf("src", 'path "src" escapes the served working directory'));
+      store.receive(fileErrorOf("src", 'path "src" escapes the Project root'));
     });
     const failure = mounted.target.querySelector('[data-testid="file-tree-node-error"]');
-    expect(failure?.textContent).toContain("escapes the served working directory");
+    expect(failure?.textContent).toContain("escapes the Project root");
+  });
+});
+
+describe("the file tree's Project", () => {
+  it("never renders a listing that belongs to another Project", () => {
+    const store = new ClientStore();
+    const mounted = mountShell(store);
+    openTree(store, mounted);
+
+    flushSync(() => {
+      store.receive(listingOf(OTHER_PROJECT, "", [entry("secret.txt", FileEntryType.File, 5)]));
+    });
+    expect(rows(mounted, "file-tree-file")).toHaveLength(1);
+    expect(rows(mounted, "file-tree-file")[0]?.textContent).not.toContain("secret.txt");
+  });
+
+  it("re-roots at the newly chosen Project and forgets the previous tree", () => {
+    const store = new ClientStore(PROJECT);
+    const mounted = mountShell(store);
+    openTree(store, mounted, [PROJECT, OTHER_PROJECT]);
+
+    flushSync(() => {
+      store.selectProject(OTHER_PROJECT);
+    });
+    // The panel named the Project it was opened for, so a different choice closes it.
+    expect(mounted.target.querySelector('[data-testid="file-tree"]')).toBeNull();
+
+    flushSync(() => {
+      toggleFiles(mounted);
+    });
+    expect(mounted.listDirectory.mock.calls.at(-1)).toEqual([OTHER_PROJECT, ""]);
+
+    flushSync(() => {
+      store.receive(listingOf(OTHER_PROJECT, "", [entry("notes.md", FileEntryType.File, 4)]));
+    });
+    expect(rootLabel(mounted)).toBe(OTHER_PROJECT);
+    expect(rows(mounted, "file-tree-file").map((row) => row.dataset["path"])).toEqual(["notes.md"]);
+  });
+});
+
+describe("a download URL", () => {
+  it("names both the Project and the path relative to it", () => {
+    const url = new URL(fileDownloadUrl("ws://phone.local:1234/ws", PROJECT, "src/index.ts"));
+
+    expect(url.origin).toBe("http://phone.local:1234");
+    expect(url.pathname).toBe("/files/download");
+    expect(url.searchParams.get("project")).toBe(PROJECT);
+    expect(url.searchParams.get("path")).toBe("src/index.ts");
   });
 });

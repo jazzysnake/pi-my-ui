@@ -72,9 +72,9 @@
     onClone?: () => void;
     onGetTree?: () => void;
     onMoveLeaf?: (entryId: string) => void;
-    onListDirectory: (path: string) => void;
-    onPreviewFile: (path: string) => void;
-    onDownloadFile: (path: string) => void;
+    onListDirectory: (project: string, path: string) => void;
+    onPreviewFile: (project: string, path: string) => void;
+    onDownloadFile: (project: string, path: string) => void;
     onCreateSession?: () => void;
     onReconnect?: () => void;
     /** Steer one running subagent; a typed message while its conversation is shown. */
@@ -86,15 +86,14 @@
   } = $props();
 
   let filesOpen = $state(false);
+  /** The Project the open panel names as its root, so a different choice can close it. */
+  let filesProject = $state<string | null>(null);
   let sessionsOpen = $state(false);
   /**
-   * File requests still resolve against the server's first Project, so only a server serving exactly
-   * one Project can show files without risking another Project's tree, and only once that Project is
-   * the chosen one. Scoping every file request to a Project removes this guard.
+   * The panel is rooted at the chosen Project, so with no Project chosen there is no root to name and
+   * the control is disabled. A chosen Project always enables it, however many the server serves.
    */
-  const filesAllowed = $derived(
-    store.projects.chosen !== null && store.projects.projects?.length === 1,
-  );
+  const filesEnabled = $derived(store.projects.chosen !== null);
   let forkOpen = $state(false);
   let agentsOpen = $state(false);
   /** The composer's draft, so the message tree can hand one of the user's messages back to it. */
@@ -141,10 +140,10 @@
     }
   });
 
-  // A file panel opened before the registry answered must close rather than fall back to another
-  // Project's first root once a multi-Project server is known.
+  // The panel names one Project's root, so a different choice closes it rather than drawing its rows
+  // under another Project's name; reopening Files asks for the new root.
   $effect(() => {
-    if (!filesAllowed && filesOpen) {
+    if (filesOpen && store.projects.chosen !== filesProject) {
       filesOpen = false;
     }
   });
@@ -211,7 +210,11 @@
     }
     if (path !== downloadedExport) {
       downloadedExport = path;
-      onDownloadFile(path);
+      // The exported file was written inside the Session's Project, which is the chosen one.
+      const project = store.projects.chosen;
+      if (project !== null) {
+        onDownloadFile(project, path);
+      }
     }
   });
 
@@ -306,15 +309,17 @@
       sessionsOpen = !sessionsOpen;
     }}
     onToggleFiles={() => {
-      if (!filesAllowed) {
+      const project = store.projects.chosen;
+      if (project === null) {
         return;
       }
       filesOpen = !filesOpen;
       if (filesOpen) {
-        onListDirectory(ROOT_PATH);
+        filesProject = project;
+        onListDirectory(project, ROOT_PATH);
       }
     }}
-    filesEnabled={filesAllowed}
+    {filesEnabled}
     onOpenAgents={() => {
       agentsOpen = true;
     }}
@@ -451,7 +456,7 @@
   {/if}
   {#if filesOpen}
     <FileTreePanel
-      cwd={store.projects.chosen ?? ""}
+      project={filesProject ?? ""}
       files={store.files}
       onClose={() => {
         filesOpen = false;

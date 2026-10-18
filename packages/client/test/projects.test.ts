@@ -273,12 +273,16 @@ describe("the Project picker", () => {
   });
 });
 
-describe("the file control while file requests are unscoped", () => {
-  it("is disabled for a server serving several Projects", () => {
-    const store = new ClientStore(PROJECT_A);
+describe("the file control", () => {
+  it("is disabled until a Project is chosen, then enabled for that Project", () => {
+    const store = new ClientStore();
     store.receive(projectsMessage([PROJECT_A, PROJECT_B]));
-    const target = mountShell(store);
+    const target = mountShell(store, (project) => store.selectProject(project));
     expect(filesToggle(target).disabled).toBe(true);
+
+    click(target, "project-row", 1);
+    expect(store.projects.chosen).toBe(PROJECT_B);
+    expect(filesToggle(target).disabled).toBe(false);
   });
 
   it("is enabled for a single-Project server that chose its Project", () => {

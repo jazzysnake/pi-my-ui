@@ -6,7 +6,7 @@ Sessions and files still resolve against the first served Project, so the single
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] `--project` is repeatable, and no `--project` serves the current directory
 - [ ] A path that is not a readable directory refuses startup with an error naming that path

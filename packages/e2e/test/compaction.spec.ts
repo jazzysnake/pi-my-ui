@@ -303,7 +303,10 @@ test("the Session reports compaction in progress before the boundary and the rem
     }
     const before = usageIn(frames);
 
-    client.send({ type: "compact", sessionId: harness.seeded.id });
+    client.send({
+      type: "compact",
+      session: { project: harness.home.workspace, id: harness.seeded.id },
+    });
 
     // The order is the point, so it is read from the stream rather than timed in a browser: a
     // compaction is reported as running, then as a boundary, then with pi's remeasured figure.

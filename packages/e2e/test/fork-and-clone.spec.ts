@@ -195,7 +195,10 @@ test("a fork writes a new Session file and leaves the original on its own child"
     await readAttachSurfaces(client);
     expect(before.projection.leafId).toBe(harness.seeded.leafId);
 
-    client.send({ type: "getForkMessages", sessionId: harness.seeded.id });
+    client.send({
+      type: "getForkMessages",
+      session: { project: harness.home.workspace, id: harness.seeded.id },
+    });
     const forkMessages = await nextOf(client, "forkMessages");
     const chosen = forkMessages.messages.find((message) => message.text.includes(FORK_FROM_TEXT));
     expect(chosen).toBeDefined();
@@ -203,12 +206,19 @@ test("a fork writes a new Session file and leaves the original on its own child"
       return;
     }
 
-    client.send({ type: "forkSession", sessionId: harness.seeded.id, entryId: chosen.entryId });
+    client.send({
+      type: "forkSession",
+      session: { project: harness.home.workspace, id: harness.seeded.id },
+      entryId: chosen.entryId,
+    });
     const rebuilt = await nextOf(client, "snapshot");
     const forked = await nextOf(client, "sessionForked");
     expect(forked.mutation).toBe("fork");
-    expect(forked.sourceSessionId).toBe(harness.seeded.id);
-    const forkedId = forked.sessionId;
+    expect(forked.sourceSession).toEqual({
+      project: harness.home.workspace,
+      id: harness.seeded.id,
+    });
+    const forkedId = forked.session?.id;
     expect(forkedId).toBeDefined();
     if (forkedId === undefined) {
       return;

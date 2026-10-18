@@ -408,7 +408,10 @@ test("a Leaf move is confirmed by pi, and an unconfirmed one is refused honestly
     const snapshot = await nextOf(client, "snapshot");
     await readAttachSurfaces(client);
 
-    client.send({ type: "getTree", sessionId: harness.seeded.id });
+    client.send({
+      type: "getTree",
+      session: { project: harness.home.workspace, id: harness.seeded.id },
+    });
     const tree: SessionTree = (await nextOf(client, "sessionTree")).tree;
     expect(tree.leafId).toBe(harness.seeded.leafId);
     const nodes = flatten(tree.roots);
@@ -418,7 +421,11 @@ test("a Leaf move is confirmed by pi, and an unconfirmed one is refused honestly
       return;
     }
 
-    client.send({ type: "moveLeaf", sessionId: harness.seeded.id, entryId: edited.entry.id });
+    client.send({
+      type: "moveLeaf",
+      session: { project: harness.home.workspace, id: harness.seeded.id },
+      entryId: edited.entry.id,
+    });
     const confirmed = await nextOf(client, "leafMoved");
     // pi moves a user message's Leaf to its parent, which is what makes it resubmittable.
     expect(confirmed.entryId).toBe(edited.entry.id);
@@ -431,14 +438,21 @@ test("a Leaf move is confirmed by pi, and an unconfirmed one is refused honestly
 
     // An id this Session does not hold is refused, with the entry named so the client can attach the
     // refusal to the row that asked.
-    client.send({ type: "moveLeaf", sessionId: harness.seeded.id, entryId: "not-an-entry" });
+    client.send({
+      type: "moveLeaf",
+      session: { project: harness.home.workspace, id: harness.seeded.id },
+      entryId: "not-an-entry",
+    });
     const refused = await nextOf(client, "error");
     expect(refused.error.code).toBe("commandFailed");
     expect(refused.error.detail).toBe("not-an-entry");
     expect(refused.session).toEqual({ project: harness.home.workspace, id: harness.seeded.id });
 
     // The refusal left the Leaf where the confirmed move put it.
-    client.send({ type: "getTree", sessionId: harness.seeded.id });
+    client.send({
+      type: "getTree",
+      session: { project: harness.home.workspace, id: harness.seeded.id },
+    });
     expect((await nextOf(client, "sessionTree")).tree.leafId).toBe(confirmed.leafId);
   } finally {
     await client.close();

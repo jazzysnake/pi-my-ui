@@ -263,10 +263,8 @@ export function createTransport(options: TransportOptions): Transport {
       const opened: SessionRef | undefined =
         message.type === ServerMessageType.SessionCreated
           ? message.session
-          : message.type === ServerMessageType.SessionForked &&
-              message.sessionId !== undefined &&
-              activeProject !== null
-            ? { project: activeProject, id: message.sessionId }
+          : message.type === ServerMessageType.SessionForked && message.session !== undefined
+            ? message.session
             : undefined;
       if (opened !== undefined) {
         // Opening it is this socket's own follow-up, so the subscribe goes out before the owner is
@@ -369,7 +367,7 @@ export function createTransport(options: TransportOptions): Transport {
     bash(command, excludeFromContext) {
       sendForSession((session) => ({
         type: ClientMessageType.Bash,
-        sessionId: session.id,
+        session,
         command,
         excludeFromContext,
       }));
@@ -377,7 +375,7 @@ export function createTransport(options: TransportOptions): Transport {
     steerSubagent(agentId, message) {
       sendForSession((session) => ({
         type: ClientMessageType.SteerSubagent,
-        sessionId: session.id,
+        session,
         agentId,
         message,
       }));
@@ -385,7 +383,7 @@ export function createTransport(options: TransportOptions): Transport {
     getSubagentTranscript(agentId) {
       sendForSession((session) => ({
         type: ClientMessageType.GetSubagentTranscript,
-        sessionId: session.id,
+        session,
         agentId,
       }));
     },
@@ -395,7 +393,7 @@ export function createTransport(options: TransportOptions): Transport {
     setModel(provider, modelId) {
       sendForSession((session) => ({
         type: ClientMessageType.SetModel,
-        sessionId: session.id,
+        session,
         provider,
         modelId,
       }));
@@ -403,21 +401,21 @@ export function createTransport(options: TransportOptions): Transport {
     setThinkingLevel(level) {
       sendForSession((session) => ({
         type: ClientMessageType.SetThinkingLevel,
-        sessionId: session.id,
+        session,
         level,
       }));
     },
     setAutoCompaction(enabled) {
       sendForSession((session) => ({
         type: ClientMessageType.SetAutoCompaction,
-        sessionId: session.id,
+        session,
         enabled,
       }));
     },
     compact(customInstructions) {
       sendForSession((session) => ({
         type: ClientMessageType.Compact,
-        sessionId: session.id,
+        session,
         ...(customInstructions === undefined || customInstructions === ""
           ? {}
           : { customInstructions }),
@@ -426,51 +424,51 @@ export function createTransport(options: TransportOptions): Transport {
     getSessionStats() {
       sendForSession((session) => ({
         type: ClientMessageType.GetSessionStats,
-        sessionId: session.id,
+        session,
       }));
     },
     setSessionName(name) {
       sendForSession((session) => ({
         type: ClientMessageType.SetSessionName,
-        sessionId: session.id,
+        session,
         name,
       }));
     },
     exportSession() {
       sendForSession((session) => ({
         type: ClientMessageType.ExportSession,
-        sessionId: session.id,
+        session,
       }));
     },
     getForkMessages() {
       sendForSession((session) => ({
         type: ClientMessageType.GetForkMessages,
-        sessionId: session.id,
+        session,
       }));
     },
     forkSession(entryId) {
       sendForSession((session) => ({
         type: ClientMessageType.ForkSession,
-        sessionId: session.id,
+        session,
         entryId,
       }));
     },
     cloneSession() {
       sendForSession((session) => ({
         type: ClientMessageType.CloneSession,
-        sessionId: session.id,
+        session,
       }));
     },
     reconnect() {
-      sendForSession((session) => ({ type: ClientMessageType.Reconnect, sessionId: session.id }));
+      sendForSession((session) => ({ type: ClientMessageType.Reconnect, session }));
     },
     getTree() {
-      sendForSession((session) => ({ type: ClientMessageType.GetTree, sessionId: session.id }));
+      sendForSession((session) => ({ type: ClientMessageType.GetTree, session }));
     },
     moveLeaf(entryId) {
       sendForSession((session) => ({
         type: ClientMessageType.MoveLeaf,
-        sessionId: session.id,
+        session,
         entryId,
       }));
     },

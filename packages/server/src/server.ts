@@ -13,8 +13,6 @@ import type { AddressInfo } from "node:net";
 
 import {
   ClientMessageType,
-  ProtocolError,
-  ProtocolErrorCode,
   ServerMessageType,
   SessionMutation,
   parseClientMessage,
@@ -235,7 +233,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       return;
     }
     const viewer: SessionViewer = { onMessage: (outbound) => send(socket, outbound) };
-    let named: SessionRef | undefined = "session" in message ? message.session : undefined;
+    const named: SessionRef | undefined = "session" in message ? message.session : undefined;
     try {
       // The list is disk facts about the working directory, not a Session, so it is answered here
       // rather than by a Session host; no Pi child starts to produce it.
@@ -289,7 +287,6 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
         message.type === ClientMessageType.Prompt ||
         message.type === ClientMessageType.Abort
       ) {
-        named = message.session;
         if (attachment.watchedProject !== message.session.project) {
           detachWatchedSession(attachment);
           attachment.watchedProject = message.session.project;
@@ -317,22 +314,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
         await host.abort();
         return;
       }
-      // Until every Session command names its Project, these resolve against the connection's
-      // watched Project rather than searching the served Projects for the id.
-      if ("sessionId" in message) {
-        const project = attachment.watchedProject;
-        if (project === null) {
-          throw new ProtocolError(
-            ProtocolErrorCode.MalformedPayload,
-            "a Session request needs a watched Project; list its Project's Sessions first",
-          );
-        }
-        named = { project, id: message.sessionId };
-      }
-      const host = named === undefined ? undefined : await pool.hostFor(named);
-      if (host === undefined) {
-        throw new ProtocolError(ProtocolErrorCode.MalformedPayload, "no Session was named");
-      }
+      const host = await pool.hostFor(message.session);
       if (message.type === ClientMessageType.SteerSubagent) {
         await host.steerSubagent(message.agentId, message.message);
         return;
@@ -340,7 +322,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       if (message.type === ClientMessageType.GetSubagentTranscript) {
         send(socket, {
           type: ServerMessageType.SubagentTranscript,
-          sessionId: message.sessionId,
+          session: message.session,
           agentId: message.agentId,
           ...(await host.subagentTranscript(message.agentId)),
         });
@@ -369,7 +351,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       if (message.type === ClientMessageType.GetSessionStats) {
         send(socket, {
           type: ServerMessageType.SessionStats,
-          sessionId: message.sessionId,
+          session: message.session,
           stats: await host.sessionStats(),
         });
         return;
@@ -378,7 +360,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
         await host.setSessionName(message.name);
         send(socket, {
           type: ServerMessageType.SessionRenamed,
-          sessionId: message.sessionId,
+          session: message.session,
           name: message.name,
         });
         // The name is disk state the drawer reads, so the list is re-read and pushed to that
@@ -389,7 +371,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       if (message.type === ClientMessageType.ExportSession) {
         send(socket, {
           type: ServerMessageType.SessionExported,
-          sessionId: message.sessionId,
+          session: message.session,
           path: await host.exportHtml(),
         });
         return;
@@ -397,7 +379,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       if (message.type === ClientMessageType.GetForkMessages) {
         send(socket, {
           type: ServerMessageType.ForkMessages,
-          sessionId: message.sessionId,
+          session: message.session,
           messages: await host.forkMessages(),
         });
         return;
@@ -412,12 +394,14 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
             : await host.cloneSession();
         send(socket, {
           type: ServerMessageType.SessionForked,
-          sourceSessionId: message.sessionId,
+          sourceSession: message.session,
           mutation:
             message.type === ClientMessageType.ForkSession
               ? SessionMutation.Fork
               : SessionMutation.Clone,
-          ...(outcome.kind === "created" ? { sessionId: outcome.sessionId } : {}),
+          ...(outcome.kind === "created"
+            ? { session: { project: host.session.project, id: outcome.sessionId } }
+            : {}),
         });
         // The mutation wrote a Session file, so that Project's watchers have a row they do not know.
         scheduleSessionsPush(host.session.project);
@@ -426,7 +410,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       if (message.type === ClientMessageType.GetTree) {
         send(socket, {
           type: ServerMessageType.SessionTree,
-          sessionId: message.sessionId,
+          session: message.session,
           tree: await host.tree(),
         });
         return;
@@ -437,7 +421,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
         const move = await host.moveLeaf(message.entryId);
         send(socket, {
           type: ServerMessageType.LeafMoved,
-          sessionId: message.sessionId,
+          session: message.session,
           ...move,
         });
         return;

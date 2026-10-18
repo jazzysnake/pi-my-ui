@@ -18,15 +18,19 @@ const FORKABLE: readonly ForkMessage[] = [
 ];
 
 function forkMessagesOf(messages: readonly ForkMessage[]): ForkMessagesMessage {
-  return { type: ServerMessageType.ForkMessages, sessionId: SESSION_ID, messages };
+  return {
+    type: ServerMessageType.ForkMessages,
+    session: { project: "/workspace", id: SESSION_ID },
+    messages,
+  };
 }
 
 function forkedOf(mutation: SessionMutation, sessionId?: string): SessionForkedMessage {
   return {
     type: ServerMessageType.SessionForked,
-    sourceSessionId: SESSION_ID,
+    sourceSession: { project: "/workspace", id: SESSION_ID },
     mutation,
-    ...(sessionId === undefined ? {} : { sessionId }),
+    ...(sessionId === undefined ? {} : { session: { project: "/workspace", id: sessionId } }),
   };
 }
 

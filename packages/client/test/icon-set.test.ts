@@ -149,7 +149,11 @@ describe("the message tree's rows", () => {
       byTestId(target, "composer-branch")?.click();
     });
     flushSync(() => {
-      store.receive({ type: ServerMessageType.SessionTree, sessionId: SESSION_ID, tree: TREE });
+      store.receive({
+        type: ServerMessageType.SessionTree,
+        session: { project: "/workspace", id: SESSION_ID },
+        tree: TREE,
+      });
     });
 
     const expected = {
@@ -178,7 +182,11 @@ describe("the message tree's rows", () => {
       byTestId(target, "composer-branch")?.click();
     });
     flushSync(() => {
-      store.receive({ type: ServerMessageType.SessionTree, sessionId: SESSION_ID, tree: TREE });
+      store.receive({
+        type: ServerMessageType.SessionTree,
+        session: { project: "/workspace", id: SESSION_ID },
+        tree: TREE,
+      });
     });
 
     const forkOf = (entryId: string) =>
@@ -209,7 +217,7 @@ describe("the message tree's rows", () => {
     flushSync(() => {
       store.receive({
         type: ServerMessageType.SessionTree,
-        sessionId: SESSION_ID,
+        session: { project: "/workspace", id: SESSION_ID },
         tree: {
           leafId: "compacted",
           roots: [
@@ -240,7 +248,7 @@ describe("the message tree's rows", () => {
     flushSync(() => {
       store.receive({
         type: ServerMessageType.SessionTree,
-        sessionId: SESSION_ID,
+        session: { project: "/workspace", id: SESSION_ID },
         tree: {
           // The branch point is off the active path, so it starts collapsed and the chevron it draws
           // is the one that says "tap to open".

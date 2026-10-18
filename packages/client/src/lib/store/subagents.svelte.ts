@@ -64,6 +64,10 @@ export interface SubagentsSlice {
  * so a new one is the delivery the pending line waits for — the same entry the transcript draws, not
  * a second signal that could disagree with it.
  */
+function sameSession(left: SessionRef | null, right: SessionRef): boolean {
+  return left !== null && left.project === right.project && left.id === right.id;
+}
+
 function userTurnsIn(entries: readonly ProjectedEntry[]): number {
   let turns = 0;
   for (const entry of entries) {
@@ -234,7 +238,7 @@ export function createSubagentsSlice(): SubagentsSlice {
     receive(message) {
       if (message.type === ServerMessageType.SubagentTranscript) {
         // A read of another Session's run must not appear under the one on screen.
-        if (projection === null || message.sessionId !== projection.sessionId) {
+        if (!sameSession(active, message.session)) {
           return;
         }
         past = { ...past, [message.agentId]: message };

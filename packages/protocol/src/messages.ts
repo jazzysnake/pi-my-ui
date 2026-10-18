@@ -75,7 +75,7 @@ export interface PromptMessage {
  */
 export interface BashMessage {
   readonly type: typeof ClientMessageType.Bash;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   readonly command: string;
   readonly excludeFromContext: boolean;
 }
@@ -83,7 +83,7 @@ export interface BashMessage {
 /** Switch the Session's model. */
 export interface SetModelMessage {
   readonly type: typeof ClientMessageType.SetModel;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   readonly provider: string;
   readonly modelId: string;
 }
@@ -91,14 +91,14 @@ export interface SetModelMessage {
 /** Set the Session's reasoning level. */
 export interface SetThinkingLevelMessage {
   readonly type: typeof ClientMessageType.SetThinkingLevel;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   readonly level: ThinkingLevel;
 }
 
 /** Turn pi's automatic compaction on or off. */
 export interface SetAutoCompactionMessage {
   readonly type: typeof ClientMessageType.SetAutoCompaction;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   readonly enabled: boolean;
 }
 
@@ -108,7 +108,7 @@ export interface SetAutoCompactionMessage {
  */
 export interface CompactMessage {
   readonly type: typeof ClientMessageType.Compact;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   readonly customInstructions?: string;
 }
 
@@ -136,13 +136,13 @@ export interface PreviewFileMessage {
 /** Read one Session's statistics for the session panel; a read, so it carries no Cursor. */
 export interface GetSessionStatsMessage {
   readonly type: typeof ClientMessageType.GetSessionStats;
-  readonly sessionId: string;
+  readonly session: SessionRef;
 }
 
 /** Set the Session's display name in pi (`session_info`); the name is never empty. */
 export interface SetSessionNameMessage {
   readonly type: typeof ClientMessageType.SetSessionName;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   readonly name: string;
 }
 
@@ -153,7 +153,7 @@ export interface SetSessionNameMessage {
  */
 export interface ExportSessionMessage {
   readonly type: typeof ClientMessageType.ExportSession;
-  readonly sessionId: string;
+  readonly session: SessionRef;
 }
 
 /**
@@ -163,13 +163,13 @@ export interface ExportSessionMessage {
  */
 export interface ReconnectMessage {
   readonly type: typeof ClientMessageType.Reconnect;
-  readonly sessionId: string;
+  readonly session: SessionRef;
 }
 
 /** Read the Session's user messages a fork can start from; a read, so it carries no Cursor. */
 export interface GetForkMessagesMessage {
   readonly type: typeof ClientMessageType.GetForkMessages;
-  readonly sessionId: string;
+  readonly session: SessionRef;
 }
 
 /**
@@ -178,20 +178,20 @@ export interface GetForkMessagesMessage {
  */
 export interface ForkSessionMessage {
   readonly type: typeof ClientMessageType.ForkSession;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   readonly entryId: string;
 }
 
 /** Copy the Session's active branch into a new Session, leaving the original as it stands. */
 export interface CloneSessionMessage {
   readonly type: typeof ClientMessageType.CloneSession;
-  readonly sessionId: string;
+  readonly session: SessionRef;
 }
 
 /** Read the Session's message tree, including every branch off the active path. */
 export interface GetTreeMessage {
   readonly type: typeof ClientMessageType.GetTree;
-  readonly sessionId: string;
+  readonly session: SessionRef;
 }
 
 /**
@@ -200,7 +200,7 @@ export interface GetTreeMessage {
  */
 export interface MoveLeafMessage {
   readonly type: typeof ClientMessageType.MoveLeaf;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   readonly entryId: string;
 }
 
@@ -210,7 +210,7 @@ export interface MoveLeafMessage {
  */
 export interface SteerSubagentMessage {
   readonly type: typeof ClientMessageType.SteerSubagent;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   /** The agent record's id, as the Projection's `subagents` carry it. */
   readonly agentId: string;
   readonly message: string;
@@ -222,7 +222,7 @@ export interface SteerSubagentMessage {
  */
 export interface GetSubagentTranscriptMessage {
   readonly type: typeof ClientMessageType.GetSubagentTranscript;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   /** The agent record's id, as the Projection's `subagents` carry it. */
   readonly agentId: string;
 }
@@ -355,46 +355,48 @@ export interface CommandsMessage {
 /** One Session's statistics, answering a {@link GetSessionStatsMessage}. */
 export interface SessionStatsMessage {
   readonly type: typeof ServerMessageType.SessionStats;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   readonly stats: SessionStats;
 }
 
 /** The relative path of the HTML file pi wrote for an {@link ExportSessionMessage}. */
 export interface SessionExportedMessage {
   readonly type: typeof ServerMessageType.SessionExported;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   readonly path: string;
 }
 
 /** pi accepted the Session's new display name, so the client can say so without guessing. */
 export interface SessionRenamedMessage {
   readonly type: typeof ServerMessageType.SessionRenamed;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   readonly name: string;
 }
 
 /** The user messages a fork can start from, answering a {@link GetForkMessagesMessage}. */
 export interface ForkMessagesMessage {
   readonly type: typeof ServerMessageType.ForkMessages;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   readonly messages: readonly ForkMessage[];
 }
 
 /**
- * A fork or clone ran. `sessionId` is the Session it created, absent when an extension vetoed the
- * mutation before it happened: a veto is neither a new Session nor a failure.
+ * A fork or clone ran. `session` is the Session it created, absent when an extension vetoed the
+ * mutation before it happened: a veto is neither a new Session nor a failure. `sourceSession` is the
+ * Session it was requested on, so a client can route the answer without guessing which one it asked
+ * about.
  */
 export interface SessionForkedMessage {
   readonly type: typeof ServerMessageType.SessionForked;
-  readonly sourceSessionId: string;
+  readonly sourceSession: SessionRef;
   readonly mutation: SessionMutation;
-  readonly sessionId?: string;
+  readonly session?: SessionRef;
 }
 
 /** One Session's message tree, answering a {@link GetTreeMessage}. */
 export interface SessionTreeMessage {
   readonly type: typeof ServerMessageType.SessionTree;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   readonly tree: SessionTree;
 }
 
@@ -404,7 +406,7 @@ export interface SessionTreeMessage {
  */
 export interface LeafMovedMessage {
   readonly type: typeof ServerMessageType.LeafMoved;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   readonly entryId: string;
   readonly leafId: string | null;
 }
@@ -415,7 +417,7 @@ export interface LeafMovedMessage {
  */
 export type SubagentTranscriptMessage = SubagentTranscriptLookup & {
   readonly type: typeof ServerMessageType.SubagentTranscript;
-  readonly sessionId: string;
+  readonly session: SessionRef;
   readonly agentId: string;
 };
 

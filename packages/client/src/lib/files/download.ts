@@ -3,12 +3,13 @@
  * is derived from the transport URL so a dev or test page on another origin still reaches the backend.
  */
 
-import { FILE_DOWNLOAD_PATH, FILE_PATH_PARAM } from "@pi-my-ui/protocol";
+import { FILE_DOWNLOAD_PATH, FILE_PATH_PARAM, FILE_PROJECT_PARAM } from "@pi-my-ui/protocol";
 
-/** The absolute download URL for a path relative to the served root. */
-export function fileDownloadUrl(transportUrl: string, path: string): string {
+/** The absolute download URL for a path relative to one Project's root. */
+export function fileDownloadUrl(transportUrl: string, project: string, path: string): string {
   const url = new URL(FILE_DOWNLOAD_PATH, transportUrl);
   url.protocol = url.protocol === "wss:" ? "https:" : "http:";
+  url.searchParams.set(FILE_PROJECT_PARAM, project);
   url.searchParams.set(FILE_PATH_PARAM, path);
   return url.toString();
 }

@@ -119,17 +119,19 @@ export interface AbortMessage {
 }
 
 /**
- * List one directory of the server's working directory. `path` is relative to that root; `""` is the
- * root itself. A filesystem read is not Session state, so it carries no Session and no Cursor.
+ * List one directory of one Project. `path` is relative to that Project's root; `""` is the root
+ * itself. A filesystem read is not Session state, so it carries no Session and no Cursor.
  */
 export interface ListDirectoryMessage {
   readonly type: typeof ClientMessageType.ListDirectory;
+  readonly project: string;
   readonly path: string;
 }
 
-/** Read a bounded text preview of one text-like file, relative to the server's working directory. */
+/** Read a bounded text preview of one text-like file, relative to that Project's root. */
 export interface PreviewFileMessage {
   readonly type: typeof ClientMessageType.PreviewFile;
+  readonly project: string;
   readonly path: string;
 }
 
@@ -328,16 +330,25 @@ export interface ErrorMessage {
   readonly session?: SessionRef;
 }
 
-/** One directory's entries, echoing the normalized relative `path` the request named. */
+/**
+ * One directory's entries, echoing the Project and the normalized relative `path` the request named,
+ * so a client can key the answer to the node it expanded and discard another Project's answers.
+ */
 export interface DirectoryListingMessage {
   readonly type: typeof ServerMessageType.DirectoryListing;
+  readonly project: string;
   readonly path: string;
   readonly entries: readonly DirectoryEntry[];
 }
 
-/** A bounded text preview of one text-like file, with the truncation stated rather than implied. */
+/**
+ * A bounded text preview of one text-like file, with the truncation stated rather than implied. The
+ * Project is echoed for the same reason a listing echoes it: the client keeps it out of another
+ * Project's view.
+ */
 export interface FilePreviewMessage {
   readonly type: typeof ServerMessageType.FilePreview;
+  readonly project: string;
   readonly path: string;
   readonly text: string;
   /** The file's full size in bytes, so a client can state what the preview left out. */

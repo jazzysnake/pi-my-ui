@@ -8,21 +8,19 @@ import { ProtocolError, ProtocolErrorCode } from "@pi-my-ui/protocol";
 export interface ProjectRegistry {
   /** Absolute paths, in the order the launcher was given them. */
   readonly projects: readonly string[];
-  /**
-   * The first served Project. File requests that do not yet carry a Project resolve against it;
-   * Session requests name their Project explicitly and never fall back.
-   */
-  readonly primary: string;
   has(project: string): boolean;
   /** The Project as served, or a typed refusal for a path outside the registry. */
   require(project: string): string;
 }
 
+/** No request may fall back to another Project, so a server with no Project is refused outright. */
 export function createProjectRegistry(projects: readonly string[]): ProjectRegistry {
+  if (projects.length === 0) {
+    throw new Error("a server needs at least one Project to serve");
+  }
   const served = new Set(projects);
   return {
     projects: Object.freeze([...projects]),
-    primary: primaryProject(projects),
     has: (project) => served.has(project),
     require(project) {
       if (!served.has(project)) {
@@ -35,16 +33,4 @@ export function createProjectRegistry(projects: readonly string[]): ProjectRegis
       return project;
     },
   };
-}
-
-/**
- * The first served Project, which requests that do not name a Project resolve against. A server
- * with no Project has nowhere to run a Pi child, so it is refused rather than defaulted.
- */
-export function primaryProject(projects: readonly string[]): string {
-  const [primary] = projects;
-  if (primary === undefined) {
-    throw new Error("a server needs at least one Project to serve");
-  }
-  return primary;
 }

@@ -1,9 +1,8 @@
 <script lang="ts">
   /**
-   * The read-only file tree of the served working directory, opened from the shell's Files control.
-   * It names the root it reflects (one server serves one working directory, so every Session shares
-   * it) and is driven entirely by listings the store received, so a failed listing shows as a failure
-   * rather than an empty directory.
+   * The read-only file tree of one Project, opened from the shell's Files control. It names the
+   * Project it is rooted at — the chosen one, not the open Session's — and every request names that
+   * Project, so a listing can only ever describe its own tree.
    *
    * A directory's children are fetched the first time it is expanded and never before. A file row
    * downloads on tap; a text-like name also offers a preview.
@@ -16,19 +15,19 @@
   import { ROOT_PATH, visibleRows } from "./rows.js";
 
   let {
-    cwd,
+    project,
     files,
     onClose,
     onListDirectory,
     onPreviewFile,
     onDownloadFile,
   }: {
-    cwd: string;
+    project: string;
     files: FilesSlice;
     onClose: () => void;
-    onListDirectory: (path: string) => void;
-    onPreviewFile: (path: string) => void;
-    onDownloadFile: (path: string) => void;
+    onListDirectory: (project: string, path: string) => void;
+    onPreviewFile: (project: string, path: string) => void;
+    onDownloadFile: (project: string, path: string) => void;
   } = $props();
 
   let expanded = $state<Record<string, boolean>>({});
@@ -41,19 +40,19 @@
   function toggle(path: string): void {
     // A node whose listing failed retries on tap; a successful listing clears the failure.
     if (files.failureFor(path) !== undefined) {
-      onListDirectory(path);
+      onListDirectory(project, path);
       return;
     }
     const next = expanded[path] !== true;
     expanded = { ...expanded, [path]: next };
     if (next && files.listingFor(path) === undefined) {
-      onListDirectory(path);
+      onListDirectory(project, path);
     }
   }
 
   function openPreview(path: string, name: string): void {
     preview = { path, name };
-    onPreviewFile(path);
+    onPreviewFile(project, path);
   }
 </script>
 
@@ -68,7 +67,8 @@
     <div class="flex items-center gap-2 border-b border-hairline px-3 py-2">
       <span class="min-w-0 flex-1">
         <span class="block text-meta tracking-wider text-dim uppercase">Files</span>
-        <span class="block truncate text-meta text-dim" data-testid="file-tree-cwd">{cwd}</span>
+        <span class="block truncate text-meta text-dim" data-testid="file-tree-root">{project}</span
+        >
       </span>
       <button
         type="button"
@@ -127,7 +127,7 @@
                     class="flex min-h-11 min-w-0 flex-1 items-center gap-2 text-left"
                     data-testid="file-tree-file"
                     data-path={row.path}
-                    onclick={() => onDownloadFile(row.path)}
+                    onclick={() => onDownloadFile(project, row.path)}
                   >
                     <span class="truncate text-body text-ink" data-testid="file-tree-name"
                       >{row.name}</span
@@ -169,7 +169,7 @@
       }}
       onDownload={() => {
         if (preview !== null) {
-          onDownloadFile(preview.path);
+          onDownloadFile(project, preview.path);
         }
       }}
     />

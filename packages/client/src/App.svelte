@@ -87,7 +87,8 @@
   onReconnect={() => transport?.reconnect()}
   onGetTree={() => transport?.getTree()}
   onMoveLeaf={(entryId) => transport?.moveLeaf(entryId)}
-  onListDirectory={(path) => transport?.listDirectory(path)}
-  onPreviewFile={(path) => transport?.previewFile(path)}
-  onDownloadFile={(path) => startFileDownload(fileDownloadUrl(config.wsUrl, path))}
+  onListDirectory={(project, path) => transport?.listDirectory(project, path)}
+  onPreviewFile={(project, path) => transport?.previewFile(project, path)}
+  onDownloadFile={(project, path) =>
+    startFileDownload(fileDownloadUrl(config.wsUrl, project, path))}
 />

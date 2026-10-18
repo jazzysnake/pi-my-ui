@@ -91,7 +91,7 @@ function validateSubscribe(record: Record<string, unknown>): SubscribeMessage {
     : { type: ClientMessageType.Subscribe, session, cursor };
 }
 
-/** A path relative to the server root. Empty means the root itself, so only the type is checked. */
+/** A path relative to a Project's root. Empty means the root itself, so only the type is checked. */
 function requirePath(record: Record<string, unknown>): string {
   const path = record["path"];
   if (typeof path !== "string") {
@@ -101,11 +101,19 @@ function requirePath(record: Record<string, unknown>): string {
 }
 
 function validateListDirectory(record: Record<string, unknown>): ListDirectoryMessage {
-  return { type: ClientMessageType.ListDirectory, path: requirePath(record) };
+  return {
+    type: ClientMessageType.ListDirectory,
+    project: requireProject(record),
+    path: requirePath(record),
+  };
 }
 
 function validatePreviewFile(record: Record<string, unknown>): PreviewFileMessage {
-  return { type: ClientMessageType.PreviewFile, path: requirePath(record) };
+  return {
+    type: ClientMessageType.PreviewFile,
+    project: requireProject(record),
+    path: requirePath(record),
+  };
 }
 
 function validatePrompt(record: Record<string, unknown>): PromptMessage {

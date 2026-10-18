@@ -121,7 +121,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       return;
     }
     if (isFileDownloadPath(pathname)) {
-      handleFileDownload(request, response, { project: registry.primary, trust, log });
+      handleFileDownload(request, response, { registry, trust, log });
       return;
     }
     response.writeHead(404);
@@ -266,19 +266,24 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
         scheduleSessionsPush(project);
         return;
       }
-      // The file capability reads the server's working directory, not a Session, so it is answered
-      // here rather than by a Session host.
+      // The file capability reads one Project's tree, not a Session, so it is answered here rather
+      // than by a Session host. The answer echoes the Project it was about, so the client can keep
+      // one Project's answers out of another's view.
       if (message.type === ClientMessageType.ListDirectory) {
+        const project = registry.require(message.project);
         send(socket, {
           type: ServerMessageType.DirectoryListing,
-          ...listDirectory(registry.primary, message.path),
+          project,
+          ...listDirectory(project, message.path),
         });
         return;
       }
       if (message.type === ClientMessageType.PreviewFile) {
+        const project = registry.require(message.project);
         send(socket, {
           type: ServerMessageType.FilePreview,
-          ...readPreview(registry.primary, message.path),
+          project,
+          ...readPreview(project, message.path),
         });
         return;
       }

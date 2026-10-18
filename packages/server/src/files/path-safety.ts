@@ -37,7 +37,7 @@ export function resolveRelativePath(root: string, requested: string): string {
   }
   const rel = relative(root, resolve(root, requested));
   if (escapes(rel)) {
-    throw new PathEscapeError(requested, "resolves outside the served working directory");
+    throw new PathEscapeError(requested, "resolves outside the Project root");
   }
   return rel;
 }
@@ -73,7 +73,7 @@ export function resolvePath(root: string, requested: string): ResolvedPath {
   }
 
   if (escapes(relative(realRoot, absolute))) {
-    throw new PathEscapeError(requested, "a symlink resolves outside the served working directory");
+    throw new PathEscapeError(requested, "a symlink resolves outside the Project root");
   }
 
   return { requested, relative: rel, absolute, root: realRoot };

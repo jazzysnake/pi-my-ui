@@ -6,7 +6,7 @@ Until file requests are scoped to a Project, a multi-Project server keeps the fo
 
 **Blocked by:** 02 and 03 (the Project picker must not land on a half-converted client transport).
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] First load with nothing remembered shows the picker
 - [ ] Choosing a Project is one tap and shows only that Project's Sessions

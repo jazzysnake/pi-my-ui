@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 (the browser has a chosen Project to scope files to).
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Directory listing, preview and download carry the chosen Project
 - [ ] The containment check is rooted at that Project for every file request

@@ -53,11 +53,10 @@ function snapshotOf(
 ): SnapshotMessage {
   return {
     type: ServerMessageType.Snapshot,
-    sessionId: SESSION_ID,
+    session: { project: "/workspace", id: SESSION_ID },
     cursor: 1,
     projection: {
       sessionId: SESSION_ID,
-      cwd: "/workspace",
       leafId: "main-1",
       entries: [entry("main-1", "user", "the Session's own conversation")],
       runState,
@@ -76,7 +75,7 @@ function settledDelta(fromCursor: number): DeltaMessage {
   ];
   return {
     type: ServerMessageType.Delta,
-    sessionId: SESSION_ID,
+    session: { project: "/workspace", id: SESSION_ID },
     fromCursor,
     cursor: fromCursor + deltas.length,
     deltas,
@@ -93,7 +92,7 @@ function deliveryDelta(text: string, fromCursor: number): DeltaMessage {
   ];
   return {
     type: ServerMessageType.Delta,
-    sessionId: SESSION_ID,
+    session: { project: "/workspace", id: SESSION_ID },
     fromCursor,
     cursor: fromCursor + deltas.length,
     deltas,
@@ -280,7 +279,7 @@ describe("steering a focused subagent", () => {
 
     const refusal: ServerMessage = {
       type: ServerMessageType.Error,
-      sessionId: SESSION_ID,
+      session: { project: "/workspace", id: SESSION_ID },
       error: {
         code: "commandFailed",
         message:

@@ -10,7 +10,7 @@ import {
   MAX_IMAGE_BASE64_LENGTH_CHARS,
   MAX_IMAGES_PER_MESSAGE,
 } from "./images.js";
-import type { Cursor, ImageAttachment } from "./model.js";
+import type { Cursor, ImageAttachment, SessionRef } from "./model.js";
 import type {
   BashMessage,
   ClientMessage,
@@ -45,6 +45,33 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+/**
+ * The pair that names one Session. A frame carrying only the legacy bare `sessionId` fails here,
+ * which is the rule that half an identity is a protocol error rather than a lookup.
+ */
+function requireSession(record: Record<string, unknown>): SessionRef {
+  const session = record["session"];
+  const value = asRecord(session);
+  const project = value["project"];
+  const id = value["id"];
+  if (typeof project !== "string" || project === "") {
+    malformed('"session.project" must be a non-empty string');
+  }
+  if (typeof id !== "string" || id === "") {
+    malformed('"session.id" must be a non-empty string');
+  }
+  return { project, id };
+}
+
+/** A bare Project on a message about a Project, such as listing or creating its Sessions. */
+function requireProject(record: Record<string, unknown>): string {
+  const project = record["project"];
+  if (typeof project !== "string" || project === "") {
+    malformed('"project" must be a non-empty string');
+  }
+  return project;
+}
+
 function requireSessionId(record: Record<string, unknown>): string {
   const sessionId = record["sessionId"];
   if (typeof sessionId !== "string" || sessionId === "") {
@@ -66,10 +93,10 @@ function optionalCursor(record: Record<string, unknown>): Cursor | undefined {
 
 function validateSubscribe(record: Record<string, unknown>): SubscribeMessage {
   const cursor = optionalCursor(record);
-  const sessionId = requireSessionId(record);
+  const session = requireSession(record);
   return cursor === undefined
-    ? { type: ClientMessageType.Subscribe, sessionId }
-    : { type: ClientMessageType.Subscribe, sessionId, cursor };
+    ? { type: ClientMessageType.Subscribe, session }
+    : { type: ClientMessageType.Subscribe, session, cursor };
 }
 
 /** A path relative to the server root. Empty means the root itself, so only the type is checked. */
@@ -94,7 +121,7 @@ function validatePrompt(record: Record<string, unknown>): PromptMessage {
   const behavior = optionalStreamingBehavior(record);
   return {
     type: ClientMessageType.Prompt,
-    sessionId: requireSessionId(record),
+    session: requireSession(record),
     // Text may be empty when the message carries an image; otherwise a blank message is refused.
     text: requirePromptText(record, images),
     ...(images === undefined ? {} : { images }),
@@ -329,9 +356,9 @@ export function validateClientMessage(value: unknown): ClientMessage {
     case ClientMessageType.ListProjects:
       return { type: ClientMessageType.ListProjects };
     case ClientMessageType.ListSessions:
-      return { type: ClientMessageType.ListSessions };
+      return { type: ClientMessageType.ListSessions, project: requireProject(record) };
     case ClientMessageType.CreateSession:
-      return { type: ClientMessageType.CreateSession };
+      return { type: ClientMessageType.CreateSession, project: requireProject(record) };
     case ClientMessageType.Subscribe:
       return validateSubscribe(record);
     case ClientMessageType.Prompt:
@@ -339,7 +366,7 @@ export function validateClientMessage(value: unknown): ClientMessage {
     case ClientMessageType.Bash:
       return validateBash(record);
     case ClientMessageType.Abort:
-      return { type: ClientMessageType.Abort, sessionId: requireSessionId(record) };
+      return { type: ClientMessageType.Abort, session: requireSession(record) };
     case ClientMessageType.SetModel:
       return validateSetModel(record);
     case ClientMessageType.SetThinkingLevel:

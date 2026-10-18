@@ -26,11 +26,10 @@ export function snapshotOf(
 ): SnapshotMessage {
   return {
     type: ServerMessageType.Snapshot,
-    sessionId: SESSION_ID,
+    session: { project: "/workspace", id: SESSION_ID },
     cursor: entries.length,
     projection: {
       sessionId: SESSION_ID,
-      cwd: "/workspace",
       leafId: entries.at(-1)?.id ?? null,
       entries,
       runState,
@@ -43,7 +42,7 @@ export function snapshotOf(
 function runStateDelta(deltas: readonly ProjectionDelta[], fromCursor: number): ServerMessage {
   return {
     type: ServerMessageType.Delta,
-    sessionId: SESSION_ID,
+    session: { project: "/workspace", id: SESSION_ID },
     fromCursor,
     cursor: fromCursor + deltas.length,
     deltas,
@@ -77,7 +76,7 @@ function mountShell(store: ClientStore): Mounted {
         store,
         status: ConnectionStatus.Connected,
         onSelectSession: (sessionId: string) => {
-          store.selectSession(sessionId);
+          store.selectSession({ project: "/workspace", id: sessionId });
         },
         onPrompt: () => undefined,
         onAbort: () => undefined,
@@ -217,7 +216,7 @@ describe("a Session whose Pi child is gone", () => {
     flushSync(() => {
       store.receive({
         type: ServerMessageType.Error,
-        sessionId: SESSION_ID,
+        session: { project: "/workspace", id: SESSION_ID },
         error: { code: "unknownSession", message: "unknown session" },
       });
     });
@@ -227,7 +226,7 @@ describe("a Session whose Pi child is gone", () => {
 
   it("says a Session is Starting… before its first Snapshot and does not style it as an error", () => {
     const store = new ClientStore();
-    store.selectSession(SESSION_ID);
+    store.selectSession({ project: "/workspace", id: SESSION_ID });
     const { target } = mountShell(store);
 
     expect(row(target)?.getAttribute("data-run-state")).toBe("starting");

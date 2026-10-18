@@ -341,16 +341,27 @@ test("a foreign or missing origin is refused and logged", async () => {
   }
 });
 
-test("SIGINT shuts down cleanly and stops the Pi child it started", async () => {
+test("SIGINT shuts down cleanly and stops the Pi children across every Project", async () => {
   const home = await createHermeticHome();
+  const secondDirectory = join(home.root, "second-project");
+  mkdirSync(secondDirectory, { recursive: true });
+  const second = realpathSync(secondDirectory);
   const seeded = await seedSession(home, "plain");
+  const seededSecond = await seedSession(home, "branching", { project: second });
   const launch = await scriptedPiLaunch(home, UNUSED_SCRIPT);
   const signals = signalSource();
   let running: RunningServer | undefined;
 
   try {
     const run = runLauncher({
-      argv: ["--port", String(home.ports.allocate())],
+      argv: [
+        "--port",
+        String(home.ports.allocate()),
+        "--project",
+        home.workspace,
+        "--project",
+        second,
+      ],
       processCwd: home.workspace,
       io: SILENT_IO,
       signals: signals.source,
@@ -375,13 +386,18 @@ test("SIGINT shuts down cleanly and stops the Pi child it started", async () => 
       throw new Error("the launcher never started a server");
     }
 
-    const client = await connectWsSession(server.url);
-    client.send({ type: "subscribe", sessionId: seeded.id });
-    const snapshotMessage = await client.next();
-    expect(snapshotMessage.type).toBe("snapshot");
-    await client.close();
+    const first = await connectWsSession(server.url);
+    first.send({ type: "subscribe", session: { project: home.workspace, id: seeded.id } });
+    expect((await first.next()).type).toBe("snapshot");
 
-    expect(ownPiChildPids().length).toBeGreaterThan(0);
+    const secondClient = await connectWsSession(server.url);
+    secondClient.send({ type: "subscribe", session: { project: second, id: seededSecond.id } });
+    expect((await secondClient.next()).type).toBe("snapshot");
+    await first.close();
+    await secondClient.close();
+
+    // One process seated a child in each Project, and one signal has to reclaim both.
+    await expect.poll(() => ownPiChildPids().length).toBe(2);
 
     signals.emit("SIGINT");
     expect(await run).toBe(0);

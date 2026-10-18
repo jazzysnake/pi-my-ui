@@ -4,7 +4,12 @@
  * change is shown only once the server's re-read arrives, never from the click.
  */
 
-import { ServerMessageType, type ServerMessage, type SettingsMessage } from "@pi-my-ui/protocol";
+import {
+  ServerMessageType,
+  type ServerMessage,
+  type SessionRef,
+  type SettingsMessage,
+} from "@pi-my-ui/protocol";
 
 export interface SettingsSlice {
   /** The Session's settings, or `null` until the server sends them. */
@@ -15,17 +20,34 @@ export interface SettingsSlice {
 
 export function createSettingsSlice(): SettingsSlice {
   let settings = $state<SettingsMessage | null>(null);
+  let active: SessionRef | null = null;
 
   return {
     get settings() {
       return settings;
     },
     receive(message) {
-      if (message.type === ServerMessageType.Settings) {
-        settings = message;
+      if (message.type === ServerMessageType.Snapshot) {
+        if (active !== null && active.id !== message.session.id) {
+          settings = null;
+        }
+        active = message.session;
+        return;
       }
+      if (message.type !== ServerMessageType.Settings) {
+        return;
+      }
+      if (
+        active !== null &&
+        (message.session.project !== active.project || message.session.id !== active.id)
+      ) {
+        return;
+      }
+      active = message.session;
+      settings = message;
     },
     clear() {
+      active = null;
       settings = null;
     },
   };

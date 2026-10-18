@@ -12,6 +12,7 @@ import {
   type CommandInfo,
   type ForkMessage,
   type ServerMessage,
+  type SessionRef,
   type SessionStats,
 } from "@pi-my-ui/protocol";
 
@@ -45,6 +46,7 @@ function mutationNotice(mutation: SessionMutation, created: boolean): string {
 
 export function createCommandsSlice(): CommandsSlice {
   let discoverable = $state<readonly CommandInfo[]>([]);
+  let active: SessionRef | null = null;
   let stats = $state<SessionStats | null>(null);
   let exportedPath = $state<string | null>(null);
   let forkMessages = $state<readonly ForkMessage[] | null>(null);
@@ -67,7 +69,21 @@ export function createCommandsSlice(): CommandsSlice {
       return notice;
     },
     receive(message) {
+      if (message.type === ServerMessageType.Snapshot) {
+        if (active !== null && active.id !== message.session.id) {
+          discoverable = [];
+        }
+        active = message.session;
+        return;
+      }
       if (message.type === ServerMessageType.Commands) {
+        if (
+          active !== null &&
+          (message.session.project !== active.project || message.session.id !== active.id)
+        ) {
+          return;
+        }
+        active = message.session;
         discoverable = message.commands;
         return;
       }
@@ -117,6 +133,7 @@ export function createCommandsSlice(): CommandsSlice {
       notice = null;
     },
     clear() {
+      active = null;
       discoverable = [];
       stats = null;
       exportedPath = null;

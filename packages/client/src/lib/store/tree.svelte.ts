@@ -109,9 +109,9 @@ export function createTreeSlice(): TreeSlice {
         // A switched-away Session's tree must never be drawn under the new Session's name. The first
         // Snapshot after a switch only names the Session being watched: it can arrive after the modal
         // was opened, and closing the tree then would be a switch that never happened.
-        if (message.sessionId !== sessionId) {
+        if (message.session.id !== sessionId) {
           const firstProjection = sessionId === null;
-          sessionId = message.sessionId;
+          sessionId = message.session.id;
           if (!firstProjection) {
             open = false;
             forget();
@@ -139,7 +139,7 @@ export function createTreeSlice(): TreeSlice {
         open = false;
         return;
       }
-      if (message.type !== ServerMessageType.Error || message.sessionId !== sessionId) {
+      if (message.type !== ServerMessageType.Error || message.session?.id !== sessionId) {
         return;
       }
       // A failure that names an entry belongs to the move that asked about it; one without a detail

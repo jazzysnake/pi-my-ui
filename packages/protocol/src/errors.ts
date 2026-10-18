@@ -11,6 +11,8 @@ export const ProtocolErrorCode = {
   MalformedPayload: "malformedPayload",
   /** The named Session is not one the server can serve. */
   UnknownSession: "unknownSession",
+  /** The named Project is not one this server serves. */
+  UnknownProject: "unknownProject",
   /** The server failed to do what the message asked; the message itself was well-formed. */
   InternalError: "internalError",
   /** A filesystem path that escapes the served root: a security refusal, not a malformed request. */

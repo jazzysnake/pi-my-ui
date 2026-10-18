@@ -31,12 +31,17 @@ const REVIEW: CommandInfo = {
 };
 
 function commandsOf(commands: readonly CommandInfo[]): CommandsMessage {
-  return { type: ServerMessageType.Commands, sessionId: SESSION_ID, commands };
+  return {
+    type: ServerMessageType.Commands,
+    session: { project: "/workspace", id: SESSION_ID },
+    commands,
+  };
 }
 
 function sessionsOf(id: string, name: string): SessionsMessage {
   return {
     type: ServerMessageType.Sessions,
+    project: "/workspace",
     sessions: [{ id, name, firstMessage: null, lastActivityAt: 0 }],
     activity: { [id]: SessionActivity.Idle },
   };
@@ -282,7 +287,7 @@ describe("session commands", () => {
   it("shows the current name with a bare /name and sets a new one with an argument", () => {
     const store = new ClientStore();
     const { target, setSessionName } = mountShell(store);
-    store.selectSession(SESSION_ID);
+    store.selectSession({ project: "/workspace", id: SESSION_ID });
     flushSync(() => {
       store.receive(snapshotOf([]));
       store.receive(sessionsOf(SESSION_ID, "Seed session 1"));

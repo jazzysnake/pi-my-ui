@@ -22,11 +22,10 @@ const ELAPSED_ANCHOR_MS = 65_000;
 function snapshotOf(subagents: readonly SubagentAgent[]): SnapshotMessage {
   return {
     type: ServerMessageType.Snapshot,
-    sessionId: SESSION_ID,
+    session: { project: "/workspace", id: SESSION_ID },
     cursor: 1,
     projection: {
       sessionId: SESSION_ID,
-      cwd: "/workspace",
       leafId: "entry-1",
       entries: [
         {

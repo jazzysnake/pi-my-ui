@@ -418,7 +418,7 @@
   {/if}
   {#if filesOpen}
     <FileTreePanel
-      cwd={store.transcript.cwd}
+      cwd={store.projects.chosen ?? ""}
       files={store.files}
       onClose={() => {
         filesOpen = false;

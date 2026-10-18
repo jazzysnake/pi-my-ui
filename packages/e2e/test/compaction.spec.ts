@@ -291,7 +291,10 @@ test("the Session reports compaction in progress before the boundary and the rem
   const harness = await startHarness(compactionSteps());
   const client = await connectWsSession(harness.server.url);
   try {
-    client.send({ type: "subscribe", sessionId: harness.seeded.id });
+    client.send({
+      type: "subscribe",
+      session: { project: harness.home.workspace, id: harness.seeded.id },
+    });
     expect((await client.next()).type).toBe("snapshot");
 
     const frames: ServerMessage[] = [];

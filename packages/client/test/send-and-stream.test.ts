@@ -23,11 +23,10 @@ const IDLE: RunState = { kind: RunStateKind.Idle };
 function snapshotOf(entries: readonly ProjectedEntry[]): SnapshotMessage {
   return {
     type: ServerMessageType.Snapshot,
-    sessionId: "session-1",
+    session: { project: "/workspace", id: "session-1" },
     cursor: entries.length,
     projection: {
       sessionId: "session-1",
-      cwd: "/workspace",
       leafId: entries.at(-1)?.id ?? null,
       entries,
       runState: IDLE,
@@ -40,7 +39,7 @@ function snapshotOf(entries: readonly ProjectedEntry[]): SnapshotMessage {
 function deltaOf(deltas: readonly ProjectionDelta[], fromCursor: number): DeltaMessage {
   return {
     type: ServerMessageType.Delta,
-    sessionId: "session-1",
+    session: { project: "/workspace", id: "session-1" },
     fromCursor,
     cursor: fromCursor + deltas.length,
     deltas,

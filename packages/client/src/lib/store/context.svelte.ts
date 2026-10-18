@@ -7,7 +7,12 @@
  * context window). The readout renders them differently, so the slice keeps them apart.
  */
 
-import { ServerMessageType, type ContextUsage, type ServerMessage } from "@pi-my-ui/protocol";
+import {
+  ServerMessageType,
+  type ContextUsage,
+  type ServerMessage,
+  type SessionRef,
+} from "@pi-my-ui/protocol";
 
 export interface ContextSlice {
   readonly usage: ContextUsage | null | undefined;
@@ -18,17 +23,34 @@ export interface ContextSlice {
 
 export function createContextSlice(): ContextSlice {
   let usage = $state<ContextUsage | null | undefined>(undefined);
+  let active: SessionRef | null = null;
 
   return {
     get usage() {
       return usage;
     },
     receive(message) {
-      if (message.type === ServerMessageType.ContextUsage) {
-        usage = message.contextUsage;
+      if (message.type === ServerMessageType.Snapshot) {
+        if (active !== null && active.id !== message.session.id) {
+          usage = undefined;
+        }
+        active = message.session;
+        return;
       }
+      if (message.type !== ServerMessageType.ContextUsage) {
+        return;
+      }
+      if (
+        active !== null &&
+        (message.session.project !== active.project || message.session.id !== active.id)
+      ) {
+        return;
+      }
+      active = message.session;
+      usage = message.contextUsage;
     },
     clear() {
+      active = null;
       usage = undefined;
     },
   };

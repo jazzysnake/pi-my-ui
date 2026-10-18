@@ -1,11 +1,12 @@
 /** The client's state, fed by one `ServerMessage` input. Slices by concern plug in here. */
 
-import type { ServerMessage } from "@pi-my-ui/protocol";
+import type { ServerMessage, SessionRef } from "@pi-my-ui/protocol";
 
 import { createComposerSlice, type ComposerSlice } from "./composer.svelte.js";
 import { createCommandsSlice, type CommandsSlice } from "./commands.svelte.js";
 import { createContextSlice, type ContextSlice } from "./context.svelte.js";
 import { createFilesSlice, type FilesSlice } from "./files.svelte.js";
+import { createProjectsSlice, type ProjectsSlice } from "./projects.svelte.js";
 import { createSessionsSlice, type SessionsSlice } from "./sessions.svelte.js";
 import { createSettingsSlice, type SettingsSlice } from "./settings.svelte.js";
 import { createSubagentsSlice, type SubagentsSlice } from "./subagents.svelte.js";
@@ -13,6 +14,7 @@ import { createTranscriptSlice, type TranscriptSlice } from "./transcript.svelte
 import { createTreeSlice, type TreeSlice } from "./tree.svelte.js";
 
 export class ClientStore {
+  readonly projects: ProjectsSlice;
   readonly transcript: TranscriptSlice = createTranscriptSlice();
   readonly files: FilesSlice = createFilesSlice();
   readonly sessions: SessionsSlice = createSessionsSlice();
@@ -23,10 +25,15 @@ export class ClientStore {
   readonly context: ContextSlice = createContextSlice();
   readonly tree: TreeSlice = createTreeSlice();
 
+  constructor(linkedProject: string | null = null) {
+    this.projects = createProjectsSlice(linkedProject);
+  }
+
   receive(message: ServerMessage): void {
+    this.projects.receive(message);
     this.transcript.receive(message);
     this.files.receive(message);
-    this.sessions.receive(message);
+    this.sessions.receive(message, this.projects.chosen);
     this.settings.receive(message);
     this.composer.receive(message);
     this.commands.receive(message);
@@ -39,8 +46,25 @@ export class ClientStore {
    * Switch the watched Session. The transcript is dropped rather than left to be replaced when the
    * new Snapshot arrives, so the previous Session is never drawn under the new one's name.
    */
-  selectSession(sessionId: string): void {
-    this.sessions.select(sessionId);
+  selectSession(session: SessionRef): void {
+    this.projects.select(session.project);
+    this.sessions.select(session.id);
+    this.transcript.clear();
+    this.settings.clear();
+    this.composer.clearError();
+    this.commands.clear();
+    this.subagents.clear();
+    this.context.clear();
+    this.tree.clear();
+  }
+
+  /**
+   * Switch the watched Project. Its Session list is asked for again, and nothing from the previous
+   * Project stays on screen while that answer is in flight.
+   */
+  selectProject(project: string): void {
+    this.projects.select(project);
+    this.sessions.clear();
     this.transcript.clear();
     this.settings.clear();
     this.composer.clearError();

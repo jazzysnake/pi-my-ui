@@ -97,8 +97,22 @@ async function writeSessionFile(
   };
 }
 
-/** Copy a committed seed into `home`, re-homed to this test's workspace. */
-export async function seedSession(home: HermeticHome, name: SeedName): Promise<FixtureSession> {
+/** How a seeded Session is re-homed when a spec serves more than one Project. */
+export interface SeedSessionOptions {
+  /** The Project whose Sessions list should discover this file; defaults to the workspace. */
+  readonly project?: string;
+  /** A distinct id, so two Projects can both hold a `plain` seed. */
+  readonly id?: string;
+  /** A distinct header timestamp, so the two seed files do not collide on disk. */
+  readonly timestamp?: string;
+}
+
+/** Copy a committed seed into `home`, re-homed to this test's workspace or a named Project. */
+export async function seedSession(
+  home: HermeticHome,
+  name: SeedName,
+  options: SeedSessionOptions = {},
+): Promise<FixtureSession> {
   const text = await readFile(join(SEEDS_DIR, `${name}.jsonl`), "utf8");
   const entries = parseSeed(text, `${name}.jsonl`);
   const header = entries[0] as SessionHeader;
@@ -106,9 +120,9 @@ export async function seedSession(home: HermeticHome, name: SeedName): Promise<F
     {
       type: "session",
       version: CURRENT_SESSION_VERSION,
-      id: header.id,
-      timestamp: header.timestamp,
-      cwd: home.workspace,
+      id: options.id ?? header.id,
+      timestamp: options.timestamp ?? header.timestamp,
+      cwd: options.project ?? home.workspace,
     },
     ...entries.slice(1),
   ];

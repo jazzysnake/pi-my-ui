@@ -231,7 +231,7 @@ describe("a message pi refuses", () => {
       store.receive({
         type: ServerMessageType.Error,
         error: { code: "internalError", message: "Agent is already processing" },
-        sessionId: SESSION_ID,
+        session: { project: "/workspace", id: SESSION_ID },
       });
     });
     const error = target.querySelector('[data-testid="composer-error"]');

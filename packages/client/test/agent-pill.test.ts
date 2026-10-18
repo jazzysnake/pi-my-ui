@@ -32,11 +32,10 @@ function snapshotOf(subagents: readonly SubagentAgent[]): SnapshotMessage {
   ];
   return {
     type: ServerMessageType.Snapshot,
-    sessionId: SESSION_ID,
+    session: { project: "/workspace", id: SESSION_ID },
     cursor: entries.length,
     projection: {
       sessionId: SESSION_ID,
-      cwd: "/workspace",
       leafId: "entry-1",
       entries,
       runState: { kind: "idle" },
@@ -49,7 +48,7 @@ function snapshotOf(subagents: readonly SubagentAgent[]): SnapshotMessage {
 function agentDelta(agent: SubagentAgent, fromCursor: number): DeltaMessage {
   return {
     type: ServerMessageType.Delta,
-    sessionId: SESSION_ID,
+    session: { project: "/workspace", id: SESSION_ID },
     fromCursor,
     cursor: fromCursor + 1,
     deltas: [{ kind: ProjectionDeltaKind.SubagentUpsert, agent }],

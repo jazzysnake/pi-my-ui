@@ -16,6 +16,15 @@ import {
 } from "./constants.js";
 import { SubagentTranscriptLookupKind, type SubagentAgent } from "./subagents.js";
 
+/**
+ * A Session is named by its Project and its id, in one value so half a key cannot be sent. pi keeps
+ * a file that exists only inside one Project, so an id alone would need a search across Projects.
+ */
+export interface SessionRef {
+  readonly project: string;
+  readonly id: string;
+}
+
 /** A position in one Session's ordered stream of Delta batches. */
 export type Cursor = number;
 
@@ -271,7 +280,6 @@ export interface SessionSummary {
 /** One Session's projected state, as a Snapshot carries it and Deltas advance it. */
 export interface SessionProjection {
   readonly sessionId: string;
-  readonly cwd: string;
   readonly leafId: string | null;
   readonly entries: readonly ProjectedEntry[];
   readonly runState: RunState;

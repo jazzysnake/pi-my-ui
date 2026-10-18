@@ -30,17 +30,16 @@ function sessionsMessage(
   sessions: readonly SessionSummary[],
   activity: Readonly<Record<string, SessionActivity>> = {},
 ): ServerMessage {
-  return { type: ServerMessageType.Sessions, sessions, activity };
+  return { type: ServerMessageType.Sessions, project: "/workspace", sessions, activity };
 }
 
 function snapshotOf(sessionId: string, entries: readonly ProjectedEntry[]): ServerMessage {
   return {
     type: ServerMessageType.Snapshot,
-    sessionId,
+    session: { project: "/workspace", id: sessionId },
     cursor: entries.length,
     projection: {
       sessionId,
-      cwd: "/workspace",
       leafId: entries.at(-1)?.id ?? null,
       entries,
       runState: { kind: IDLE },
@@ -53,7 +52,7 @@ function snapshotOf(sessionId: string, entries: readonly ProjectedEntry[]): Serv
 function deltaOf(sessionId: string, entry: ProjectedEntry): ServerMessage {
   return {
     type: ServerMessageType.Delta,
-    sessionId,
+    session: { project: "/workspace", id: sessionId },
     fromCursor: 0,
     cursor: 1,
     deltas: [{ kind: ProjectionDeltaKind.EntryUpsert, entry }],
@@ -79,7 +78,7 @@ interface Mounted {
 
 function mountShell(store: ClientStore): Mounted {
   const select = vi.fn<(sessionId: string) => void>((sessionId) => {
-    store.selectSession(sessionId);
+    store.selectSession({ project: "/workspace", id: sessionId });
   });
   const create = vi.fn<() => void>();
   const target = document.createElement("div");
@@ -194,7 +193,7 @@ describe("the session drawer over the store's ServerMessage input", () => {
     );
 
     flushSync(() => {
-      store.selectSession("session-2");
+      store.selectSession({ project: "/workspace", id: "session-2" });
     });
     expect(target.querySelector('[data-testid="transcript"]')?.textContent).not.toContain(
       "alpha transcript",
@@ -295,7 +294,7 @@ describe("the session drawer over the store's ServerMessage input", () => {
 
     // Viewing the Session advances its watermark, so the unread dot is gone.
     flushSync(() => {
-      store.selectSession("session-1");
+      store.selectSession({ project: "/workspace", id: "session-1" });
     });
     expect(row?.querySelector('[data-testid="activity-dot"]')).toBeNull();
   });
@@ -309,7 +308,7 @@ describe("the session drawer over the store's ServerMessage input", () => {
       );
     });
     flushSync(() => {
-      store.selectSession("session-1");
+      store.selectSession({ project: "/workspace", id: "session-1" });
     });
     openDrawer(target);
 

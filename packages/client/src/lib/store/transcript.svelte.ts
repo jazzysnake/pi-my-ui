@@ -15,6 +15,7 @@ import {
   type RunState,
   type ServerMessage,
   type SessionProjection,
+  type SessionRef,
 } from "@pi-my-ui/protocol";
 
 export interface TranscriptSlice {
@@ -22,8 +23,6 @@ export interface TranscriptSlice {
   /** The watched Session's id once its Projection has arrived, else `null`. */
   readonly sessionId: string | null;
   readonly runState: RunState;
-  /** The Session's working directory, empty until a Snapshot names it. */
-  readonly cwd: string;
   /** No live Projection for the watched Session yet: it is being started. */
   readonly starting: boolean;
   /** Advances for every Snapshot this slice accepts, so a view can anchor across a resync. */
@@ -37,6 +36,7 @@ export interface TranscriptSlice {
 
 export function createTranscriptSlice(): TranscriptSlice {
   let projection = $state<SessionProjection | null>(null);
+  let active: SessionRef | null = null;
   let waiting = $state(false);
   let snapshots = $state(0);
 
@@ -50,9 +50,6 @@ export function createTranscriptSlice(): TranscriptSlice {
     get runState() {
       return projection?.runState ?? { kind: RunStateKind.Idle };
     },
-    get cwd() {
-      return projection?.cwd ?? "";
-    },
     get starting() {
       return waiting;
     },
@@ -64,8 +61,10 @@ export function createTranscriptSlice(): TranscriptSlice {
       // reading. The first Snapshot is accepted because nothing has named a Session yet.
       if (
         message.type === ServerMessageType.Snapshot &&
-        (projection === null || message.sessionId === projection.sessionId)
+        (active === null ||
+          (message.session.project === active.project && message.session.id === active.id))
       ) {
+        active = message.session;
         projection = message.projection;
         waiting = false;
         snapshots += 1;
@@ -74,8 +73,10 @@ export function createTranscriptSlice(): TranscriptSlice {
       // A Delta from a switched-away Session must not advance the Projection that replaced it.
       if (
         message.type === ServerMessageType.Delta &&
+        active !== null &&
         projection !== null &&
-        message.sessionId === projection.sessionId
+        message.session.project === active.project &&
+        message.session.id === active.id
       ) {
         projection = reduceDeltaBatch(projection, message);
         waiting = false;
@@ -85,13 +86,15 @@ export function createTranscriptSlice(): TranscriptSlice {
       // forever: the server answers the request it could not serve with the Session it named.
       if (
         message.type === ServerMessageType.Error &&
-        projection !== null &&
-        message.sessionId === projection.sessionId
+        active !== null &&
+        message.session?.project === active.project &&
+        message.session.id === active.id
       ) {
         waiting = false;
       }
     },
     clear() {
+      active = null;
       projection = null;
       waiting = true;
     },

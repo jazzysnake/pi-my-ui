@@ -86,9 +86,16 @@ test("a drop rejoins after the first backoff and catches up on output produced m
     // catching up after it rejoins.
     const writer = await connectWsSession(harness.server.url);
     try {
-      writer.send({ type: "subscribe", sessionId: harness.seeded.id });
+      writer.send({
+        type: "subscribe",
+        session: { project: harness.home.workspace, id: harness.seeded.id },
+      });
       await writer.next();
-      writer.send({ type: "prompt", sessionId: harness.seeded.id, text: PROMPT });
+      writer.send({
+        type: "prompt",
+        session: { project: harness.home.workspace, id: harness.seeded.id },
+        text: PROMPT,
+      });
       await readUntilText(writer, REPLY);
     } finally {
       await writer.close();

@@ -25,12 +25,17 @@ export interface SessionRow {
 }
 
 export interface SessionsSlice {
+  /** The Project whose list these rows are, or `null` until one arrives. */
+  readonly project: string | null;
   /** The rows to draw, or `null` until the first list arrives. */
   readonly rows: readonly SessionRow[] | null;
   /** The Session the user picked, or `null` before any pick. */
   readonly activeSessionId: string | null;
-  receive(message: ServerMessage): void;
+  /** Feed a list; one for another Project is ignored, so a switch cannot keep drawing the old list. */
+  receive(message: ServerMessage, watchedProject?: string | null): void;
   select(sessionId: string): void;
+  /** Drop the list and its marks, so a switched-away Project leaves nothing behind. */
+  clear(): void;
 }
 
 /**
@@ -50,6 +55,7 @@ export function sessionDisplayName(summary: SessionSummary): string {
 }
 
 export function createSessionsSlice(): SessionsSlice {
+  let project = $state<string | null>(null);
   let summaries = $state<readonly SessionSummary[] | null>(null);
   let activity = $state<Readonly<Record<string, SessionActivity>>>({});
   /** Per-Session `lastActivityAt` at the last moment this client viewed it. */
@@ -57,6 +63,9 @@ export function createSessionsSlice(): SessionsSlice {
   let activeSessionId = $state<string | null>(null);
 
   return {
+    get project() {
+      return project;
+    },
     get rows() {
       if (summaries === null) {
         return null;
@@ -76,10 +85,14 @@ export function createSessionsSlice(): SessionsSlice {
     get activeSessionId() {
       return activeSessionId;
     },
-    receive(message) {
+    receive(message, watchedProject = null) {
       if (message.type !== ServerMessageType.Sessions) {
         return;
       }
+      if (watchedProject !== null && message.project !== watchedProject) {
+        return;
+      }
+      project = message.project;
       summaries = message.sessions;
       activity = message.activity;
       const nextViewed: Record<string, number> = { ...viewedAt };
@@ -101,6 +114,13 @@ export function createSessionsSlice(): SessionsSlice {
     // selects the initial Session must not re-run (and restart the transport) on every list.
     select(sessionId) {
       activeSessionId = sessionId;
+    },
+    clear() {
+      project = null;
+      summaries = null;
+      activity = {};
+      viewedAt = {};
+      activeSessionId = null;
     },
   };
 }

@@ -13,12 +13,15 @@ import type { AddressInfo } from "node:net";
 
 import {
   ClientMessageType,
+  ProtocolError,
+  ProtocolErrorCode,
   ServerMessageType,
   SessionMutation,
   parseClientMessage,
   toProtocolErrorInfo,
   type ClientMessage,
   type ServerMessage,
+  type SessionRef,
 } from "@pi-my-ui/protocol";
 import { WebSocket, WebSocketServer } from "ws";
 
@@ -75,6 +78,8 @@ function errnoCode(error: unknown): string {
 interface SocketAttachment {
   detach: (() => void) | undefined;
   generation: number;
+  /** The Project whose list this connection watches, set by answering its `listSessions`. */
+  watchedProject: string | null;
 }
 
 export interface RunningServer {
@@ -169,6 +174,9 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     });
     throw error;
   }
+  /** The attachment of every connected socket, so a push can reach only its Project's watchers. */
+  const attachments = new Map<WebSocket, SocketAttachment>();
+
   // The pool is created once the bound port is known, because the bridge socket's default path is
   // derived from it, and it is created before any connection is accepted.
   const pool = createSessionPool(
@@ -180,27 +188,38 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
         : { extensionEntry: config.bridge.extensionEntry }),
       gate: bridge,
     },
-    // A Session starting, settling or retrying changes a row's live state, so every viewer gets a
-    // fresh list. The push is serialized below, so two quick transitions cannot deliver out of order.
-    { onActivity: () => scheduleSessionsPush() },
+    // A Session starting, settling or retrying changes a row's live state, so the viewers watching
+    // that Project get a fresh list. The push is serialized below, so quick transitions stay ordered.
+    { onActivity: (session) => scheduleSessionsPush(session.project) },
+    registry,
   );
 
   let sessionsPush: Promise<void> = Promise.resolve();
 
-  /** Send the current list and live activity to every socket, one push at a time. */
-  function scheduleSessionsPush(): void {
+  /** Send one Project's list and live activity to the connections watching it, one push at a time. */
+  function scheduleSessionsPush(project: string): void {
     sessionsPush = sessionsPush
       .then(async () => {
         const message: ServerMessage = {
           type: ServerMessageType.Sessions,
-          sessions: await listSessions(registry.primary, config.sessionDir),
-          activity: pool.activityById(),
+          project,
+          sessions: await listSessions(project, config.sessionDir),
+          activity: pool.activityById(project),
         };
-        for (const client of sockets.clients) {
-          send(client, message);
+        for (const [client, attachment] of attachments) {
+          if (attachment.watchedProject === project) {
+            send(client, message);
+          }
         }
       })
       .catch(() => undefined);
+  }
+
+  /** Drop the currently watched Session, so a connection can move to another Project's list. */
+  function detachWatchedSession(attachment: SocketAttachment): void {
+    attachment.detach?.();
+    attachment.detach = undefined;
+    attachment.generation += 1;
   }
 
   async function handle(
@@ -216,10 +235,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       return;
     }
     const viewer: SessionViewer = { onMessage: (outbound) => send(socket, outbound) };
-    const nameSession =
-      "sessionId" in message && typeof message.sessionId === "string"
-        ? { sessionId: message.sessionId }
-        : {};
+    let named: SessionRef | undefined = "session" in message ? message.session : undefined;
     try {
       // The list is disk facts about the working directory, not a Session, so it is answered here
       // rather than by a Session host; no Pi child starts to produce it.
@@ -228,19 +244,28 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
         return;
       }
       if (message.type === ClientMessageType.ListSessions) {
+        const project = registry.require(message.project);
+        if (attachment.watchedProject !== project) {
+          // One connection watches one Project's list, so the Session it was watching belongs to the
+          // view it is leaving.
+          detachWatchedSession(attachment);
+          attachment.watchedProject = project;
+        }
         send(socket, {
           type: ServerMessageType.Sessions,
-          sessions: await listSessions(registry.primary, config.sessionDir),
-          activity: pool.activityById(),
+          project,
+          sessions: await listSessions(project, config.sessionDir),
+          activity: pool.activityById(project),
         });
         return;
       }
-      // A fresh Session has a server-generated id and no file yet, so the client is told the id and
-      // opens it; the child pi starts names its own file from that id.
+      // A fresh Session has a server-generated id and no file yet, so the client is told the pair
+      // and opens it; the child pi starts names its own file from that id.
       if (message.type === ClientMessageType.CreateSession) {
-        const host = pool.create();
-        send(socket, { type: ServerMessageType.SessionCreated, sessionId: host.sessionId });
-        scheduleSessionsPush();
+        const project = registry.require(message.project);
+        const host = pool.create(project);
+        send(socket, { type: ServerMessageType.SessionCreated, session: host.session });
+        scheduleSessionsPush(project);
         return;
       }
       // The file capability reads the server's working directory, not a Session, so it is answered
@@ -259,26 +284,54 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
         });
         return;
       }
-      const host = await pool.hostFor(message.sessionId);
-      if (message.type === ClientMessageType.Subscribe) {
-        attachment.detach?.();
-        attachment.detach = undefined;
-        attachment.generation += 1;
-        const generation = attachment.generation;
-        const detach = await host.attach(viewer, message.cursor);
-        // A browser can close its socket, or subscribe somewhere else, while its Snapshot is still
-        // being built. A detach that is latched after that would never be called, and the Session
-        // it belongs to stays watched, so it is never evicted: nothing can reclaim it.
-        if (attachment.generation !== generation || socket.readyState !== WebSocket.OPEN) {
-          detach();
+      if (
+        message.type === ClientMessageType.Subscribe ||
+        message.type === ClientMessageType.Prompt ||
+        message.type === ClientMessageType.Abort
+      ) {
+        named = message.session;
+        if (attachment.watchedProject !== message.session.project) {
+          detachWatchedSession(attachment);
+          attachment.watchedProject = message.session.project;
+        }
+        const host = await pool.hostFor(message.session);
+        if (message.type === ClientMessageType.Subscribe) {
+          // A connection watches one Session, so subscribing elsewhere releases the one it had.
+          detachWatchedSession(attachment);
+          const generation = attachment.generation;
+          const detach = await host.attach(viewer, message.cursor);
+          // A browser can close its socket, or subscribe somewhere else, while its Snapshot is still
+          // being built. A detach that is latched after that would never be called, and the Session
+          // it belongs to stays watched, so it is never evicted: nothing can reclaim it.
+          if (attachment.generation !== generation || socket.readyState !== WebSocket.OPEN) {
+            detach();
+            return;
+          }
+          attachment.detach = detach;
           return;
         }
-        attachment.detach = detach;
+        if (message.type === ClientMessageType.Prompt) {
+          await host.prompt(message.text, message.images ?? [], message.streamingBehavior);
+          return;
+        }
+        await host.abort();
         return;
       }
-      if (message.type === ClientMessageType.Prompt) {
-        await host.prompt(message.text, message.images ?? [], message.streamingBehavior);
-        return;
+      // Until every Session command names its Project, these resolve against the connection's
+      // watched Project rather than searching the served Projects for the id.
+      if ("sessionId" in message) {
+        const project = attachment.watchedProject;
+        if (project === null) {
+          throw new ProtocolError(
+            ProtocolErrorCode.MalformedPayload,
+            "a Session request needs a watched Project; list its Project's Sessions first",
+          );
+        }
+        named = { project, id: message.sessionId };
+      }
+      const host = named === undefined ? undefined : await pool.hostFor(named);
+      if (host === undefined) {
+        throw new ProtocolError(ProtocolErrorCode.MalformedPayload, "no Session was named");
       }
       if (message.type === ClientMessageType.SteerSubagent) {
         await host.steerSubagent(message.agentId, message.message);
@@ -328,8 +381,9 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
           sessionId: message.sessionId,
           name: message.name,
         });
-        // The name is disk state the drawer reads, so the list is re-read and pushed to every viewer.
-        scheduleSessionsPush();
+        // The name is disk state the drawer reads, so the list is re-read and pushed to that
+        // Project's watchers.
+        scheduleSessionsPush(host.session.project);
         return;
       }
       if (message.type === ClientMessageType.ExportSession) {
@@ -365,8 +419,8 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
               : SessionMutation.Clone,
           ...(outcome.kind === "created" ? { sessionId: outcome.sessionId } : {}),
         });
-        // The mutation wrote a Session file, so every viewer's list has a row it does not know.
-        scheduleSessionsPush();
+        // The mutation wrote a Session file, so that Project's watchers have a row they do not know.
+        scheduleSessionsPush(host.session.project);
         return;
       }
       if (message.type === ClientMessageType.GetTree) {
@@ -394,7 +448,6 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
         await host.reconnect();
         return;
       }
-      await host.abort();
     } catch (error) {
       // A bridge that is missing or silent is a server fault the owner must see, not just a browser
       // that happens to be watching.
@@ -406,7 +459,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       send(socket, {
         type: ServerMessageType.Error,
         error: toProtocolErrorInfo(error),
-        ...nameSession,
+        ...(named === undefined ? {} : { session: named }),
       });
     }
   }
@@ -429,8 +482,14 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
   });
 
   sockets.on("connection", (socket) => {
-    const attachment: SocketAttachment = { detach: undefined, generation: 0 };
+    const attachment: SocketAttachment = {
+      detach: undefined,
+      generation: 0,
+      watchedProject: null,
+    };
+    attachments.set(socket, attachment);
     socket.on("close", () => {
+      attachments.delete(socket);
       attachment.detach?.();
       attachment.detach = undefined;
     });

@@ -13,48 +13,49 @@ import {
   type CommandsMessage,
   type ContextUsage,
   type ContextUsageMessage,
+  type SessionRef,
   type SettingsMessage,
 } from "@pi-my-ui/protocol";
 
 import type { PiChild, PiSettings } from "./pi-child.js";
 import type { SessionViewer } from "./session-host.js";
 
-export function settingsMessage(sessionId: string, settings: PiSettings): SettingsMessage {
-  return { type: ServerMessageType.Settings, sessionId, ...settings };
+export function settingsMessage(session: SessionRef, settings: PiSettings): SettingsMessage {
+  return { type: ServerMessageType.Settings, session, ...settings };
 }
 
 export function commandsMessage(
-  sessionId: string,
+  session: SessionRef,
   commands: CommandsMessage["commands"],
 ): CommandsMessage {
-  return { type: ServerMessageType.Commands, sessionId, commands };
+  return { type: ServerMessageType.Commands, session, commands };
 }
 
 export function contextUsageMessage(
-  sessionId: string,
+  session: SessionRef,
   contextUsage: ContextUsage | null,
 ): ContextUsageMessage {
-  return { type: ServerMessageType.ContextUsage, sessionId, contextUsage };
+  return { type: ServerMessageType.ContextUsage, session, contextUsage };
 }
 
 /** Hand one viewer everything pi can say about a Session besides its transcript. */
 export async function sendAttachSupplements(
   viewer: SessionViewer,
-  sessionId: string,
+  session: SessionRef,
   child: () => Promise<PiChild>,
 ): Promise<void> {
   try {
-    viewer.onMessage(settingsMessage(sessionId, await (await child()).settings()));
+    viewer.onMessage(settingsMessage(session, await (await child()).settings()));
   } catch {
     // Nothing else here needs the settings, so a child that cannot answer one still serves the rest.
   }
   try {
-    viewer.onMessage(commandsMessage(sessionId, await (await child()).commands()));
+    viewer.onMessage(commandsMessage(session, await (await child()).commands()));
   } catch {
     // The palette falls back to the built-ins rather than failing the subscription.
   }
   try {
-    viewer.onMessage(contextUsageMessage(sessionId, (await (await child()).stats()).contextUsage));
+    viewer.onMessage(contextUsageMessage(session, (await (await child()).stats()).contextUsage));
   } catch {
     // The readout says a figure is unavailable; the transcript is unaffected.
   }

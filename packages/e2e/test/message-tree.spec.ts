@@ -401,7 +401,10 @@ test("a Leaf move is confirmed by pi, and an unconfirmed one is refused honestly
   const client = await connectWsSession(harness.server.url);
   try {
     const fileBytes = await readFile(harness.seeded.path, "utf8");
-    client.send({ type: "subscribe", sessionId: harness.seeded.id });
+    client.send({
+      type: "subscribe",
+      session: { project: harness.home.workspace, id: harness.seeded.id },
+    });
     const snapshot = await nextOf(client, "snapshot");
     await readAttachSurfaces(client);
 
@@ -432,7 +435,7 @@ test("a Leaf move is confirmed by pi, and an unconfirmed one is refused honestly
     const refused = await nextOf(client, "error");
     expect(refused.error.code).toBe("commandFailed");
     expect(refused.error.detail).toBe("not-an-entry");
-    expect(refused.sessionId).toBe(harness.seeded.id);
+    expect(refused.session).toEqual({ project: harness.home.workspace, id: harness.seeded.id });
 
     // The refusal left the Leaf where the confirmed move put it.
     client.send({ type: "getTree", sessionId: harness.seeded.id });

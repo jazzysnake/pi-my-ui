@@ -1,7 +1,10 @@
 /**
  * The Sessions this server serves, one Pi child each. Hosts are keyed both by the Session file pi
- * resolves and by the Session id, so a file a client already watched cannot start a second writer
- * and a fresh Session cannot be adopted twice.
+ * resolves and by the pair that names the Session on the wire, so a file a client already watched
+ * cannot start a second writer and a fresh Session cannot be adopted twice.
+ *
+ * The pair is what makes lookup a point read rather than a search: a Session id is only meaningful
+ * inside its Project, and `SessionManager.findById` is asked for that Project alone.
  *
  * The pool also decides when a child is not worth keeping: a Session nobody watches, with nothing
  * running, is evicted after the idle window. Every deadline is scheduled on the injected clock, so
@@ -11,21 +14,26 @@
 import { randomUUID } from "node:crypto";
 
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { ProtocolError, ProtocolErrorCode, type SessionActivity } from "@pi-my-ui/protocol";
+import {
+  ProtocolError,
+  ProtocolErrorCode,
+  type SessionActivity,
+  type SessionRef,
+} from "@pi-my-ui/protocol";
 
 import { DEFAULT_IDLE_TIMEOUT_MS, type ServerConfig } from "./config.js";
 import { systemClock, type ServerClock, type ServerTimer } from "./clock.js";
 import { withBridgeLaunch } from "./bridge/launch.js";
-import { primaryProject } from "./projects.js";
+import { createProjectRegistry, type ProjectRegistry } from "./projects.js";
 import { createSessionHost, type BridgeGate, type SessionHost } from "./session-host.js";
 import type { PiSessionTarget } from "./pi-child.js";
 
 export interface SessionPool {
-  hostFor(sessionId: string): Promise<SessionHost>;
-  /** Start a fresh Session with a server-generated id; the child names its own file. */
-  create(): SessionHost;
-  /** The live working state of every Session with a started child, keyed by Session id. */
-  activityById(): Readonly<Record<string, SessionActivity>>;
+  hostFor(session: SessionRef): Promise<SessionHost>;
+  /** Start a fresh Session in `project` with a server-generated id; the child names its own file. */
+  create(project: string): SessionHost;
+  /** The live working state of one Project's started children, keyed by Session id. */
+  activityById(project: string): Readonly<Record<string, SessionActivity>>;
   close(): Promise<void>;
 }
 
@@ -38,26 +46,31 @@ export interface SessionPoolBridge {
 
 /** What the pool tells its owner about the Sessions it holds. */
 export interface SessionPoolListeners {
-  readonly onActivity?: ((sessionId: string, activity: SessionActivity) => void) | undefined;
+  readonly onActivity?: ((session: SessionRef, activity: SessionActivity) => void) | undefined;
+}
+
+/** One map key for a pair, so a Project path containing the separator cannot collide with an id. */
+function pairKey(session: SessionRef): string {
+  return `${session.project}\0${session.id}`;
 }
 
 export function createSessionPool(
   config: ServerConfig,
   bridge: SessionPoolBridge,
   listeners: SessionPoolListeners = {},
+  registry: ProjectRegistry = createProjectRegistry(config.projects),
 ): SessionPool {
-  const hostsById = new Map<string, SessionHost>();
+  const hostsByPair = new Map<string, SessionHost>();
   const hostsByFile = new Map<string, SessionHost>();
   const pending = new Map<string, Promise<SessionHost>>();
   const clock: ServerClock = config.clock ?? systemClock;
   const idleTimeoutMs = config.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
   const keepAlive = config.keepAlive ?? false;
-  const project = primaryProject(config.projects);
   let eviction: ServerTimer | undefined;
   let scheduledFor: number | undefined;
 
   function uniqueHosts(): SessionHost[] {
-    return [...new Set(hostsById.values())];
+    return [...new Set(hostsByPair.values())];
   }
 
   /**
@@ -107,48 +120,51 @@ export function createSessionPool(
     scheduleEviction();
   }
 
-  function startHost(sessionId: string, target: PiSessionTarget): SessionHost {
+  function startHost(session: SessionRef, target: PiSessionTarget): SessionHost {
     const host = createSessionHost({
-      sessionId,
+      session,
       target,
       // The extension is resolved here, when a child is actually needed, so a server that never
       // starts one (the health endpoint, a static check) needs no built bridge.
-      launch: withBridgeLaunch({ cwd: project, ...config.pi }, bridge),
+      launch: withBridgeLaunch({ cwd: session.project, ...config.pi }, bridge),
       bridge: bridge.gate,
       clock,
-      onActivity: (changedSessionId, activity) => {
-        listeners.onActivity?.(changedSessionId, activity);
+      onActivity: (changed, activity) => {
+        listeners.onActivity?.(changed, activity);
         scheduleEviction();
       },
       onIdleChange: scheduleEviction,
     });
-    hostsById.set(sessionId, host);
+    hostsByPair.set(pairKey(session), host);
     scheduleEviction();
     return host;
   }
 
-  async function hostFor(sessionId: string): Promise<SessionHost> {
-    const runningById = hostsById.get(sessionId);
-    if (runningById !== undefined) {
-      return runningById;
+  async function hostFor(session: SessionRef): Promise<SessionHost> {
+    registry.require(session.project);
+    const key = pairKey(session);
+    const runningByPair = hostsByPair.get(key);
+    if (runningByPair !== undefined) {
+      return runningByPair;
     }
-    const sessionFile = SessionManager.findById(project, sessionId, config.sessionDir);
+    const sessionFile = SessionManager.findById(session.project, session.id, config.sessionDir);
     if (sessionFile === undefined) {
       throw new ProtocolError(
         ProtocolErrorCode.UnknownSession,
-        `unknown session ${JSON.stringify(sessionId)}`,
+        `unknown session ${JSON.stringify(session.id)} in ${JSON.stringify(session.project)}`,
+        session.id,
       );
     }
     const running = hostsByFile.get(sessionFile);
     if (running !== undefined) {
-      hostsById.set(sessionId, running);
+      hostsByPair.set(key, running);
       return running;
     }
     const starting = pending.get(sessionFile);
     if (starting !== undefined) {
       return await starting;
     }
-    const started = Promise.resolve(startHost(sessionId, { kind: "file", sessionFile }));
+    const started = Promise.resolve(startHost(session, { kind: "file", sessionFile }));
     pending.set(sessionFile, started);
     const host = await started;
     pending.delete(sessionFile);
@@ -158,14 +174,16 @@ export function createSessionPool(
 
   return {
     hostFor,
-    create() {
-      const sessionId = randomUUID();
-      return startHost(sessionId, { kind: "id", sessionId });
+    create(project) {
+      const session = { project: registry.require(project), id: randomUUID() };
+      return startHost(session, { kind: "id", sessionId: session.id });
     },
-    activityById() {
+    activityById(project) {
       const activity: Record<string, SessionActivity> = {};
-      for (const [sessionId, host] of hostsById) {
-        activity[sessionId] = host.activity;
+      for (const host of uniqueHosts()) {
+        if (host.session.project === project) {
+          activity[host.sessionId] = host.activity;
+        }
       }
       return activity;
     },
@@ -173,8 +191,8 @@ export function createSessionPool(
       eviction?.cancel();
       eviction = undefined;
       scheduledFor = undefined;
-      const closing = [...new Set(hostsById.values())].map((host) => host.close());
-      hostsById.clear();
+      const closing = uniqueHosts().map((host) => host.close());
+      hostsByPair.clear();
       hostsByFile.clear();
       pending.clear();
       await Promise.all(closing);

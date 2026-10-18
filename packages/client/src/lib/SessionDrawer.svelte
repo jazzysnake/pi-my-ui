@@ -10,7 +10,7 @@
 
   import Icon from "./Icon.svelte";
   import ProjectRow from "./ProjectRow.svelte";
-  import { projectLabels } from "./projects/labels.js";
+  import { projectLabeler } from "./projects/labels.js";
   import { RELATIVE_TIME_REFRESH_MS, formatRelativeTime } from "./sessions/relative-time.js";
   import { sessionDisplayName } from "./store/sessions.svelte.js";
 
@@ -44,10 +44,8 @@
         ? []
         : [chosenProject],
   );
-  const labels = $derived(projectLabels(served));
-  const currentLabel = $derived(
-    chosenProject === null ? "" : (labels.get(chosenProject) ?? chosenProject),
-  );
+  const labelOf = $derived(projectLabeler(served));
+  const currentLabel = $derived(chosenProject === null ? "" : labelOf(chosenProject));
 
   // Refresh the labels while the drawer is open, so a visible minute does not go stale without a reload.
   $effect(() => {
@@ -125,7 +123,7 @@
           {#each served as project (project)}
             <ProjectRow
               {project}
-              label={labels.get(project) ?? project}
+              label={labelOf(project)}
               current={project === chosenProject}
               onChoose={chooseProject}
             />

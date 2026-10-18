@@ -5,7 +5,7 @@
    * error, because nothing failed — the server simply serves a different list now.
    */
   import ProjectRow from "./ProjectRow.svelte";
-  import { projectLabels } from "./projects/labels.js";
+  import { projectLabeler } from "./projects/labels.js";
 
   let {
     projects,
@@ -17,7 +17,7 @@
     onChoose: (project: string) => void;
   } = $props();
 
-  const labels = $derived(projectLabels(projects));
+  const labelOf = $derived(projectLabeler(projects));
 </script>
 
 <div
@@ -42,7 +42,7 @@
   <nav class="min-h-0 flex-1 overflow-y-auto" aria-label="Project list">
     <ul data-testid="project-list">
       {#each projects as project (project)}
-        <ProjectRow {project} label={labels.get(project) ?? project} current={false} {onChoose} />
+        <ProjectRow {project} label={labelOf(project)} current={false} {onChoose} />
       {/each}
     </ul>
   </nav>

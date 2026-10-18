@@ -34,7 +34,7 @@ function serverConfig(
   port: number,
 ): Parameters<typeof startServer>[0] {
   return {
-    cwd: launch.cwd,
+    projects: [launch.cwd],
     sessionDir: home.sessionsDir,
     port,
     pi: {

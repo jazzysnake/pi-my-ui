@@ -27,6 +27,14 @@ import type {
 import type { ProtocolErrorInfo } from "./errors.js";
 import type { SessionTree } from "./tree.js";
 
+/**
+ * Ask which Projects this server serves. It reads the launch-time list, so it carries no path, no
+ * Session and no Cursor.
+ */
+export interface ListProjectsMessage {
+  readonly type: typeof ClientMessageType.ListProjects;
+}
+
 /** List this server's Sessions. A Session-free capability, so it carries no Session and no Cursor. */
 export interface ListSessionsMessage {
   readonly type: typeof ClientMessageType.ListSessions;
@@ -217,6 +225,7 @@ export interface GetSubagentTranscriptMessage {
 }
 
 export type ClientMessage =
+  | ListProjectsMessage
   | ListSessionsMessage
   | CreateSessionMessage
   | SubscribeMessage
@@ -240,6 +249,15 @@ export type ClientMessage =
   | SteerSubagentMessage
   | GetSubagentTranscriptMessage
   | ReconnectMessage;
+
+/**
+ * The Projects this server serves, as absolute paths in the order the launcher was given them. The
+ * order is the owner's, so the client's picker shows the list in the order it was typed.
+ */
+export interface ProjectsMessage {
+  readonly type: typeof ServerMessageType.Projects;
+  readonly projects: readonly string[];
+}
 
 /**
  * Every Session this server can serve, most recently active first. `sessions` stays the disk facts
@@ -398,6 +416,7 @@ export type SubagentTranscriptMessage = SubagentTranscriptLookup & {
 };
 
 export type ServerMessage =
+  | ProjectsMessage
   | SessionsMessage
   | SessionCreatedMessage
   | SnapshotMessage

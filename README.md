@@ -51,14 +51,17 @@ and there is no mode that runs without it.
 ## Run the server
 
 ```bash
-node packages/server/dist/cli.js --cwd /path/to/project --port 8787
+node packages/server/dist/cli.js --project /path/to/project --port 8787
 ```
 
-`--cwd` is the project folder the server owns; its Sessions and its files are the only ones it
-serves. It defaults to the current directory. `--port` defaults to `8787`. A healthy start prints:
+`--project` names a Project the server serves: its Sessions and its files are the only ones it
+serves for that Project. Repeat the flag to serve several Projects from one server, for example
+`--project ~/work/api --project ~/oss/api`. With no `--project` the server serves the current
+directory. `--port` defaults to `8787`. A healthy start prints one line per Project, then the
+listening line:
 
 ```text
-pi-my-ui: cwd /path/to/project
+pi-my-ui: project /path/to/project
 pi-my-ui: listening on http://127.0.0.1:8787
 ```
 
@@ -82,7 +85,7 @@ For client development, Vite serves the source and proxies the real backend:
 
 ```bash
 # terminal 1: the backend
-node packages/server/dist/cli.js --cwd /path/to/project --port 8787
+node packages/server/dist/cli.js --project /path/to/project --port 8787
 
 # terminal 2: the client
 npm exec --workspace @pi-my-ui/client -- vite dev

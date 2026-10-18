@@ -16,7 +16,7 @@ export type ShutdownSignal = (typeof SHUTDOWN_SIGNALS)[number];
 
 /** Flag names without their dashes, used as parser keys and lookup keys. */
 export const FLAG = {
-  cwd: "cwd",
+  project: "project",
   port: "port",
   host: "host",
   idleTimeout: "idle-timeout",
@@ -40,11 +40,11 @@ interface FlagSpec {
 
 /** The whole flag surface. Handed to `parseArgs` and rendered into {@link LAUNCHER_USAGE}. */
 export const FLAG_SPECS: Readonly<Record<string, FlagSpec>> = {
-  [FLAG.cwd]: {
+  [FLAG.project]: {
     type: "string",
     placeholder: "<dir>",
-    multiple: false,
-    summary: "Working directory the server is scoped to (default: the current directory)",
+    multiple: true,
+    summary: "Project directory to serve (repeatable; default: the current directory)",
   },
   [FLAG.port]: {
     type: "string",
@@ -99,7 +99,7 @@ function renderUsage(): string {
   });
 
   return [
-    `${LAUNCHER_COMMAND_NAME}: one server per working directory`,
+    `${LAUNCHER_COMMAND_NAME}: one server serving one or more Projects`,
     "",
     `Usage: ${LAUNCHER_COMMAND_NAME} [options]`,
     "",

@@ -25,8 +25,11 @@ export interface BridgeOptions {
 }
 
 export interface ServerConfig {
-  /** The project directory the server is started for. */
-  readonly cwd: string;
+  /**
+   * The Projects the server serves, already resolved to absolute paths and validated by the
+   * launcher, in the order they were given. Nothing adds to or reorders this once the server runs.
+   */
+  readonly projects: readonly string[];
   readonly sessionDir?: string | undefined;
   readonly host?: string | undefined;
   readonly port?: number | undefined;

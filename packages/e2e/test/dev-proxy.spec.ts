@@ -57,7 +57,7 @@ test("the dev server reaches real pi from a browser through the proxy", async ({
 
   try {
     server = await startServer({
-      cwd: launch.cwd,
+      projects: [launch.cwd],
       sessionDir: home.sessionsDir,
       port: home.ports.allocate(),
       pi: {

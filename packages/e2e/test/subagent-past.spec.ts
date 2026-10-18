@@ -72,7 +72,7 @@ async function startHarness(): Promise<Harness> {
 
 async function startServerFor(harness: Harness): Promise<RunningServer> {
   const server = await startServer({
-    cwd: harness.launch.cwd,
+    projects: [harness.launch.cwd],
     sessionDir: harness.home.sessionsDir,
     port: harness.home.ports.allocate(),
     pi: {

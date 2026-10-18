@@ -126,7 +126,7 @@ async function launch(script: Script, options: { piSubagents?: boolean } = {}): 
     options.piSubagents === undefined ? {} : { piSubagents: options.piSubagents };
   const launch = await scriptedPiLaunch(home, script, launchOptions);
   const server = await startServer({
-    cwd: launch.cwd,
+    projects: [launch.cwd],
     sessionDir: home.sessionsDir,
     port: home.ports.allocate(),
     pi: {

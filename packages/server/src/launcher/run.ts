@@ -7,8 +7,8 @@
  * so the sequence can be driven in-process while the entry point stays a thin shell.
  */
 
-import { statSync } from "node:fs";
-import { resolve } from "node:path";
+import { accessSync, constants, realpathSync, statSync } from "node:fs";
+import { isAbsolute, relative, resolve } from "node:path";
 
 import { DEFAULT_HOST, type ServerConfig } from "../config.js";
 import { isLoopbackHostname } from "../loopback.js";
@@ -29,7 +29,8 @@ export const LOG_PREFIX = "pi-my-ui:";
 
 /** A validated launcher configuration. */
 export interface LauncherConfig {
-  readonly cwd: string;
+  /** Absolute and `realpath`-resolved, in the order the flags were given. */
+  readonly projects: readonly string[];
   readonly host: string;
   readonly port: number;
   readonly idleTimeoutSeconds: number;
@@ -57,7 +58,8 @@ export interface LauncherHooks {
 
 export interface RunLauncherOptions extends LauncherHooks {
   readonly argv: readonly string[];
-  readonly cwd: string;
+  /** The directory a relative `--project` resolves against, which is the process's own. */
+  readonly processCwd: string;
 }
 
 function processIo(): LauncherIo {
@@ -71,27 +73,75 @@ function processIo(): LauncherIo {
   };
 }
 
-/** Resolve `--cwd`, then apply the exposure rule: beyond loopback needs an allowlist. */
+function projectError(detail: string): LauncherConfigurationError {
+  return new LauncherConfigurationError(
+    flagLabel(FLAG.project),
+    `${flagLabel(FLAG.project)} ${detail}`,
+  );
+}
+
+/** `realpath` one `--project`, then refuse anything a Pi child could not run in. */
+function resolveProject(processCwd: string, given: string): string {
+  const absolute = resolve(processCwd, given);
+  let resolved: string;
+  try {
+    resolved = realpathSync(absolute);
+  } catch (error) {
+    throw projectError(`is not a readable directory: ${absolute} (${errorText(error)})`);
+  }
+  let isDirectory: boolean;
+  try {
+    isDirectory = statSync(resolved).isDirectory();
+    accessSync(resolved, constants.R_OK);
+  } catch (error) {
+    throw projectError(`is not a readable directory: ${resolved} (${errorText(error)})`);
+  }
+  if (!isDirectory) {
+    throw projectError(`must be a directory, but ${resolved} is not`);
+  }
+  return resolved;
+}
+
+/** Whether `child` sits anywhere below `parent`, so both cannot be served as separate roots. */
+function contains(parent: string, child: string): boolean {
+  const below = relative(parent, child);
+  return below !== "" && !below.startsWith("..") && !isAbsolute(below);
+}
+
+/**
+ * Resolve every `--project` and refuse a list that cannot describe distinct roots. The order the
+ * owner typed is kept, because that is the order the picker shows.
+ */
+function resolveProjects(processCwd: string, given: readonly string[]): readonly string[] {
+  const resolved = (given.length === 0 ? ["."] : given).map((entry) =>
+    resolveProject(processCwd, entry),
+  );
+  const seen = new Set<string>();
+  for (const project of resolved) {
+    if (seen.has(project)) {
+      throw projectError(`names the same Project twice: ${project}`);
+    }
+    seen.add(project);
+  }
+  for (const [index, project] of resolved.entries()) {
+    const enclosing = resolved.find(
+      (other, otherIndex) => otherIndex !== index && contains(other, project),
+    );
+    if (enclosing !== undefined) {
+      throw projectError(
+        `serves ${project}, which is inside the served Project ${enclosing}; Projects may not nest`,
+      );
+    }
+  }
+  return resolved;
+}
+
+/** Resolve the served Projects, then apply the exposure rule: beyond loopback needs an allowlist. */
 export function resolveLauncherConfig(
   values: LauncherArguments,
   processCwd: string,
 ): LauncherConfig {
-  const cwd = resolve(processCwd, values.cwd ?? ".");
-  let isDirectory: boolean;
-  try {
-    isDirectory = statSync(cwd).isDirectory();
-  } catch (error) {
-    throw new LauncherConfigurationError(
-      flagLabel(FLAG.cwd),
-      `${flagLabel(FLAG.cwd)} is not a readable directory: ${cwd} (${errorText(error)})`,
-    );
-  }
-  if (!isDirectory) {
-    throw new LauncherConfigurationError(
-      flagLabel(FLAG.cwd),
-      `${flagLabel(FLAG.cwd)} must be a directory, but ${cwd} is not`,
-    );
-  }
+  const projects = resolveProjects(processCwd, values.projects);
 
   if (values.host.trim().length === 0) {
     // An empty `--host` reaches `listen(port, "")`, which binds every interface; refuse rather than
@@ -111,7 +161,7 @@ export function resolveLauncherConfig(
   }
 
   return {
-    cwd,
+    projects,
     host: values.host,
     port: values.port,
     idleTimeoutSeconds: values.idleTimeoutSeconds,
@@ -122,7 +172,7 @@ export function resolveLauncherConfig(
 
 function toServerConfig(config: LauncherConfig): ServerConfig {
   return {
-    cwd: config.cwd,
+    projects: config.projects,
     host: config.host,
     port: config.port,
     allowedOrigins: config.allowedOrigins,
@@ -180,7 +230,7 @@ export async function runLauncher(options: RunLauncherOptions): Promise<number> 
       return EXIT_OK;
     }
 
-    const config = resolveLauncherConfig(parsed.values, options.cwd);
+    const config = resolveLauncherConfig(parsed.values, options.processCwd);
     const start = options.startServer ?? startServer;
     const signals = options.signals ?? process;
     const pending = watchShutdownSignals(signals);
@@ -193,7 +243,9 @@ export async function runLauncher(options: RunLauncherOptions): Promise<number> 
       throw error instanceof ServerBindError ? launcherBindError(error) : error;
     }
 
-    io.out(`${LOG_PREFIX} cwd ${config.cwd}`);
+    for (const project of config.projects) {
+      io.out(`${LOG_PREFIX} project ${project}`);
+    }
     io.out(`${LOG_PREFIX} listening on ${server.httpUrl}`);
 
     const signal = await pending.promise;

@@ -17,7 +17,8 @@ export const MIN_IDLE_TIMEOUT_SECONDS = 1;
 
 /** The flags as parsed, with every default applied. */
 export interface LauncherArguments {
-  readonly cwd: string | undefined;
+  /** As given on the command line; empty means the current directory. */
+  readonly projects: readonly string[];
   readonly host: string;
   readonly port: number;
   readonly idleTimeoutSeconds: number;
@@ -126,7 +127,7 @@ export function parseLauncherArgs(argv: readonly string[]): ParsedLauncherArgs {
   return {
     kind: "launch",
     values: {
-      cwd: readString(parsedValues, FLAG.cwd),
+      projects: readStringList(parsedValues, FLAG.project),
       host: readString(parsedValues, FLAG.host) ?? DEFAULT_HOST,
       port:
         portValue === undefined

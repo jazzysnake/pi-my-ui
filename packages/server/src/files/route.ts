@@ -34,8 +34,8 @@ export const FILE_DOWNLOAD_METHOD = "POST";
 const DISPOSITION_ASCII_FALLBACK = "file";
 
 export interface FileRouteOptions {
-  /** The served root: one server serves one working directory, so this is the one root. */
-  readonly cwd: string;
+  /** The Project this download is rooted at: containment is checked against exactly this one. */
+  readonly project: string;
   readonly trust: TrustPolicy;
   readonly log: (line: string) => void;
 }
@@ -121,7 +121,7 @@ export function handleFileDownload(
 
   let target;
   try {
-    target = openFileTarget(options.cwd, requested);
+    target = openFileTarget(options.project, requested);
   } catch (error) {
     if (error instanceof FileAccessError) {
       const status = statusFor(error);

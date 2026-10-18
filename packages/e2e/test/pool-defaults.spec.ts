@@ -39,7 +39,7 @@ async function startHarness(): Promise<Harness> {
   const launch = await scriptedPiLaunch(home, UNUSED_SCRIPT);
   const clock = createManualClock();
   const server = await startServer({
-    cwd: launch.cwd,
+    projects: [launch.cwd],
     sessionDir: home.sessionsDir,
     port: home.ports.allocate(),
     pi: {

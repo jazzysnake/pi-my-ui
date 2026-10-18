@@ -30,6 +30,7 @@ import { handleFileDownload, isFileDownloadPath } from "./files/route.js";
 import { listDirectory } from "./files/listing.js";
 import { readPreview } from "./files/preview.js";
 import { createTrustPolicy } from "./origin.js";
+import { createProjectRegistry } from "./projects.js";
 import type { SessionViewer } from "./session-host.js";
 import { createSessionPool } from "./session-pool.js";
 import { listSessions } from "./sessions.js";
@@ -107,6 +108,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       process.stderr.write(`${line}\n`);
     });
   const trust = createTrustPolicy(config.allowedOrigins ?? []);
+  const registry = createProjectRegistry(config.projects);
 
   const httpServer = createHttpServer((request, response) => {
     const pathname = pathnameOf(request.url);
@@ -116,7 +118,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       return;
     }
     if (isFileDownloadPath(pathname)) {
-      handleFileDownload(request, response, { cwd: config.cwd, trust, log });
+      handleFileDownload(request, response, { project: registry.primary, trust, log });
       return;
     }
     response.writeHead(404);
@@ -191,7 +193,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       .then(async () => {
         const message: ServerMessage = {
           type: ServerMessageType.Sessions,
-          sessions: await listSessions(config.cwd, config.sessionDir),
+          sessions: await listSessions(registry.primary, config.sessionDir),
           activity: pool.activityById(),
         };
         for (const client of sockets.clients) {
@@ -221,10 +223,14 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     try {
       // The list is disk facts about the working directory, not a Session, so it is answered here
       // rather than by a Session host; no Pi child starts to produce it.
+      if (message.type === ClientMessageType.ListProjects) {
+        send(socket, { type: ServerMessageType.Projects, projects: registry.projects });
+        return;
+      }
       if (message.type === ClientMessageType.ListSessions) {
         send(socket, {
           type: ServerMessageType.Sessions,
-          sessions: await listSessions(config.cwd, config.sessionDir),
+          sessions: await listSessions(registry.primary, config.sessionDir),
           activity: pool.activityById(),
         });
         return;
@@ -242,14 +248,14 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       if (message.type === ClientMessageType.ListDirectory) {
         send(socket, {
           type: ServerMessageType.DirectoryListing,
-          ...listDirectory(config.cwd, message.path),
+          ...listDirectory(registry.primary, message.path),
         });
         return;
       }
       if (message.type === ClientMessageType.PreviewFile) {
         send(socket, {
           type: ServerMessageType.FilePreview,
-          ...readPreview(config.cwd, message.path),
+          ...readPreview(registry.primary, message.path),
         });
         return;
       }

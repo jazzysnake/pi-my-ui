@@ -1,8 +1,8 @@
 # Running pi-my-ui as a service
 
-Keep one `pi-my-ui` server per project running across SSH logins and reboots. On Linux this is a
-**systemd user unit**; on macOS it is a **launchd LaunchAgent**. Both run the same entry point with
-the same flags and restart on failure.
+Keep one `pi-my-ui` server running across SSH logins and reboots; that one server serves every
+Project you pass as `--project`. On Linux this is a **systemd user unit**; on macOS it is a
+**launchd LaunchAgent**. Both run the same entry point with the same flags and restart on failure.
 
 The server binds **loopback only** by default. Caddy is what the phone reaches; this guide is the
 service half, and the [Caddy + Tailscale guide](caddy.md) is the proxy half.
@@ -14,7 +14,7 @@ service half, and the [Caddy + Tailscale guide](caddy.md) is the proxy half.
 | `/home/<you>` | your home directory                                            | `/home/ana`                                 |
 | `/Users/<you>` | your home directory on macOS                                  | `/Users/ana`                                |
 | `<repo>`     | where you cloned pi-my-ui                                       | `pi-my-ui`                                  |
-| `<project>`  | the project whose Sessions this server owns                     | `webapp`                                    |
+| `<project>`  | one Project the server serves, as an absolute path                | `/home/ana/projects/webapp`                 |
 | `<port>`     | a TCP port unique **on this machine**                           | `8787`                                      |
 | `<origin>`   | the exact browser origin from the Caddy guide                   | `https://laptop.tailnet-name.ts.net`        |
 
@@ -63,7 +63,7 @@ The flags (`--help` prints the same list):
 
 | Flag                        | Meaning                                                                     | Default               |
 | --------------------------- | --------------------------------------------------------------------------- | --------------------- |
-| `--cwd <dir>`               | Working directory the server is scoped to; its Sessions and files           | the current directory |
+| `--project <dir>`           | Project to serve; repeatable; defaults to the process's directory          | the current directory |
 | `--port <port>`             | TCP port to listen on                                                       | `8787`                |
 | `--host <address>`          | Address to bind; beyond loopback requires `--allowed-origin`                 | `127.0.0.1`           |
 | `--idle-timeout <seconds>`  | Evict an idle, unwatched Session's child after this long                    | `120`                 |
@@ -71,10 +71,11 @@ The flags (`--help` prints the same list):
 | `--allowed-origin <origin>` | Browser origin allowed to connect; repeatable; a bare `scheme://host[:port]` | none                  |
 | `-h`, `--help`              | Print usage and exit                                                        | —                     |
 
-On start it prints one line per fact to stdout:
+On start it prints one `pi-my-ui: project` line per served Project, then the listening line:
 
 ```text
-pi-my-ui: cwd /home/<you>/projects/<project>
+pi-my-ui: project /home/<you>/projects/<project-a>
+pi-my-ui: project /home/<you>/projects/<project-b>
 pi-my-ui: listening on http://127.0.0.1:8787
 ```
 
@@ -85,12 +86,15 @@ go to stderr. Keep both streams; they are the service's record.
 
 ```bash
 node /home/<you>/<repo>/packages/server/dist/cli.js \
-  --cwd /home/<you>/projects/<project> \
+  --project /home/<you>/projects/<project-a> \
+  --project /home/<you>/projects/<project-b> \
   --host 127.0.0.1 \
   --port <port> \
   --allowed-origin <origin>
 ```
 
+- `--project` names one Project: one absolute path whose Sessions and files the server serves. Repeat
+  it for every Project you want on the phone; one server, one port and one origin serve all of them.
 - `--host 127.0.0.1` is the default, written out so the security intent is visible: only the local
   Caddy can reach the server.
 - `--allowed-origin <origin>` is what lets the page Caddy serves open the WebSocket. It must be one
@@ -102,20 +106,20 @@ node /home/<you>/<repo>/packages/server/dist/cli.js \
 ## Linux — a systemd user unit
 
 A unit's **name is its filename stem**, so the file and every `systemctl`/`journalctl` command below
-share one spelling: `pi-my-ui.<project>` (with `<project>` = `webapp`, the file is
-`pi-my-ui.webapp.service` and the command is `systemctl --user … pi-my-ui.webapp`).
+share one spelling: `pi-my-ui` (the file is `pi-my-ui.service` and the command is
+`systemctl --user … pi-my-ui`). One unit serves every Project.
 
-Create `~/.config/systemd/user/pi-my-ui.<project>.service`:
+Create `~/.config/systemd/user/pi-my-ui.service`:
 
 ```ini
 [Unit]
-Description=pi-my-ui server for <project> (/home/<you>/projects/<project>)
+Description=pi-my-ui server for the Projects in --project
 
 [Service]
 Type=simple
 WorkingDirectory=/home/<you>/<repo>
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
-ExecStart=/usr/bin/node /home/<you>/<repo>/packages/server/dist/cli.js --cwd /home/<you>/projects/<project> --host 127.0.0.1 --port <port> --allowed-origin <origin>
+ExecStart=/usr/bin/node /home/<you>/<repo>/packages/server/dist/cli.js --project /home/<you>/projects/<project-a> --project /home/<you>/projects/<project-b> --host 127.0.0.1 --port <port> --allowed-origin <origin>
 Restart=on-failure
 RestartSec=2
 KillSignal=SIGTERM
@@ -131,9 +135,9 @@ Line by line:
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
 | `Description=`                             | An identifier in `systemctl --user status` and the journal.                                             |
 | `Type=simple`                              | The server is a foreground process that stays up.                                                       |
-| `WorkingDirectory=`                        | The process's initial directory; `--cwd` still sets the server's scope explicitly.                      |
+| `WorkingDirectory=`                        | The process's initial directory; a relative `--project` resolves against it.                            |
 | `Environment=PATH=…`                       | Must contain the directory with `node`, because each Pi child is spawned as `node` by name. Adjust it to `command -v node`. |
-| `ExecStart=`                               | Absolute `node`, absolute `dist/cli.js`, and this project's `--cwd`, `--port` and `--allowed-origin`. Adjust `/usr/bin/node` if your node lives elsewhere. |
+| `ExecStart=`                               | Absolute `node`, absolute `dist/cli.js`, one `--project` per served Project, then `--port` and `--allowed-origin`. Adjust `/usr/bin/node` if your node lives elsewhere. |
 | `Restart=on-failure`                       | Restart after a crash. A clean exit after `SIGTERM` is not restarted, matching launchd's `KeepAlive`.    |
 | `RestartSec=2`                             | A pause between attempts, so a crash loop does not spin.                                                |
 | `KillSignal=SIGTERM`                       | The server catches it and runs its bounded shutdown, stopping every Pi child it started.                 |
@@ -144,9 +148,9 @@ Install and start it (run these yourself; see [User actions](#user-actions)):
 
 ```bash
 mkdir -p ~/.config/systemd/user
-# write the unit file at ~/.config/systemd/user/pi-my-ui.<project>.service
+# write the unit file at ~/.config/systemd/user/pi-my-ui.service
 systemctl --user daemon-reload
-systemctl --user enable --now pi-my-ui.<project>
+systemctl --user enable --now pi-my-ui
 # keep the user manager, and the service, running after you log out:
 loginctl enable-linger "$USER"
 ```
@@ -156,9 +160,9 @@ starts at boot and survives logout.
 
 ## macOS — a launchd LaunchAgent
 
-Create `~/Library/LaunchAgents/pi-my-ui.<project>.plist`. The example below uses user `ana`, repo
-`pi-my-ui`, project `webapp`, port `8787` and the tailnet name from §2; substitute your own values,
-including the node path from `command -v node`:
+Create `~/Library/LaunchAgents/pi-my-ui.plist`. The example below uses user `ana`, repo `pi-my-ui`,
+two Projects (`webapp` and `api`), port `8787` and the tailnet name from §2; substitute your own
+values, including the node path from `command -v node`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -166,14 +170,16 @@ including the node path from `command -v node`:
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>pi-my-ui.webapp</string>
+  <string>pi-my-ui</string>
 
   <key>ProgramArguments</key>
   <array>
     <string>/usr/local/bin/node</string>
     <string>/Users/ana/pi-my-ui/packages/server/dist/cli.js</string>
-    <string>--cwd</string>
+    <string>--project</string>
     <string>/Users/ana/projects/webapp</string>
+    <string>--project</string>
+    <string>/Users/ana/projects/api</string>
     <string>--host</string>
     <string>127.0.0.1</string>
     <string>--port</string>
@@ -201,9 +207,9 @@ including the node path from `command -v node`:
   </dict>
 
   <key>StandardOutPath</key>
-  <string>/Users/ana/Library/Logs/pi-my-ui/webapp.out.log</string>
+  <string>/Users/ana/Library/Logs/pi-my-ui/pi-my-ui.out.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/ana/Library/Logs/pi-my-ui/webapp.err.log</string>
+  <string>/Users/ana/Library/Logs/pi-my-ui/pi-my-ui.err.log</string>
 </dict>
 </plist>
 ```
@@ -214,7 +220,7 @@ Line by line:
 | ---------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `Label`                                        | The job's unique name, used by every `launchctl` command; it must match the filename stem.           |
 | `ProgramArguments`                             | The argv, one string per token: launchd runs no shell, so the command is split out.                  |
-| `WorkingDirectory`                             | The initial directory; `--cwd` still sets the server's scope.                                        |
+| `WorkingDirectory`                             | The initial directory; a relative `--project` resolves against it.                                   |
 | `EnvironmentVariables` → `PATH`                | Must contain the directory with `node`, because each Pi child is spawned as `node` by name. Adjust it to `command -v node`.          |
 | `RunAtLoad`                                    | Start the job when it is loaded, at login.                                                           |
 | `KeepAlive` → `SuccessfulExit=false`           | Restart on failure and leave it stopped after a clean `SIGTERM` exit.                                |
@@ -224,37 +230,42 @@ Load it (run these yourself):
 
 ```bash
 mkdir -p ~/Library/Logs/pi-my-ui
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/pi-my-ui.<project>.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/pi-my-ui.plist
 ```
 
 On macOS, `XDG_RUNTIME_DIR` is not set, so the bridge socket falls back to the per-user temp
 directory (`os.tmpdir()`). That is normal; no extra environment variable is needed. The server creates
 the socket directory user-only and removes it on shutdown.
 
-## Several projects at once
+## Serving several Projects
 
-The server is **per working directory**: one server, one working directory, one port. Run one unit per
-project, each with its own `--cwd`, `--port` and `--allowed-origin`:
+One server serves every Project, so one unit is enough. Repeat `--project` in the unit's command:
 
-| Project       | Unit / Label              | `--cwd`                         | `--port` | `--allowed-origin`                  |
-| ------------- | ------------------------- | ------------------------------- | -------- | ----------------------------------- |
-| `<project-a>` | `pi-my-ui.<project-a>`    | `/home/<you>/projects/<a>`      | `8787`   | `https://laptop.tailnet-name.ts.net` |
-| `<project-b>` | `pi-my-ui.<project-b>`    | `/home/<you>/projects/<b>`      | `8788`   | `https://laptop.tailnet-name.ts.net:8444` |
+```bash
+node /home/<you>/<repo>/packages/server/dist/cli.js \
+  --project /home/<you>/projects/<project-a> \
+  --project /home/<you>/projects/<project-b> \
+  --host 127.0.0.1 \
+  --port 8787 \
+  --allowed-origin https://laptop.tailnet-name.ts.net
+```
 
-- The default port is `8787`; give every other project a different one above 1023.
-- Each project needs its own phone address. On one hostname the second project uses its own port,
-  which is part of the origin, so the allowlist value includes the port. The
-  [Caddy guide](caddy.md#42-more-than-one-project) has that site block.
-- Check a port is free before assigning it:
+- One port and one origin cover every Project, so there is one Caddy site and one `--allowed-origin`
+  value however many Projects the server serves. The [Caddy guide](caddy.md#42-more-than-one-project)
+  shows the single site.
+- The flag order is the order the phone's Project picker uses. Duplicate paths and Projects nested in
+  one another are refused at startup with an error naming the path.
+- Add a Project by adding one `--project` and restarting the unit; remove one by deleting it.
+- Check the port is free before first use:
   ```bash
-  ss -ltn | grep -E ':(8787|8788)\b'         # Linux
+  ss -ltn | grep -E ':8787\b'               # Linux
   lsof -nP -iTCP -sTCP:LISTEN | grep 8787   # macOS
   ```
 
 ### What happens when the port is taken
 
 The launcher fails loudly with a typed error naming `--port`; it does not pick another port or
-half-start. Starting a second server on a bound port exits `1` with:
+half-start. Starting a second copy of the server on a bound port exits `1` with:
 
 ```text
 pi-my-ui: could not bind "127.0.0.1":8787: the port is already in use; change --port (EADDRINUSE)
@@ -266,36 +277,36 @@ it by changing `--port` and the Caddy upstream.
 
 ## Operations
 
-Replace `pi-my-ui.<project>` with your unit or label name.
+Commands below use the unit or label name `pi-my-ui`.
 
 ### Where the logs go
 
 - **systemd** — stdout and stderr go to the user journal:
   ```bash
-  journalctl --user -u pi-my-ui.<project> -f          # follow
-  journalctl --user -u pi-my-ui.<project> -n 100      # last 100 lines
+  journalctl --user -u pi-my-ui -f          # follow
+  journalctl --user -u pi-my-ui -n 100      # last 100 lines
   ```
   The startup lines and the `SIGTERM received, shutting down` line are here, as are bridge warnings
   and refused-origin lines.
 - **launchd** — the files from the plist:
   ```bash
-  tail -f ~/Library/Logs/pi-my-ui/<project>.out.log
-  tail -f ~/Library/Logs/pi-my-ui/<project>.err.log
+  tail -f ~/Library/Logs/pi-my-ui/pi-my-ui.out.log
+  tail -f ~/Library/Logs/pi-my-ui/pi-my-ui.err.log
   ```
 
 ### Restart and stop
 
 ```bash
-systemctl --user restart pi-my-ui.<project>                          # Linux
-launchctl kickstart -k gui/$(id -u)/pi-my-ui.<project>               # macOS
+systemctl --user restart pi-my-ui                          # Linux
+launchctl kickstart -k gui/$(id -u)/pi-my-ui               # macOS
 
-systemctl --user stop pi-my-ui.<project>                             # Linux
-launchctl bootout gui/$(id -u)/pi-my-ui.<project>                    # macOS: unloads the job
+systemctl --user stop pi-my-ui                             # Linux
+launchctl bootout gui/$(id -u)/pi-my-ui                    # macOS: unloads the job
 ```
 
 `launchctl bootout` unloads the agent entirely; load it again with `launchctl bootstrap`. To stop
-without unloading, use `launchctl kill SIGTERM gui/$(id -u)/pi-my-ui.<project>`. To keep it stopped
-across reboots, `systemctl --user disable pi-my-ui.<project>` or remove the plist.
+without unloading, use `launchctl kill SIGTERM gui/$(id -u)/pi-my-ui`. To keep it stopped
+across reboots, `systemctl --user disable pi-my-ui` or remove the plist.
 
 ### Confirm the server is up
 
@@ -340,7 +351,7 @@ resume from their files.
 
 | What you see                                                                 | Why                                                                 | What to do                                                                 |
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| A restart loop in the journal, with `the port is already in use; change --port` | Two units share a port.                                              | Give this project a free `--port` and update its Caddy upstream.            |
+| A restart loop in the journal, with `the port is already in use; change --port` | Another process, or a second copy of this server, holds the port.    | Free the `--port` or change it and update the Caddy upstream.               |
 | `refusing to bind to 0.0.0.0: binding beyond loopback requires at least one --allowed-origin` | `--host` was widened without an origin.                              | Keep `--host 127.0.0.1` and let Caddy be the only surface, or add the origin. |
 | `--allowed-origin must be a bare origin …`                                    | The value has a path, query, fragment, credentials or a wildcard.    | Use one bare `scheme://host[:port]` per flag, repeated as needed.           |
 | The service is up (`/healthz` is 200) but the phone never connects            | The allowed origin does not match the browser's origin.              | Compare the `refused WebSocket upgrade` line's origin with `--allowed-origin`. |
@@ -348,7 +359,7 @@ resume from their files.
 | `spawn node ENOENT`, or a Session errors immediately after a deploy            | The service's `PATH` lacks the directory containing `node`.          | Fix `Environment=` / `EnvironmentVariables`, then restart.                  |
 | pi reports a missing credential                                              | The service does not run as the user who logged in to pi, or `HOME` is wrong. | Run the service as that user and confirm `~/.pi` exists for it.              |
 | The service stops when you log out (Linux)                                    | `loginctl enable-linger "$USER"` was not run.                        | Enable linger, then start the unit again.                                   |
-| `launchctl bootstrap` fails with `Bootstrap failed: 5: Input/output error`    | The job is already loaded.                                           | `launchctl bootout gui/$(id -u)/pi-my-ui.<project>`, then bootstrap again.   |
+| `launchctl bootstrap` fails with `Bootstrap failed: 5: Input/output error`    | The job is already loaded.                                           | `launchctl bootout gui/$(id -u)/pi-my-ui`, then bootstrap again.            |
 | After a pull the service runs old code                                        | `dist/` was not rebuilt.                                             | `npm ci && npm run build`, then restart the unit.                           |
 
 ## User actions
@@ -358,14 +369,14 @@ Things only you can do, in order. None are run by the repository's checks.
 1. **Once per machine:** `cd /home/<you>/<repo> && npm ci && npm run build`; confirm
    `command -v node` and note its directory for the unit's `PATH`; confirm `~/.pi` has working pi
    credentials for the service user.
-2. **Once per project (Linux):** write
-   `~/.config/systemd/user/pi-my-ui.<project>.service`, replacing every placeholder; run
-   `systemctl --user daemon-reload`, `systemctl --user enable --now pi-my-ui.<project>`, and
-   `loginctl enable-linger "$USER"`; check
+2. **Once (Linux):** write `~/.config/systemd/user/pi-my-ui.service`, replacing every placeholder and
+   listing each Project as its own `--project`; run `systemctl --user daemon-reload`,
+   `systemctl --user enable --now pi-my-ui`, and `loginctl enable-linger "$USER"`; check
    `curl -fsS http://127.0.0.1:<port>/healthz`.
-3. **Once per project (macOS):** write `~/Library/LaunchAgents/pi-my-ui.webapp.plist` from the
-   example, replacing every value with your own; `launchctl bootstrap gui/$(id -u)
-   ~/Library/LaunchAgents/pi-my-ui.webapp.plist`; check the same health URL.
+3. **Once (macOS):** write `~/Library/LaunchAgents/pi-my-ui.plist` from the example, replacing every
+   value with your own; `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/pi-my-ui.plist`;
+   check the same health URL.
 4. **Once for reachability:** set up Caddy plus Tailscale per the
    [Caddy + Tailscale guide](caddy.md), using the same port and origin as the unit.
-5. **Per additional project:** repeat with a distinct port, origin and unit name.
+5. **Per additional Project:** add another `--project` to the same unit and restart it; the port,
+   origin and Caddy site stay as they are.

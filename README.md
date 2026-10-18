@@ -54,11 +54,16 @@ and there is no mode that runs without it.
 node packages/server/dist/cli.js --project /path/to/project --port 8787
 ```
 
-`--project` names a Project the server serves: its Sessions and its files are the only ones it
-serves for that Project. Repeat the flag to serve several Projects from one server, for example
-`--project ~/work/api --project ~/oss/api`. With no `--project` the server serves the current
-directory. `--port` defaults to `8787`. A healthy start prints one line per Project, then the
-listening line:
+`--project` names one Project the server serves: one absolute path, whose Sessions and files are the
+only ones served for that Project. Repeat the flag to serve several Projects from one server, for
+example `--project ~/work/api --project ~/oss/api`. With no `--project` the server serves the current
+directory. `--port` defaults to `8787`. One server means one URL and one WebSocket, however many
+Projects it serves.
+
+The browser opens on the Project picker, remembers the last Project you chose on that device, and
+skips the picker when the server serves exactly one. `?project=<absolute path>` opens a Project
+directly, so a bookmark or homescreen shortcut lands in the right repository. A healthy start prints
+one `pi-my-ui: project <path>` line per Project, then the listening line:
 
 ```text
 pi-my-ui: project /path/to/project
@@ -70,15 +75,17 @@ serves. `node packages/server/dist/cli.js --help` lists every flag; the user gui
 in [Launcher flags](docs/guide.md#launcher-flags).
 
 The printed address is a backend address. `GET /healthz` answers
-`{"status":"ok","service":"pi-my-ui-server"}` and `POST /files/download` streams one file; every
-other path, including `/`, answers `404`. Stop the server with `Ctrl-C`: it stops every Pi child it
-started before exiting.
+`{"status":"ok","service":"pi-my-ui-server"}` and `POST /files/download?project=…&path=…` streams
+one file; every other path, including `/`, answers `404`. Stop the server with `Ctrl-C`: it stops
+every Pi child it started before exiting.
 
 ## Run the client
 
 In production, Caddy serves `packages/client/dist` and reverse-proxies `/ws`, `/healthz` and
 `/files/download` to the server. The [Caddy + Tailscale guide](docs/deploy/caddy.md) has the
-Caddyfile. The page address names the Session to open, as `?session=<id>`; the
+Caddyfile. The page address names the Project to open, as `?project=<absolute path>`, and, within it,
+the Session, as `?session=<id>`. A Session link also needs its Project: either `?project=` in the
+same address, or a Project this device remembers, or a server that serves only one. The
 [user guide](docs/guide.md#5-opening-a-session) explains how to get an id.
 
 For client development, Vite serves the source and proxies the real backend:
@@ -91,8 +98,10 @@ node packages/server/dist/cli.js --project /path/to/project --port 8787
 npm exec --workspace @pi-my-ui/client -- vite dev
 ```
 
-Open the URL Vite prints. With no `?session=` the link still connects, the Sessions list opens, and
-its `+` starts a new Session; adding `?session=<id>` opens that Session directly. The proxy forwards
+Open the URL Vite prints. With no `?project=` the link connects and shows the picker, or the only
+Project; choosing one opens its Sessions, and its `+` starts a new Session. Adding
+`?project=<absolute path>` lands in that Project, and adding `?session=<id>` as well opens that
+Session directly. The proxy forwards
 `/ws` and `/healthz` to `http://127.0.0.1:8787`; set `PI_MY_UI_BACKEND_ORIGIN` to point it at a
 backend on another port. File downloads are not proxied in development, so the download button needs
 the Caddy setup. A browser on `localhost` or `127.0.0.1` is accepted without an allowlist; if you

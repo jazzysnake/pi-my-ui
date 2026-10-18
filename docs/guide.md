@@ -53,25 +53,30 @@ This produces the server (`packages/server/dist/cli.js`), the phone client
 
 ## 4. Start the server
 
-Start one server for the project you want to work in:
+Start one server for the Projects you want to work in:
 
 ```bash
-node packages/server/dist/cli.js --cwd /path/to/project --port 8787
+node packages/server/dist/cli.js --project /path/to/project --port 8787
 ```
 
-- `--cwd` is the project folder that server owns. Its Sessions and its files are the only ones it
-  serves. It defaults to the folder you run the command from.
-- `--port` defaults to `8787`. Use a different port for each project (see
-  [Running several projects](#14-running-several-projects)).
+- `--project` names one Project the server serves: one absolute path, whose Sessions and files are
+  the only ones served for that Project. Repeat the flag to serve several from one server. With no
+  `--project` the server serves the folder you run the command from.
+- `--port` defaults to `8787`. One server serves every Project, so the port does not change with
+  them (see [Running several Projects](#14-running-several-projects)).
 - Leave `--host` alone for the Caddy setup. The default is `127.0.0.1`, so only the local Caddy can
   reach the server.
 
-A healthy start prints:
+A healthy start prints one `pi-my-ui: project` line per Project, then the listening line:
 
 ```text
-pi-my-ui: cwd /path/to/project
+pi-my-ui: project /path/to/project
 pi-my-ui: listening on http://127.0.0.1:8787
 ```
+
+The phone uses one address and one connection for every Project. The browser remembers the last
+Project you chose on that device and shows the Project picker when it remembers none; a server that
+serves exactly one Project skips the picker.
 
 The `listening on` address is for the **laptop** only, and it is a **backend** address: opening it in
 a browser gives a 404, because the server serves no pages. The phone UI comes from Caddy, which
@@ -82,25 +87,28 @@ To stop the server, press `Ctrl-C`. It shuts down cleanly and stops every `pi` p
 
 ## 5. Opening a Session
 
-The page opens the Session named in its address, as `?session=<id>`:
+The page address names a Project, as `?project=<absolute path>`, and optionally the Session to open
+in it, as `?session=<id>`:
 
 ```text
-https://laptop.tailnet-name.ts.net/?session=<session-id>
+https://laptop.tailnet-name.ts.net/?project=/home/you/projects/api&session=<session-id>
 ```
 
-The id is the Session's own id, the one in its file name under pi's session directory
-(`~/.pi/agent/sessions/--<project path>--/`). Keep that link on the phone; it is the address you
-open. Once the page is connected, the drawer's `+` starts new Sessions without touching the address,
-so a reload after that returns to the Session the address still names.
+A Session link also needs its Project: either `?project=` in the same address, or a Project this
+device remembers, or a server that serves only one. The id is the Session's own id, the one in its
+file name under pi's session directory (`~/.pi/agent/sessions/--<project path>--/`). Keep that link
+on the phone; it is the address you open. Choosing a Project or a Session rewrites the address to
+name both, so a copied link lands in the same place.
 
-Opening the bare address without `?session=` still connects: no Session is selected, so the
-Sessions list opens and its `+` starts a new one. Picking a Session or starting one does not rewrite
-the address, so a reload returns to whatever the address named — the list, if it was bare.
+Opening the bare address without `?project=` still connects: the picker opens when the server serves
+several Projects and nothing is remembered, and the only served Project is chosen directly. Once a
+Project is chosen the drawer lists its Sessions and its `+` starts a new one.
 
 ## 6. Open it on the phone
 
 1. Open the Tailscale app on the phone and confirm it says Connected.
-2. Open the Session address from [Opening a Session](#5-opening-a-session).
+2. Open the Project address from [Opening a Session](#5-opening-a-session), or the bare address
+   and pick a Project.
 3. The page loads and the **connection dot** in the top bar goes from **Connecting** to
    **Connected**. The dot is coloured; tap it (or hover on a computer) to reveal its label.
 
@@ -154,12 +162,15 @@ From top to bottom:
 
 Tap `☰` to open the Sessions drawer. It is collapsed by default.
 
-- It lists the Sessions of the **one project this server owns**, most recently active first. Each
-  row shows the Session's name, or the first line of its first message, and how long ago it was last
-  active, plus a dot while the Session is working or has unread output.
+- The drawer has two levels. The Sessions level names the **chosen Project** in its header and lists
+  that Project's Sessions, most recently active first; its **Switch** control opens the Project
+  list. Each row shows the Session's name, or the first line of its first message, and how long ago
+  it was last active, plus a dot while the Session is working or has unread output.
 - **Tap a row** to switch to that Session. Switching only changes what you are looking at; the other
   Session keeps running.
-- The **`+`** starts a new Session and opens it.
+- The Project list is the first screen when nothing is remembered. Two Projects whose last folder
+  name matches are told apart by their parent folders.
+- The **`+`** starts a new Session in the chosen Project and opens it.
 - There is **no rename and no delete** — deliberately. Sessions are the files pi writes, and the UI
   does not manage them.
 - Opening a Session starts its Pi child lazily. Switching away keeps it alive, so switching back is
@@ -192,7 +203,7 @@ entirely.
 
 ### Bash mode: `!` and `!!`
 
-Start a message with `!` or `!!` to run a shell command in the Session's working directory. An
+Start a message with `!` or `!!` to run a shell command in the Session's Project. An
 indicator appears **before you send**, saying which mode you are in:
 
 - **`!` — "adds to context":** the output enters the model's context on your next message.
@@ -280,29 +291,37 @@ Install the extension in pi the normal way if you want this surface:
 
 ## 13. Files
 
-Tap the **Files** control in the top bar. It opens a read-only file tree rooted at the server's
-working directory (the `--cwd` you started it with).
+Tap the **Files** control in the top bar. It opens a read-only file tree rooted at the **chosen
+Project** — the folder you passed as `--project`, or the one you picked in the Project list, not the
+open Session.
 
 - **Directories** expand on tap and load their contents on demand.
 - **Tap a file** to download it to the phone. Text-like files also get a **Preview** control that
   shows their contents inline, bounded to the first 64 KB, and says when it truncated.
 - There is **no editing** — the tree is read-only, and downloads are the only way files leave the
-  laptop. Paths outside the working directory are refused.
+  laptop. Paths outside the chosen Project are refused.
+- The control is **disabled until a Project is chosen**, because with no Project there is no root to
+  show. Choosing a different Project closes the panel rather than drawing one Project's files under
+  another's name.
 
-## 14. Running several projects
+## 14. Running several Projects
 
-`pi-my-ui` is **one server per project folder, one port each**. Sessions and files never mix between
-projects. Start one server per project with its own `--cwd` and `--port`:
+`pi-my-ui` is **one server serving one or more Projects**: one port, one phone address, one
+WebSocket. Sessions and files never mix between Projects — the drawer lists the chosen Project's
+Sessions, and the file panel is rooted at it. Repeat `--project` at startup:
 
 ```bash
-node packages/server/dist/cli.js --cwd /path/to/project-a --port 8787
-node packages/server/dist/cli.js --cwd /path/to/project-b --port 8788
+node packages/server/dist/cli.js \
+  --project /path/to/project-a \
+  --project /path/to/project-b \
+  --port 8787
 ```
 
-Each project also needs its own phone address (its own Caddy site, on its own port), and the port is
-part of the origin, so each gets its own `--allowed-origin`. The
-[Caddy + Tailscale guide](deploy/caddy.md) shows the second-project Caddyfile. In the phone's browser,
-use one tab per project.
+The flag order is the order the Project list uses. The same path may not be served twice, and one
+served Project may not sit inside another; the server refuses startup and names the offending path.
+To switch on the phone, open the drawer and tap **Switch**, or open a link carrying `?project=`. One
+Caddy site and one `--allowed-origin` cover every Project, because the origin does not change with
+the Project. The [Caddy + Tailscale guide](deploy/caddy.md) has the one-site setup.
 
 To keep a server running across logouts and reboots, run it as a service: the systemd and launchd
 units are in the [service guide](deploy/service.md).
@@ -313,7 +332,7 @@ These are the only command-line flags. `--help` prints the same list.
 
 | Flag                        | Meaning                                                                     | Default               |
 | --------------------------- | --------------------------------------------------------------------------- | --------------------- |
-| `--cwd <dir>`               | Working directory the server is scoped to (its Sessions and files)           | the current directory |
+| `--project <dir>`           | Project to serve (its Sessions and files); repeatable                      | the current directory |
 | `--port <port>`             | TCP port to listen on                                                       | `8787`                |
 | `--host <address>`          | Address to bind; binding beyond loopback requires `--allowed-origin`         | `127.0.0.1`           |
 | `--idle-timeout <seconds>`  | Evict an idle, unwatched Session's child after this long                    | `120`                 |
@@ -343,6 +362,6 @@ So the missing features do not surprise you — these are deliberate:
 - [Caddy + Tailscale](deploy/caddy.md) — the phone address, TLS, the origin allowlist and its failure
   modes.
 - [Running as a service](deploy/service.md) — systemd and launchd units, logs, restarts, several
-  projects.
+  Projects.
 - [Architecture decisions](adr/) — the reasoning behind the design.
 - [Glossary](../GLOSSARY.md) — the project's vocabulary.

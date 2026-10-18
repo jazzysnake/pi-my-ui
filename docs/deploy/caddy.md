@@ -67,17 +67,21 @@ typed.
 
 ## 3. Start the server
 
-From the repository root, with the project whose Sessions you want on the phone:
+From the repository root, with the Projects whose Sessions you want on the phone. Repeat
+`--project` for each one:
 
 ```bash
 node packages/server/dist/cli.js \
-  --cwd "$HOME/projects/my-project" \
+  --project "$HOME/projects/my-project" \
+  --project "$HOME/projects/another-project" \
   --port 8787 \
   --allowed-origin "https://laptop.tailnet-name.ts.net"
 ```
 
-- `--cwd` is the working directory whose Sessions and files this server owns. One server serves one
-  project; the port is how you tell servers apart. It defaults to the current directory.
+- `--project` names one Project: one absolute path whose Sessions and files the server serves.
+  Repeat it to serve several Projects from the same server; the browser gets one origin, one port
+  and one WebSocket however many Projects there are. With no `--project` the server serves the
+  current directory.
 - `--port` defaults to `8787`; it must match the `reverse_proxy` upstream in the Caddyfile.
 - `--allowed-origin` is repeatable and is required for the phone UI to connect. Without it, only a
   loopback browser is accepted.
@@ -85,10 +89,11 @@ node packages/server/dist/cli.js \
 - `--idle-timeout` (default 120 seconds) and `--keep-alive` control when an unwatched Session's Pi
   child is stopped; running this unattended is the [service guide](service.md)'s subject.
 
-A healthy start prints:
+A healthy start prints one `pi-my-ui: project` line per served Project, then the listening line:
 
 ```text
-pi-my-ui: cwd /home/you/projects/my-project
+pi-my-ui: project /home/you/projects/my-project
+pi-my-ui: project /home/you/projects/another-project
 pi-my-ui: listening on http://127.0.0.1:8787
 ```
 
@@ -176,23 +181,13 @@ cost: the certificate expires after 90 days and you are responsible for renewing
 `tailscale cert` and reloading Caddy. Keep the key readable only by the Caddy user, and never commit
 it.
 
-### 4.2 More than one project
+### 4.2 More than one Project
 
-The client is rooted at `/` and opens `/ws`, so a second project needs its own site on its own port,
-not a path prefix:
-
-```caddyfile
-laptop.tailnet-name.ts.net:8444 {
-	@pimyui path /ws /healthz /files/download
-	reverse_proxy @pimyui 127.0.0.1:8788
-
-	root * /home/you/pi-my-ui/packages/client/dist
-	file_server
-}
-```
-
-Start that server with `--port 8788 --allowed-origin "https://laptop.tailnet-name.ts.net:8444"`. The
-port is part of the origin, so the two projects cannot share one `--allowed-origin` value.
+One site is enough for every Project. The Project is chosen in the browser, addressed as
+`?project=<absolute path>`, and carried on the same WebSocket, so there is no second port, second
+site or second allowlist value: start one server with `--project` repeated (§3) and open the same
+address. A non-default port would be part of the origin, which is why adding a second site for a
+second Project is the one thing not to do.
 
 ## 5. Start Caddy
 
@@ -223,7 +218,7 @@ curl -sS https://laptop.tailnet-name.ts.net/healthz
 # request with no Origin is refused 403 by the app's own trust policy; a 404 or 405 here
 # instead means /files/download is missing from the matcher.
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
-  'https://laptop.tailnet-name.ts.net/files/download?path=nope'
+  'https://laptop.tailnet-name.ts.net/files/download?project=nope&path=nope'
 # → 403
 
 # The certificate the phone will see.
@@ -235,8 +230,9 @@ openssl s_client -connect laptop.tailnet-name.ts.net:443 \
 On the phone:
 
 1. Confirm the Tailscale app says Connected.
-2. Open the Session address: `https://laptop.tailnet-name.ts.net/?session=<id>` (the
-   [user guide](guide.md#5-opening-a-session) explains where the id comes from).
+2. Open a Project address: `https://laptop.tailnet-name.ts.net/?project=/home/you/projects/my-project`,
+   optionally with `&session=<id>` (the [user guide](guide.md#5-opening-a-session) explains where the
+   id comes from).
 3. The page loads and the connection dot reaches **Connected**.
 
 If it stays at **Connecting** or **Reconnecting**, the reason is on the laptop's stderr, not in the
@@ -267,7 +263,7 @@ refused WebSocket upgrade: the request carried no Origin and an allowlist is con
 A project's own `.pi` configuration — settings, MCP servers, extensions, skills, prompts, themes and
 system-prompt files — needs pi's trust decision. RPC mode cannot show the trust prompt, so with no
 saved decision pi skips those resources and the app behaves as if the project had no configuration.
-This applies to each Session's working directory.
+This applies to each Session's Project.
 
 Decide once per project, outside the app: run `pi` in that folder in a terminal and save the decision
 (`/trust`), or set `defaultProjectTrust` in `~/.pi/agent/settings.json`, or keep the configuration at
@@ -287,7 +283,7 @@ Everything only you can do, in order. None of this is run by the repository's ch
    for `tailscaled`, or install a file certificate and accept the 90-day renewal (§4.1).
 4. **Write the Caddyfile** from §4 with your MagicDNS name, client directory and port; run
    `caddy validate`, then `caddy run` (or enable the Caddy service).
-5. **Start the server** with `--cwd`, `--port` and
+5. **Start the server** with `--project` (repeated for each Project you want), `--port` and
    `--allowed-origin https://<your MagicDNS name>` (§3). Use the [service guide](service.md) to keep it
    running.
 6. **Open the Session address on the phone** and confirm the dot reaches **Connected**. If it does

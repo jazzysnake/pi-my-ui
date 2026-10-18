@@ -6,7 +6,7 @@ The client routes Snapshot, Delta, Settings, Commands, ContextUsage and session-
 
 **Blocked by:** 01 (the ordered Project registry).
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] One composite Project+id value replaces the bare id on listing, creation, subscribe, prompt, abort and every response on the watched-Session path
 - [ ] Listing and creating Sessions name a Project, and a fresh Session is created in that Project

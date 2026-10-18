@@ -46,8 +46,8 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 /**
- * The pair that names one Session. A frame carrying only the legacy bare `sessionId` fails here,
- * which is the rule that half an identity is a protocol error rather than a lookup.
+ * The pair that names one Session. A frame carrying only a bare `sessionId` fails here, which is
+ * the rule that half an identity is a protocol error rather than a lookup.
  */
 function requireSession(record: Record<string, unknown>): SessionRef {
   const session = record["session"];
@@ -70,14 +70,6 @@ function requireProject(record: Record<string, unknown>): string {
     malformed('"project" must be a non-empty string');
   }
   return project;
-}
-
-function requireSessionId(record: Record<string, unknown>): string {
-  const sessionId = record["sessionId"];
-  if (typeof sessionId !== "string" || sessionId === "") {
-    malformed('"sessionId" must be a non-empty string');
-  }
-  return sessionId;
 }
 
 function optionalCursor(record: Record<string, unknown>): Cursor | undefined {
@@ -203,7 +195,7 @@ function validateBash(record: Record<string, unknown>): BashMessage {
   }
   return {
     type: ClientMessageType.Bash,
-    sessionId: requireSessionId(record),
+    session: requireSession(record),
     command,
     excludeFromContext,
   };
@@ -220,7 +212,7 @@ function validateSetModel(record: Record<string, unknown>): SetModelMessage {
   }
   return {
     type: ClientMessageType.SetModel,
-    sessionId: requireSessionId(record),
+    session: requireSession(record),
     provider,
     modelId,
   };
@@ -233,7 +225,7 @@ function validateSetThinkingLevel(record: Record<string, unknown>): SetThinkingL
   }
   return {
     type: ClientMessageType.SetThinkingLevel,
-    sessionId: requireSessionId(record),
+    session: requireSession(record),
     level: level as ThinkingLevel,
   };
 }
@@ -245,7 +237,7 @@ function validateSetAutoCompaction(record: Record<string, unknown>): SetAutoComp
   }
   return {
     type: ClientMessageType.SetAutoCompaction,
-    sessionId: requireSessionId(record),
+    session: requireSession(record),
     enabled,
   };
 }
@@ -257,13 +249,13 @@ function validateCompact(record: Record<string, unknown>): CompactMessage {
   }
   return {
     type: ClientMessageType.Compact,
-    sessionId: requireSessionId(record),
+    session: requireSession(record),
     ...(customInstructions === undefined ? {} : { customInstructions }),
   };
 }
 
 function validateGetSessionStats(record: Record<string, unknown>): GetSessionStatsMessage {
-  return { type: ClientMessageType.GetSessionStats, sessionId: requireSessionId(record) };
+  return { type: ClientMessageType.GetSessionStats, session: requireSession(record) };
 }
 
 function validateSetSessionName(record: Record<string, unknown>): SetSessionNameMessage {
@@ -271,15 +263,15 @@ function validateSetSessionName(record: Record<string, unknown>): SetSessionName
   if (typeof name !== "string" || name.trim() === "") {
     malformed('"name" must be a non-empty string');
   }
-  return { type: ClientMessageType.SetSessionName, sessionId: requireSessionId(record), name };
+  return { type: ClientMessageType.SetSessionName, session: requireSession(record), name };
 }
 
 function validateExportSession(record: Record<string, unknown>): ExportSessionMessage {
-  return { type: ClientMessageType.ExportSession, sessionId: requireSessionId(record) };
+  return { type: ClientMessageType.ExportSession, session: requireSession(record) };
 }
 
 function validateGetForkMessages(record: Record<string, unknown>): GetForkMessagesMessage {
-  return { type: ClientMessageType.GetForkMessages, sessionId: requireSessionId(record) };
+  return { type: ClientMessageType.GetForkMessages, session: requireSession(record) };
 }
 
 function validateForkSession(record: Record<string, unknown>): ForkSessionMessage {
@@ -287,15 +279,15 @@ function validateForkSession(record: Record<string, unknown>): ForkSessionMessag
   if (typeof entryId !== "string" || entryId === "") {
     malformed('"entryId" must be a non-empty string');
   }
-  return { type: ClientMessageType.ForkSession, sessionId: requireSessionId(record), entryId };
+  return { type: ClientMessageType.ForkSession, session: requireSession(record), entryId };
 }
 
 function validateCloneSession(record: Record<string, unknown>): CloneSessionMessage {
-  return { type: ClientMessageType.CloneSession, sessionId: requireSessionId(record) };
+  return { type: ClientMessageType.CloneSession, session: requireSession(record) };
 }
 
 function validateGetTree(record: Record<string, unknown>): GetTreeMessage {
-  return { type: ClientMessageType.GetTree, sessionId: requireSessionId(record) };
+  return { type: ClientMessageType.GetTree, session: requireSession(record) };
 }
 
 /** One steer: the agent and the text. Whether the agent is running is the Session's answer. */
@@ -310,7 +302,7 @@ function validateSteerSubagent(record: Record<string, unknown>): SteerSubagentMe
   }
   return {
     type: ClientMessageType.SteerSubagent,
-    sessionId: requireSessionId(record),
+    session: requireSession(record),
     agentId,
     message,
   };
@@ -319,7 +311,7 @@ function validateSteerSubagent(record: Record<string, unknown>): SteerSubagentMe
 /** One existing entry, named by id; whether the id resolves is the Session's answer, not this one. */
 function validateMoveLeaf(record: Record<string, unknown>): MoveLeafMessage {
   const entryId = requireEntryId(record);
-  return { type: ClientMessageType.MoveLeaf, sessionId: requireSessionId(record), entryId };
+  return { type: ClientMessageType.MoveLeaf, session: requireSession(record), entryId };
 }
 
 /** One agent record's id; whether a conversation exists for it is the server's answer. */
@@ -332,7 +324,7 @@ function validateGetSubagentTranscript(
   }
   return {
     type: ClientMessageType.GetSubagentTranscript,
-    sessionId: requireSessionId(record),
+    session: requireSession(record),
     agentId,
   };
 }
@@ -400,7 +392,7 @@ export function validateClientMessage(value: unknown): ClientMessage {
     case ClientMessageType.GetSubagentTranscript:
       return validateGetSubagentTranscript(record);
     case ClientMessageType.Reconnect:
-      return { type: ClientMessageType.Reconnect, sessionId: requireSessionId(record) };
+      return { type: ClientMessageType.Reconnect, session: requireSession(record) };
     default:
       throw new ProtocolError(
         ProtocolErrorCode.UnknownType,

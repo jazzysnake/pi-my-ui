@@ -44,6 +44,11 @@ function mutationNotice(mutation: SessionMutation, created: boolean): string {
     : `${verb} was cancelled, so nothing was performed.`;
 }
 
+/** Whether a response names the Session whose commands this slice is holding. */
+function sameSession(left: SessionRef | null, right: SessionRef): boolean {
+  return left !== null && left.project === right.project && left.id === right.id;
+}
+
 export function createCommandsSlice(): CommandsSlice {
   let discoverable = $state<readonly CommandInfo[]>([]);
   let active: SessionRef | null = null;
@@ -70,17 +75,14 @@ export function createCommandsSlice(): CommandsSlice {
     },
     receive(message) {
       if (message.type === ServerMessageType.Snapshot) {
-        if (active !== null && active.id !== message.session.id) {
+        if (active !== null && !sameSession(active, message.session)) {
           discoverable = [];
         }
         active = message.session;
         return;
       }
       if (message.type === ServerMessageType.Commands) {
-        if (
-          active !== null &&
-          (message.session.project !== active.project || message.session.id !== active.id)
-        ) {
+        if (active !== null && !sameSession(active, message.session)) {
           return;
         }
         active = message.session;
@@ -88,29 +90,46 @@ export function createCommandsSlice(): CommandsSlice {
         return;
       }
       if (message.type === ServerMessageType.SessionStats) {
+        if (!sameSession(active, message.session)) {
+          return;
+        }
         stats = message.stats;
         exportedPath = null;
         notice = null;
         return;
       }
       if (message.type === ServerMessageType.SessionExported) {
+        if (!sameSession(active, message.session)) {
+          return;
+        }
         exportedPath = message.path;
         stats = null;
         notice = "Session exported as HTML.";
         return;
       }
       if (message.type === ServerMessageType.SessionRenamed) {
+        if (!sameSession(active, message.session)) {
+          return;
+        }
         notice = `Session renamed to "${message.name}".`;
         stats = null;
         exportedPath = null;
         return;
       }
       if (message.type === ServerMessageType.ForkMessages) {
+        if (!sameSession(active, message.session)) {
+          return;
+        }
         forkMessages = message.messages;
         return;
       }
       if (message.type === ServerMessageType.SessionForked) {
-        notice = mutationNotice(message.mutation, message.sessionId !== undefined);
+        // The transport opens a created Session before handing the answer on, so this slice has
+        // already been cleared when the notice arrives. It is still about the Session that asked.
+        if (active !== null && !sameSession(active, message.sourceSession)) {
+          return;
+        }
+        notice = mutationNotice(message.mutation, message.session !== undefined);
         forkMessages = null;
         stats = null;
         exportedPath = null;

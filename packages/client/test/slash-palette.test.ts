@@ -63,11 +63,19 @@ function statsOf(overrides: Partial<SessionStats> = {}): SessionStats {
 }
 
 function statsMessageOf(stats: SessionStats = statsOf()): SessionStatsMessage {
-  return { type: ServerMessageType.SessionStats, sessionId: SESSION_ID, stats };
+  return {
+    type: ServerMessageType.SessionStats,
+    session: { project: "/workspace", id: SESSION_ID },
+    stats,
+  };
 }
 
 function exportedOf(path: string): SessionExportedMessage {
-  return { type: ServerMessageType.SessionExported, sessionId: SESSION_ID, path };
+  return {
+    type: ServerMessageType.SessionExported,
+    session: { project: "/workspace", id: SESSION_ID },
+    path,
+  };
 }
 
 /** The keys of every rendered palette row, in order. */
@@ -339,6 +347,43 @@ describe("session commands", () => {
     expect(valueFor("cost", panel as HTMLElement)).toBe("$0.12");
     // A missing context figure reads as unavailable, never as a zero.
     expect(valueFor("context", panel as HTMLElement)).toBe("unavailable");
+  });
+
+  it("ignores command results that name another Session", () => {
+    const store = new ClientStore();
+    const { target, downloadFile } = mountShell(store);
+    flushSync(() => {
+      store.receive(snapshotOf([]));
+    });
+
+    flushSync(() => {
+      store.receive({
+        type: ServerMessageType.SessionStats,
+        session: { project: "/other", id: SESSION_ID },
+        stats: statsOf(),
+      });
+      store.receive({
+        type: ServerMessageType.SessionExported,
+        session: { project: "/workspace", id: "session-other" },
+        path: "session-other.html",
+      });
+      store.receive({
+        type: ServerMessageType.SessionRenamed,
+        session: { project: "/other", id: SESSION_ID },
+        name: "another session",
+      });
+      store.receive({
+        type: ServerMessageType.SessionForked,
+        sourceSession: { project: "/other", id: SESSION_ID },
+        mutation: "fork",
+        session: { project: "/other", id: "session-forked" },
+      });
+    });
+
+    expect(target.querySelector('[data-testid="session-stats-panel"]')).toBeNull();
+    expect(target.querySelector('[data-testid="session-export-path"]')).toBeNull();
+    expect(target.querySelector('[data-testid="command-notice"]')).toBeNull();
+    expect(downloadFile).not.toHaveBeenCalled();
   });
 
   it("downloads pi's exported HTML as the single result of /export", () => {

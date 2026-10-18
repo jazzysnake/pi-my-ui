@@ -166,7 +166,7 @@ describe("a settled subagent run opened from its own session file", () => {
 
     receive(shell, {
       type: ServerMessageType.SubagentTranscript,
-      sessionId: SESSION_ID,
+      session: { project: "/workspace", id: SESSION_ID },
       agentId: AGENT_ID,
       kind: "found",
       entries: [message("child-1", "the run's own conversation", "assistant")],
@@ -175,6 +175,23 @@ describe("a settled subagent run opened from its own session file", () => {
     expect(shell.transcriptText).toContain("the run's own conversation");
     expect(shell.transcriptText).not.toContain("the Session's own conversation");
     expect(shell.emptyText).toBeNull();
+  });
+
+  it("ignores a transcript read that names another Session", () => {
+    const shell = mountShell();
+    receive(shell, snapshotOf([agent(AGENT_ID, "general-purpose")]));
+
+    shell.focusAgent();
+
+    receive(shell, {
+      type: ServerMessageType.SubagentTranscript,
+      session: { project: "/other", id: SESSION_ID },
+      agentId: AGENT_ID,
+      kind: "found",
+      entries: [message("child-other", "another session's run", "assistant")],
+    });
+
+    expect(shell.transcriptText).not.toContain("another session's run");
   });
 
   it("does not ask for a run whose conversation this process already streamed", () => {
@@ -202,7 +219,7 @@ describe("an empty subagent transcript says which kind of empty it is", () => {
   function lookup(shell: MountedShell, outcome: SubagentTranscriptLookup): void {
     receive(shell, {
       type: ServerMessageType.SubagentTranscript,
-      sessionId: SESSION_ID,
+      session: { project: "/workspace", id: SESSION_ID },
       agentId: AGENT_ID,
       ...outcome,
     });

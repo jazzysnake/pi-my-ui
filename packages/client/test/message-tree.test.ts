@@ -126,11 +126,20 @@ const LINEAR_TREE: SessionTree = {
 };
 
 function treeOf(tree: SessionTree): SessionTreeMessage {
-  return { type: ServerMessageType.SessionTree, sessionId: SESSION_ID, tree };
+  return {
+    type: ServerMessageType.SessionTree,
+    session: { project: "/workspace", id: SESSION_ID },
+    tree,
+  };
 }
 
 function leafMovedOf(entryId: string, leafId: string | null): LeafMovedMessage {
-  return { type: ServerMessageType.LeafMoved, sessionId: SESSION_ID, entryId, leafId };
+  return {
+    type: ServerMessageType.LeafMoved,
+    session: { project: "/workspace", id: SESSION_ID },
+    entryId,
+    leafId,
+  };
 }
 
 /** The transcript the tree's active path would produce, so the modal opens over a real Session. */
@@ -423,6 +432,54 @@ describe("the message tree modal", () => {
     expect(row(target, "t3")).not.toBeNull();
     expect(row(target, "t3")?.dataset["highlighted"]).toBe("true");
     expect(row(target, "t2")).not.toBeNull();
+  });
+
+  it("ignores a tree and a Leaf move that name another Session", () => {
+    const store = new ClientStore();
+    const { target } = mountShell(store);
+    flushSync(() => {
+      store.receive(snapshotOf(ENTRIES));
+    });
+    flushSync(() => {
+      target.querySelector<HTMLButtonElement>('[data-testid="composer-branch"]')?.click();
+    });
+
+    flushSync(() => {
+      store.receive({
+        type: ServerMessageType.SessionTree,
+        session: { project: "/other", id: SESSION_ID },
+        tree: TREE,
+      });
+    });
+    expect(rowIds(target)).toEqual([]);
+    expect(target.querySelector('[data-testid="message-tree-loading"]')).not.toBeNull();
+
+    flushSync(() => {
+      store.receive(treeOf(TREE));
+    });
+    expect(rowIds(target)).toContain("u6");
+
+    flushSync(() => {
+      row(target, "u4")
+        ?.querySelector<HTMLButtonElement>('[data-testid="message-tree-select"]')
+        ?.click();
+    });
+    flushSync(() => {
+      store.receive({
+        type: ServerMessageType.LeafMoved,
+        session: { project: "/workspace", id: "session-other" },
+        entryId: "u4",
+        leafId: "s1",
+      });
+    });
+    expect(target.querySelector('[data-testid="message-tree-modal"]')).not.toBeNull();
+    expect(input(target).value).toBe("");
+
+    flushSync(() => {
+      store.receive(leafMovedOf("u4", "s1"));
+    });
+    expect(input(target).value).toBe("Kept approach: collapse branches");
+    expect(target.querySelector('[data-testid="message-tree-modal"]')).toBeNull();
   });
 
   it("moves the leaf for a non-user entry and closes only once the server confirms", () => {

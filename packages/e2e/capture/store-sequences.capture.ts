@@ -107,7 +107,7 @@ test("record the streaming and resync ServerMessage sequences", async () => {
       // A respawn rebuilds the Projection from the Session file and sends every viewer a fresh
       // Snapshot: the same replacement a resync sends, with pi's durable entry ids instead of the
       // provisional ones a live stream carries.
-      writer.send({ type: "reconnect", sessionId: seeded.id });
+      writer.send({ type: "reconnect", session });
       const resyncFrames = await collect(writer, (message) => message.type === "snapshot");
       const snapshot = resyncFrames.at(-1);
       if (snapshot === undefined || snapshot.type !== "snapshot") {

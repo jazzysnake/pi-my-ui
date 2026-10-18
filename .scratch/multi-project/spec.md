@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: implemented
 
 # One server, many Projects
 
@@ -129,3 +129,7 @@ A good test drives the real server, or the client store through its `ServerMessa
 - Before any pool cap is considered, the pool measurement should be re-run with children seated under several Projects, and the result added to `docs/measurements.md` beside the existing figures. No number is projected here.
 - `docs/adr/0007` describes the pool in terms of "a Session"; it stays correct, but its ceiling is now reachable by navigation alone, which ADR 0008 records.
 - The Caddy and Tailscale deployment story is unaffected: one origin, one port, one allowlist.
+
+## Comments
+
+Implemented and merged as `beeb3e42485412e170d99fb4a8fc4cefbc613e69`. All six tickets are resolved (launcher serves the Project list, a Session is named by Project and id, every Session command names the pair, the browser chooses and switches Project, the file panel follows the chosen Project, and the Project vocabulary is in the docs). The full gate passed on that merge: all 5 steps green, including the sharded end-to-end suite at 169/169 tests across 3 shards.

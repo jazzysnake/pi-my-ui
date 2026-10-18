@@ -47,8 +47,8 @@ Retained Deltas have code bounds rather than measured ones, so they are not clai
 
 ## Full end-to-end suite — 2026-10-17
 
-**Command:** `npm run test:e2e:sharded` (the default two shards; `PI_MY_UI_E2E_SHARDS` overrides the
-count).
+**Command:** `npm run test:e2e:sharded` (the default three shards; `PI_MY_UI_E2E_SHARDS` overrides
+the count).
 
 **Instrument:** The gate itself. It discovers the suite, runs every shard in its own process, and
 reconciles every test against the discovery run. The figure below is the gate's own wall-clock, from
@@ -60,9 +60,15 @@ pi 0.99.2.
 | Run | Shards | Tests accounted for | Wall-clock |
 | --- | --- | --- | --- |
 | Full suite | 2 | 112/112 | 46,830 ms |
+| Full suite | 2 | 144/144 | 67,933 ms |
+| Full suite | 3 | 144/144 | 55,344 ms |
+| Full suite, with the multi-project specs | 2 | 152/152 | 68,094 ms |
+| Full suite, with the multi-project specs | 3 | 152/152 | 56,485 ms |
 
-The gate fails above its one-minute budget. This run sat at 78% of it, so the shard count has room
-before the suite outgrows the promise.
+The gate fails above its one-minute budget. Two shards of four workers sit over it and three fit
+inside it, so three is the default: twelve workers on a 16-core box leave four cores for the host
+and for concurrent agent work, where a fourth shard would fill the box and make the timing-sensitive
+streaming specs fail under load rather than on behaviour.
 
 ## What these numbers set
 

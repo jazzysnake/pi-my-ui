@@ -30,14 +30,15 @@ const PLAYWRIGHT_BIN = join(
 
 /**
  * Each shard spawns its own workers, so the count must stay low enough that the shards' workers fit
- * the machine's cores. More shards than that oversubscribes the box and slows the timing-sensitive
- * streaming specs, which is why two is the default rather than one per spec file.
+ * the machine's cores and high enough to keep the wall budget: two shards of four take the suite
+ * past the budget on a 16-core box, three fit inside it, and a fourth would fill the box, which
+ * makes the timing-sensitive streaming specs fail under load rather than on behaviour.
  */
-const DEFAULT_SHARDS = 2;
+const DEFAULT_SHARDS = 3;
 const SHARDS_ENV_VAR = "PI_MY_UI_E2E_SHARDS";
 const WORKERS_ENV_VAR = "PI_MY_UI_E2E_WORKERS";
 /**
- * Each shard's worker pool is capped so two shards leave cores for the host and for any concurrent
+ * Each shard's worker pool is capped so the shards leave cores for the host and for any concurrent
  * agent work. A full default Playwright pool per shard fills a 16-core box and makes the
  * timing-sensitive streaming specs fail under load rather than on behaviour.
  */

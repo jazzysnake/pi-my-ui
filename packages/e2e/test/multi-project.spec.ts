@@ -38,7 +38,6 @@ const REPLY_SCRIPT: Script = [
   },
 ];
 
-/** A run that stays live on a bash tool, so leaving its Project happens while it works. */
 /** What the delegated agent says before it starts the command the steer interrupts. */
 const AGENT_TEXT = "watching the build now";
 const STEER_TEXT = "tighten the loop";
@@ -90,6 +89,7 @@ const STEERING_SCRIPT: Script = [
   },
 ];
 
+/** A run that stays live on a bash tool, so leaving its Project happens while it works. */
 const BACKGROUND_SCRIPT: Script = [
   {
     expect: { role: "user", text: "run the slow background command" },

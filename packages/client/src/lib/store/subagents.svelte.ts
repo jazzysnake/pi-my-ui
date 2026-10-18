@@ -59,15 +59,15 @@ export interface SubagentsSlice {
   clear(): void;
 }
 
+function sameSession(left: SessionRef | null, right: SessionRef): boolean {
+  return left !== null && left.project === right.project && left.id === right.id;
+}
+
 /**
  * The number of the user's own turns in one agent's conversation. pi delivers a steer as a user turn,
  * so a new one is the delivery the pending line waits for — the same entry the transcript draws, not
  * a second signal that could disagree with it.
  */
-function sameSession(left: SessionRef | null, right: SessionRef): boolean {
-  return left !== null && left.project === right.project && left.id === right.id;
-}
-
 function userTurnsIn(entries: readonly ProjectedEntry[]): number {
   let turns = 0;
   for (const entry of entries) {

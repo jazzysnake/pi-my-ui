@@ -10,15 +10,24 @@ import { join } from "node:path";
 import { expect, type Page } from "@playwright/test";
 
 import { startServer, type RunningServer } from "@pi-my-ui/server";
+import type { ServerMessage } from "@pi-my-ui/protocol";
 import type { Script } from "@pi-my-ui/scripted-provider";
 
 import { startClientPageServer, type ClientPageServer } from "./client-page-server";
 import { seedSession, type FixtureSession } from "./fixture-builder";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "./pi-harness";
+import type { WsSessionClient } from "./ws-session-client";
 
 /** The marker each seeded Session carries on its own active path. */
 export const FIRST_MARKER = "Seed text block 54.";
 export const SECOND_MARKER = "Seed text block 32.";
+
+/**
+ * A multi-Project case starts pi and a browser, so it is slower than a default case. Both specs
+ * read the budget from here rather than carrying a copy that could drift from the other's.
+ */
+export const MULTI_PROJECT_TEST_TIMEOUT_MS = 120_000;
+export const MULTI_PROJECT_START_TIMEOUT_MS = 30_000;
 
 export const UNUSED_SCRIPT: Script = [
   {
@@ -126,6 +135,19 @@ async function startSharedNameHarness(): Promise<SharedNameHarness> {
   return { home, first, second, server, client };
 }
 
+/** The next frame of one type; the server also pushes lists and attach surfaces on its own. */
+async function nextOf<T extends ServerMessage["type"]>(
+  client: WsSessionClient,
+  type: T,
+): Promise<Extract<ServerMessage, { type: T }>> {
+  for (;;) {
+    const message = await client.next();
+    if (message.type === type) {
+      return message as Extract<ServerMessage, { type: T }>;
+    }
+  }
+}
+
 async function disposeHarness(harness: ServedHarness): Promise<void> {
   await harness.client.close();
   await harness.server.close();
@@ -190,6 +212,7 @@ async function sendMessage(page: Page, text: string): Promise<void> {
 
 export {
   disposeHarness,
+  nextOf,
   openBarePage,
   openDrawer,
   openProject,

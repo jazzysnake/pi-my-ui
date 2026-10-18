@@ -9,6 +9,7 @@
   import type { SessionRow } from "./store/sessions.svelte.js";
 
   import Icon from "./Icon.svelte";
+  import ProjectRow from "./ProjectRow.svelte";
   import { projectLabels } from "./projects/labels.js";
   import { RELATIVE_TIME_REFRESH_MS, formatRelativeTime } from "./sessions/relative-time.js";
   import { sessionDisplayName } from "./store/sessions.svelte.js";
@@ -122,35 +123,12 @@
       <nav class="min-h-0 flex-1 overflow-y-auto" aria-label="Project list">
         <ul data-testid="project-list">
           {#each served as project (project)}
-            {@const isCurrent = project === chosenProject}
-            <li class="border-b border-hairline">
-              <button
-                type="button"
-                class="flex min-h-11 w-full items-center gap-2 px-3 py-2 text-left"
-                class:bg-panel-raised={isCurrent}
-                data-testid="project-row"
-                data-project={project}
-                data-current={isCurrent ? "true" : "false"}
-                aria-current={isCurrent ? "true" : undefined}
-                onclick={() => chooseProject(project)}
-              >
-                <Icon name="folder" class="size-4 shrink-0 text-dim" />
-                <span class="min-w-0 flex-1">
-                  <span
-                    class="block truncate text-body"
-                    class:text-ink={isCurrent}
-                    class:text-dim={!isCurrent}
-                    data-testid="project-label">{labels.get(project) ?? project}</span
-                  >
-                  <span class="block truncate text-meta text-faint" data-testid="project-path"
-                    >{project}</span
-                  >
-                </span>
-                {#if isCurrent}
-                  <Icon name="check" class="size-4 shrink-0 text-success" />
-                {/if}
-              </button>
-            </li>
+            <ProjectRow
+              {project}
+              label={labels.get(project) ?? project}
+              current={project === chosenProject}
+              onChoose={chooseProject}
+            />
           {/each}
         </ul>
       </nav>

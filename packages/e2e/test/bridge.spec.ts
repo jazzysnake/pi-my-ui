@@ -53,7 +53,7 @@ test("the bridge socket and its directory are user-only", async () => {
   const socketPath = join(dir, "run", "bridge.sock");
   let server: RunningServer | undefined;
   try {
-    server = await startServer({ cwd: process.cwd(), port: 0, bridge: { socketPath } });
+    server = await startServer({ projects: [process.cwd()], port: 0, bridge: { socketPath } });
 
     expect(await modeOf(dirname(socketPath))).toBe(USER_ONLY_DIRECTORY_MODE);
     expect((await stat(socketPath)).isSocket()).toBe(true);
@@ -73,7 +73,7 @@ test("a stale socket left by a crash is replaced", async () => {
   await writeFile(socketPath, "", "utf8");
   let server: RunningServer | undefined;
   try {
-    server = await startServer({ cwd: process.cwd(), port: 0, bridge: { socketPath } });
+    server = await startServer({ projects: [process.cwd()], port: 0, bridge: { socketPath } });
     expect((await stat(socketPath)).isSocket()).toBe(true);
   } finally {
     await server?.close();
@@ -87,7 +87,7 @@ test("a socket a live server already owns is refused loudly", async () => {
   const live = await listenOn(socketPath);
   try {
     await expect(
-      startServer({ cwd: process.cwd(), port: 0, bridge: { socketPath } }),
+      startServer({ projects: [process.cwd()], port: 0, bridge: { socketPath } }),
     ).rejects.toThrow(/already listening/);
   } finally {
     await live.close();
@@ -117,7 +117,7 @@ async function startBridgeHarness(
   const launch = await scriptedPiLaunch(home, UNUSED_SCRIPT);
   const logs: string[] = [];
   const server = await startServer({
-    cwd: launch.cwd,
+    projects: [launch.cwd],
     sessionDir: home.sessionsDir,
     port: home.ports.allocate(),
     ...(options.captureLogs === true ? { log: (line: string) => logs.push(line) } : {}),

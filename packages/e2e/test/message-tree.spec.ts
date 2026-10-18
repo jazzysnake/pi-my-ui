@@ -48,7 +48,7 @@ async function startHarness(seed: SeedName = "branching"): Promise<Harness> {
   const seeded = await seedSession(home, seed);
   const launch = await scriptedPiLaunch(home, UNUSED_SCRIPT);
   const server = await startServer({
-    cwd: launch.cwd,
+    projects: [launch.cwd],
     sessionDir: home.sessionsDir,
     port: home.ports.allocate(),
     pi: { args: launch.args, env: launch.env, provider: launch.provider, model: launch.model },
@@ -370,7 +370,7 @@ test("a hidden custom message has no tree row, exactly as the transcript has non
   });
   const launch = await scriptedPiLaunch(home, UNUSED_SCRIPT);
   const server = await startServer({
-    cwd: launch.cwd,
+    projects: [launch.cwd],
     sessionDir: home.sessionsDir,
     port: home.ports.allocate(),
     pi: { args: launch.args, env: launch.env, provider: launch.provider, model: launch.model },
@@ -448,7 +448,7 @@ test("a 100-deep Session renders flat and every visible row is one tap away", as
   const deep = await generateSession(home, "deep-tree");
   const launch = await scriptedPiLaunch(home, UNUSED_SCRIPT);
   const server = await startServer({
-    cwd: launch.cwd,
+    projects: [launch.cwd],
     sessionDir: home.sessionsDir,
     port: home.ports.allocate(),
     pi: { args: launch.args, env: launch.env, provider: launch.provider, model: launch.model },

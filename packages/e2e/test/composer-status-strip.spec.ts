@@ -39,7 +39,7 @@ async function startHarness(modelName?: string): Promise<Harness> {
     ...(modelName === undefined ? {} : { modelName }),
   });
   const server = await startServer({
-    cwd: launch.cwd,
+    projects: [launch.cwd],
     sessionDir: home.sessionsDir,
     port: home.ports.allocate(),
     pi: { args: launch.args, env: launch.env, provider: launch.provider, model: launch.model },

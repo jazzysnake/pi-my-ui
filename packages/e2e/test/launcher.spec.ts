@@ -1,9 +1,12 @@
 import { execFileSync, spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { mkdirSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { expect, test } from "@playwright/test";
 import {
+  LOG_PREFIX,
   runLauncher,
   startServer,
   type LauncherIo,
@@ -24,7 +27,7 @@ const CLI_PATH = fileURLToPath(new URL("../../server/dist/cli.js", import.meta.u
 
 /** The flags `--help` must name; a flagship without a line here is undiscoverable. */
 const DOCUMENTED_FLAGS = [
-  "--cwd",
+  "--project",
   "--port",
   "--host",
   "--idle-timeout",
@@ -184,7 +187,7 @@ test("health answers and the server serves no pages", async () => {
 
     const listening = `http://127.0.0.1:${String(port)}`;
     await expect.poll(() => stdout.includes(listening)).toBe(true);
-    expect(stdout).toContain(`cwd ${home.workspace}`);
+    expect(stdout).toContain(`project ${realpathSync(home.workspace)}`);
 
     const health = await fetch(`${listening}/healthz`);
     expect(await health.json()).toEqual({ status: "ok", service: "pi-my-ui-server" });
@@ -201,11 +204,128 @@ test("health answers and the server serves no pages", async () => {
   }
 });
 
+/** The Projects a launcher named on stdout, in the order it printed them. */
+function projectBannerLines(stdout: string): string[] {
+  const prefix = `${LOG_PREFIX} project `;
+  return stdout
+    .split("\n")
+    .filter((line) => line.startsWith(prefix))
+    .map((line) => line.slice(prefix.length));
+}
+
+test("--project is repeatable and the banner names every Project in order", async () => {
+  const home = await createHermeticHome();
+  const second = join(home.root, "second-project");
+  mkdirSync(second);
+  const port = home.ports.allocate();
+  const child = spawn(
+    "node",
+    [CLI_PATH, "--project", home.workspace, "--project", second, "--port", String(port)],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
+  let stdout = "";
+  let stderr = "";
+  child.stdout.on("data", (chunk: Buffer) => {
+    stdout += chunk.toString();
+  });
+  child.stderr.on("data", (chunk: Buffer) => {
+    stderr += chunk.toString();
+  });
+  try {
+    await waitForHealth(`http://127.0.0.1:${String(port)}/healthz`, child, () => stderr);
+    await expect.poll(() => projectBannerLines(stdout)).toHaveLength(2);
+    expect(projectBannerLines(stdout)).toEqual([
+      realpathSync(home.workspace),
+      realpathSync(second),
+    ]);
+  } finally {
+    child.kill("SIGINT");
+    await new Promise<void>((resolve) => {
+      child.once("exit", () => resolve());
+    });
+    await home.dispose();
+  }
+});
+
+/** Run the launcher with arguments that must be refused, and return what it printed. */
+function refusedStartup(argv: readonly string[]): string {
+  const result = spawnSync("node", [CLI_PATH, ...argv], { encoding: "utf8", timeout: 20_000 });
+  expect(result.status).not.toBe(0);
+  expect(result.stderr.trim().split("\n")).toHaveLength(1);
+  return result.stderr;
+}
+
+test("a --project that does not exist refuses startup and names it", async () => {
+  const home = await createHermeticHome();
+  try {
+    const missing = join(realpathSync(home.root), "not-there");
+    const stderr = refusedStartup(["--project", missing]);
+    expect(stderr).toContain("--project");
+    expect(stderr).toContain(missing);
+  } finally {
+    await home.dispose();
+  }
+});
+
+test("a --project that is a file refuses startup and names it", async () => {
+  const home = await createHermeticHome();
+  try {
+    const file = join(realpathSync(home.root), "not-a-directory.txt");
+    writeFileSync(file, "a file, not a folder\n");
+    const stderr = refusedStartup(["--project", file]);
+    expect(stderr).toContain("--project");
+    expect(stderr).toContain(file);
+  } finally {
+    await home.dispose();
+  }
+});
+
+test("two spellings of one Project are refused after resolution", async () => {
+  const home = await createHermeticHome();
+  try {
+    const link = join(home.root, "workspace-link");
+    symlinkSync(home.workspace, link);
+    const stderr = refusedStartup(["--project", home.workspace, "--project", link]);
+    expect(stderr).toContain("--project");
+    expect(stderr).toContain(realpathSync(home.workspace));
+  } finally {
+    await home.dispose();
+  }
+});
+
+test("a Project nested inside another served Project is refused naming both", async () => {
+  const home = await createHermeticHome();
+  try {
+    const nested = join(home.workspace, "packages");
+    mkdirSync(nested);
+    const stderr = refusedStartup(["--project", home.workspace, "--project", nested]);
+    expect(stderr).toContain("--project");
+    expect(stderr).toContain(realpathSync(home.workspace));
+    expect(stderr).toContain(realpathSync(nested));
+  } finally {
+    await home.dispose();
+  }
+});
+
+test("--cwd is not an alias for --project", () => {
+  const result = spawnSync("node", [CLI_PATH, "--cwd", "."], { encoding: "utf8", timeout: 20_000 });
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain("unknown flag --cwd");
+});
+
+test("--help describes --project as repeatable", () => {
+  const result = spawnSync("node", [CLI_PATH, "--help"], { encoding: "utf8" });
+  expect(result.status).toBe(0);
+  expect(result.stdout).toContain("--project <dir>");
+  expect(result.stdout).toContain("repeatable");
+  expect(result.stdout).not.toContain("--cwd");
+});
+
 test("a foreign or missing origin is refused and logged", async () => {
   const ports = await createPortNamespace();
   const logLines: string[] = [];
   const server = await startServer({
-    cwd: process.cwd(),
+    projects: [process.cwd()],
     host: "127.0.0.1",
     port: ports.allocate(),
     allowedOrigins: ["http://allowed.example"],
@@ -231,7 +351,7 @@ test("SIGINT shuts down cleanly and stops the Pi child it started", async () => 
   try {
     const run = runLauncher({
       argv: ["--port", String(home.ports.allocate())],
-      cwd: home.workspace,
+      processCwd: home.workspace,
       io: SILENT_IO,
       signals: signals.source,
       startServer: async (config) => {

@@ -73,7 +73,7 @@ test("record the streaming and resync ServerMessage sequences", async () => {
   const seeded = await seedSession(home, "plain");
   const launch = await scriptedPiLaunch(home, SCRIPT);
   const server = await startServer({
-    cwd: launch.cwd,
+    projects: [launch.cwd],
     sessionDir: home.sessionsDir,
     port: home.ports.allocate(),
     pi: {

@@ -16,6 +16,7 @@ import { ProtocolError, ProtocolErrorCode, type SessionActivity } from "@pi-my-u
 import { DEFAULT_IDLE_TIMEOUT_MS, type ServerConfig } from "./config.js";
 import { systemClock, type ServerClock, type ServerTimer } from "./clock.js";
 import { withBridgeLaunch } from "./bridge/launch.js";
+import { primaryProject } from "./projects.js";
 import { createSessionHost, type BridgeGate, type SessionHost } from "./session-host.js";
 import type { PiSessionTarget } from "./pi-child.js";
 
@@ -51,6 +52,7 @@ export function createSessionPool(
   const clock: ServerClock = config.clock ?? systemClock;
   const idleTimeoutMs = config.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
   const keepAlive = config.keepAlive ?? false;
+  const project = primaryProject(config.projects);
   let eviction: ServerTimer | undefined;
   let scheduledFor: number | undefined;
 
@@ -111,7 +113,7 @@ export function createSessionPool(
       target,
       // The extension is resolved here, when a child is actually needed, so a server that never
       // starts one (the health endpoint, a static check) needs no built bridge.
-      launch: withBridgeLaunch({ cwd: config.cwd, ...config.pi }, bridge),
+      launch: withBridgeLaunch({ cwd: project, ...config.pi }, bridge),
       bridge: bridge.gate,
       clock,
       onActivity: (changedSessionId, activity) => {
@@ -130,7 +132,7 @@ export function createSessionPool(
     if (runningById !== undefined) {
       return runningById;
     }
-    const sessionFile = SessionManager.findById(config.cwd, sessionId, config.sessionDir);
+    const sessionFile = SessionManager.findById(project, sessionId, config.sessionDir);
     if (sessionFile === undefined) {
       throw new ProtocolError(
         ProtocolErrorCode.UnknownSession,

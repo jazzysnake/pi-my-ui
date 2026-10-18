@@ -49,7 +49,7 @@ async function startHarness(script: Script): Promise<Harness> {
   await writeFile(join(launch.cwd, ".pi", "prompts", "review.md"), PROMPT_TEMPLATE, "utf8");
   const args = launch.args.filter((arg) => arg !== "--no-prompt-templates");
   const server = await startServer({
-    cwd: launch.cwd,
+    projects: [launch.cwd],
     sessionDir: home.sessionsDir,
     port: home.ports.allocate(),
     pi: {

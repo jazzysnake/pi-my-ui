@@ -51,11 +51,11 @@ function toSummary(info: SessionInfo): SessionSummary {
   };
 }
 
-/** Every Session for `cwd` the owner started, most recently active first, as the drawer renders it. */
+/** Every Session in `project`, most recently active first, as the drawer renders it. */
 export async function listSessions(
-  cwd: string,
+  project: string,
   sessionDir?: string,
 ): Promise<readonly SessionSummary[]> {
-  const infos = await SessionManager.list(cwd, sessionDir);
+  const infos = await SessionManager.list(project, sessionDir);
   return infos.filter((info) => !isSubagentChild(info)).map(toSummary);
 }

@@ -133,7 +133,7 @@ async function startHarness(
   const seeded = await seedSession(home, "plain");
   const launch = await scriptedPiLaunch(home, script, { piSubagents: options.piSubagents });
   const server = await startServer({
-    cwd: launch.cwd,
+    projects: [launch.cwd],
     sessionDir: home.sessionsDir,
     port: home.ports.allocate(),
     pi: {

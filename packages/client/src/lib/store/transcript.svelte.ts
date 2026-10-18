@@ -16,6 +16,7 @@ import {
   type ServerMessage,
   type SessionProjection,
   type SessionRef,
+  sessionMatches,
 } from "@pi-my-ui/protocol";
 
 export interface TranscriptSlice {
@@ -61,8 +62,7 @@ export function createTranscriptSlice(): TranscriptSlice {
       // reading. The first Snapshot is accepted because nothing has named a Session yet.
       if (
         message.type === ServerMessageType.Snapshot &&
-        (active === null ||
-          (message.session.project === active.project && message.session.id === active.id))
+        (active === null || sessionMatches(active, message.session))
       ) {
         active = message.session;
         projection = message.projection;
@@ -75,8 +75,7 @@ export function createTranscriptSlice(): TranscriptSlice {
         message.type === ServerMessageType.Delta &&
         active !== null &&
         projection !== null &&
-        message.session.project === active.project &&
-        message.session.id === active.id
+        sessionMatches(active, message.session)
       ) {
         projection = reduceDeltaBatch(projection, message);
         waiting = false;
@@ -87,8 +86,8 @@ export function createTranscriptSlice(): TranscriptSlice {
       if (
         message.type === ServerMessageType.Error &&
         active !== null &&
-        message.session?.project === active.project &&
-        message.session.id === active.id
+        message.session !== undefined &&
+        sessionMatches(active, message.session)
       ) {
         waiting = false;
       }

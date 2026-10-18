@@ -22,6 +22,7 @@ import {
   type SessionRef,
   type StreamingBehavior,
   type ThinkingLevel,
+  sessionMatches,
 } from "@pi-my-ui/protocol";
 
 /** The link states the top-bar dot renders. */
@@ -250,11 +251,7 @@ export function createTransport(options: TransportOptions): Transport {
       if (message.type === ServerMessageType.Snapshot || message.type === ServerMessageType.Delta) {
         // A frame from the Session switched away from is dropped before it can move the Cursor, so
         // the next subscribe starts the new Session from the beginning of its stream.
-        if (
-          activeSession === null ||
-          message.session.project !== activeSession.project ||
-          message.session.id !== activeSession.id
-        ) {
+        if (!sessionMatches(activeSession, message.session)) {
           return;
         }
         // The Cursor recorded here is the last one the store is about to apply, so a reconnect can
@@ -305,11 +302,7 @@ export function createTransport(options: TransportOptions): Transport {
     },
     switchSession(session) {
       pendingSessionId = null;
-      if (
-        activeSession !== null &&
-        session.project === activeSession.project &&
-        session.id === activeSession.id
-      ) {
+      if (sessionMatches(activeSession, session)) {
         return;
       }
       const projectChanged = session.project !== activeProject;

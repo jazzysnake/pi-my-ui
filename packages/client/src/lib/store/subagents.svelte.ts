@@ -28,6 +28,7 @@ import {
   type SessionRef,
   type SubagentAgent,
   type SubagentTranscriptLookup,
+  sessionMatches,
 } from "@pi-my-ui/protocol";
 
 /** The steer the focused agent is still waiting on, as the composer's status line shows it. */
@@ -57,10 +58,6 @@ export interface SubagentsSlice {
   /** Record a message handed to `agentId`; it clears when pi delivers it or refuses it. */
   noteSteer(agentId: string): void;
   clear(): void;
-}
-
-function sameSession(left: SessionRef | null, right: SessionRef): boolean {
-  return left !== null && left.project === right.project && left.id === right.id;
 }
 
 /**
@@ -238,17 +235,16 @@ export function createSubagentsSlice(): SubagentsSlice {
     receive(message) {
       if (message.type === ServerMessageType.SubagentTranscript) {
         // A read of another Session's run must not appear under the one on screen.
-        if (!sameSession(active, message.session)) {
+        if (!sessionMatches(active, message.session)) {
           return;
         }
         past = { ...past, [message.agentId]: message };
         return;
       }
       if (message.type === ServerMessageType.Snapshot) {
-        if (
-          active !== null &&
-          (message.session.project !== active.project || message.session.id !== active.id)
-        ) {
+        // A Snapshot for another Session is not this slice's news. A switch clears the slice, so the
+        // next Snapshot is accepted without the old Session being able to blank it on the way out.
+        if (active !== null && !sessionMatches(active, message.session)) {
           return;
         }
         active = message.session;
@@ -269,8 +265,7 @@ export function createSubagentsSlice(): SubagentsSlice {
           focusedAgentId !== null &&
           message.session !== undefined &&
           active !== null &&
-          message.session.project === active.project &&
-          message.session.id === active.id
+          sessionMatches(active, message.session)
         ) {
           pending = pending.filter((agentId) => agentId !== focusedAgentId);
         }
@@ -281,8 +276,7 @@ export function createSubagentsSlice(): SubagentsSlice {
         message.type !== ServerMessageType.Delta ||
         active === null ||
         projection === null ||
-        message.session.project !== active.project ||
-        message.session.id !== active.id
+        !sessionMatches(active, message.session)
       ) {
         return;
       }

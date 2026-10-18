@@ -9,6 +9,7 @@ import {
   type ServerMessage,
   type SessionRef,
   type SettingsMessage,
+  sessionMatches,
 } from "@pi-my-ui/protocol";
 
 export interface SettingsSlice {
@@ -28,8 +29,10 @@ export function createSettingsSlice(): SettingsSlice {
     },
     receive(message) {
       if (message.type === ServerMessageType.Snapshot) {
-        if (active !== null && active.id !== message.session.id) {
-          settings = null;
+        // A Snapshot for another Session is not this slice's news. A switch clears the slice, so the
+        // next Snapshot is accepted without the old Session being able to blank it on the way out.
+        if (active !== null && !sessionMatches(active, message.session)) {
+          return;
         }
         active = message.session;
         return;
@@ -37,10 +40,7 @@ export function createSettingsSlice(): SettingsSlice {
       if (message.type !== ServerMessageType.Settings) {
         return;
       }
-      if (
-        active !== null &&
-        (message.session.project !== active.project || message.session.id !== active.id)
-      ) {
+      if (active !== null && !sessionMatches(active, message.session)) {
         return;
       }
       active = message.session;

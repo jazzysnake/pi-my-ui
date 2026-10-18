@@ -32,7 +32,7 @@ export interface SessionsSlice {
   /** The Session the user picked, or `null` before any pick. */
   readonly activeSessionId: string | null;
   /** Feed a list; one for another Project is ignored, so a switch cannot keep drawing the old list. */
-  receive(message: ServerMessage, watchedProject?: string | null): void;
+  receive(message: ServerMessage, watchedProject: string | null): void;
   select(sessionId: string): void;
   /** Drop the list and its marks, so a switched-away Project leaves nothing behind. */
   clear(): void;
@@ -85,7 +85,7 @@ export function createSessionsSlice(): SessionsSlice {
     get activeSessionId() {
       return activeSessionId;
     },
-    receive(message, watchedProject = null) {
+    receive(message, watchedProject) {
       if (message.type !== ServerMessageType.Sessions) {
         return;
       }

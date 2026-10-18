@@ -13,6 +13,7 @@ import {
   type SessionRef,
   type SessionTree,
   type TreeNode,
+  sessionMatches,
 } from "@pi-my-ui/protocol";
 
 export interface TreeSlice {
@@ -37,10 +38,6 @@ export interface TreeSlice {
   select(entry: TreeNode): void;
   receive(message: ServerMessage): void;
   clear(): void;
-}
-
-function sameSession(left: SessionRef | null, right: SessionRef): boolean {
-  return left !== null && left.project === right.project && left.id === right.id;
 }
 
 export function createTreeSlice(): TreeSlice {
@@ -111,21 +108,16 @@ export function createTreeSlice(): TreeSlice {
     },
     receive(message) {
       if (message.type === ServerMessageType.Snapshot) {
-        // A switched-away Session's tree must never be drawn under the new Session's name. The first
-        // Snapshot after a switch only names the Session being watched: it can arrive after the modal
-        // was opened, and closing the tree then would be a switch that never happened.
-        if (!sameSession(active, message.session)) {
-          const firstProjection = active === null;
-          active = message.session;
-          if (!firstProjection) {
-            open = false;
-            forget();
-          }
+        // A Snapshot for another Session is ignored: switching Sessions clears this slice, so the next
+        // Snapshot is accepted without the old one closing a tree the reader has open.
+        if (active !== null && !sessionMatches(active, message.session)) {
+          return;
         }
+        active = message.session;
         return;
       }
       if (message.type === ServerMessageType.SessionTree) {
-        if (!sameSession(active, message.session)) {
+        if (!sessionMatches(active, message.session)) {
           return;
         }
         tree = message.tree;
@@ -134,7 +126,7 @@ export function createTreeSlice(): TreeSlice {
         return;
       }
       if (message.type === ServerMessageType.LeafMoved) {
-        if (!sameSession(active, message.session) || message.entryId !== movingEntryId) {
+        if (!sessionMatches(active, message.session) || message.entryId !== movingEntryId) {
           return;
         }
         draft = movingText === null ? null : { text: movingText };
@@ -147,7 +139,7 @@ export function createTreeSlice(): TreeSlice {
       if (
         message.type !== ServerMessageType.Error ||
         message.session === undefined ||
-        !sameSession(active, message.session)
+        !sessionMatches(active, message.session)
       ) {
         return;
       }

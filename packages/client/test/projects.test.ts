@@ -383,6 +383,31 @@ describe("routing by the carried Session pair", () => {
     store.receive({ type: ServerMessageType.Settings, session: SESSION, ...settings() });
     expect(store.settings.settings?.session).toEqual(SESSION);
   });
+
+  it("ignores another Session's Snapshot until a switch clears the slices", () => {
+    const store = new ClientStore(PROJECT_A);
+    store.receive(snapshotOf());
+    const command: CommandInfo = {
+      name: "review",
+      description: "Review the working tree",
+      source: "prompt",
+    };
+    store.receive({ type: ServerMessageType.Commands, session: SESSION, commands: [command] });
+    store.receive({ type: ServerMessageType.Settings, session: SESSION, ...settings() });
+
+    const other = { project: PROJECT_B, id: "session-2" };
+    store.receive(snapshotOf(other));
+    expect(store.transcript.sessionId).toBe(SESSION.id);
+    expect(store.commands.discoverable).toEqual([command]);
+    expect(store.settings.settings?.session).toEqual(SESSION);
+
+    // Choosing the other Session drops every slice, so its own Snapshot is accepted.
+    store.selectSession(other);
+    store.receive(snapshotOf(other));
+    expect(store.transcript.sessionId).toBe(other.id);
+    expect(store.commands.discoverable).toEqual([]);
+    expect(store.settings.settings).toBeNull();
+  });
 });
 
 function settings() {

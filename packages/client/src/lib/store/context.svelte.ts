@@ -12,6 +12,7 @@ import {
   type ContextUsage,
   type ServerMessage,
   type SessionRef,
+  sessionMatches,
 } from "@pi-my-ui/protocol";
 
 export interface ContextSlice {
@@ -31,8 +32,10 @@ export function createContextSlice(): ContextSlice {
     },
     receive(message) {
       if (message.type === ServerMessageType.Snapshot) {
-        if (active !== null && active.id !== message.session.id) {
-          usage = undefined;
+        // A Snapshot for another Session is not this slice's news. A switch clears the slice, so the
+        // next Snapshot is accepted without the old Session being able to blank it on the way out.
+        if (active !== null && !sessionMatches(active, message.session)) {
+          return;
         }
         active = message.session;
         return;
@@ -40,10 +43,7 @@ export function createContextSlice(): ContextSlice {
       if (message.type !== ServerMessageType.ContextUsage) {
         return;
       }
-      if (
-        active !== null &&
-        (message.session.project !== active.project || message.session.id !== active.id)
-      ) {
+      if (active !== null && !sessionMatches(active, message.session)) {
         return;
       }
       active = message.session;

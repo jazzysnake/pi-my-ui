@@ -47,12 +47,10 @@ export class ClientStore {
   }
 
   /**
-   * Switch the watched Session. The transcript is dropped rather than left to be replaced when the
-   * new Snapshot arrives, so the previous Session is never drawn under the new one's name.
+   * Drop everything named by the previous Session or Project. The next Snapshot is accepted because
+   * every slice's established Session is cleared with it.
    */
-  selectSession(session: SessionRef): void {
-    this.projects.select(session.project);
-    this.sessions.select(session.id);
+  private clearSessionScoped(): void {
     this.transcript.clear();
     this.settings.clear();
     this.composer.clearError();
@@ -61,6 +59,16 @@ export class ClientStore {
     this.context.clear();
     this.tree.clear();
     this.files.follow(this.projects.chosen);
+  }
+
+  /**
+   * Switch the watched Session. The transcript is dropped rather than left to be replaced when the
+   * new Snapshot arrives, so the previous Session is never drawn under the new one's name.
+   */
+  selectSession(session: SessionRef): void {
+    this.projects.select(session.project);
+    this.sessions.select(session.id);
+    this.clearSessionScoped();
   }
 
   /**
@@ -74,13 +82,6 @@ export class ClientStore {
     }
     this.projects.select(project);
     this.sessions.clear();
-    this.transcript.clear();
-    this.settings.clear();
-    this.composer.clearError();
-    this.commands.clear();
-    this.subagents.clear();
-    this.context.clear();
-    this.tree.clear();
-    this.files.follow(this.projects.chosen);
+    this.clearSessionScoped();
   }
 }

@@ -4,7 +4,7 @@
 
 **Blocked by:** 01, 02, 03, 04 and 05 (the documented behaviour must exist).
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] The README documents `--project`, the picker and `?project=`
 - [ ] The guide's flag table describes `--project` as repeatable

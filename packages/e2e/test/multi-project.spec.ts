@@ -1,42 +1,33 @@
-import { access, mkdir, readFile, realpath } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { access, readFile } from "node:fs/promises";
+import { isAbsolute, relative, resolve } from "node:path";
 
 import { expect, test, type Page } from "@playwright/test";
 
 import type { ServerMessage, TreeNode } from "@pi-my-ui/protocol";
-import { startServer, type RunningServer } from "@pi-my-ui/server";
 import type { Script } from "@pi-my-ui/scripted-provider";
 
-import { startClientPageServer, type ClientPageServer } from "../src/client-page-server";
-import { seedSession, type FixtureSession } from "../src/fixture-builder";
-import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
+import { seedSession } from "../src/fixture-builder";
+import {
+  disposeHarness,
+  FIRST_MARKER,
+  openDrawer,
+  openProject,
+  openSession,
+  projectRow,
+  projectUrl,
+  REPLY_SCRIPT,
+  SECOND_MARKER,
+  sendMessage,
+  startHarness,
+  switchProject,
+  type Harness,
+} from "../src/multi-project-harness";
 import { connectWsSession } from "../src/ws-session-client";
 
 const PI_TEST_TIMEOUT_MS = 120_000;
 const PI_START_TIMEOUT_MS = 30_000;
 
 test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
-
-/** The marker each seeded Session carries on its own active path. */
-const FIRST_MARKER = "Seed text block 54.";
-const SECOND_MARKER = "Seed text block 32.";
-
-const UNUSED_SCRIPT: Script = [
-  {
-    expect: { role: "user", text: "a prompt this recording never saw" },
-    reply: { content: [{ type: "text", text: "unused" }], stopReason: "stop" },
-  },
-];
-
-const REPLY_SCRIPT: Script = [
-  {
-    expect: { role: "user", text: "hello there" },
-    reply: {
-      content: [{ type: "text", text: "reply from the chosen Project" }],
-      stopReason: "stop",
-    },
-  },
-];
 
 /** What the delegated agent says before it starts the command the steer interrupts. */
 const AGENT_TEXT = "watching the build now";
@@ -112,140 +103,6 @@ const BACKGROUND_SCRIPT: Script = [
   },
 ];
 
-interface Harness {
-  readonly home: HermeticHome;
-  readonly first: string;
-  readonly second: string;
-  readonly empty: string;
-  readonly firstSession: FixtureSession;
-  readonly secondSession: FixtureSession;
-  readonly server: RunningServer;
-  readonly client: ClientPageServer;
-}
-
-async function startHarness(script: Script = UNUSED_SCRIPT): Promise<Harness> {
-  const home = await createHermeticHome();
-  const secondDirectory = join(home.root, "second-project");
-  const emptyDirectory = join(home.root, "empty-project");
-  await mkdir(secondDirectory, { recursive: true });
-  await mkdir(emptyDirectory, { recursive: true });
-  const first = await realpath(home.workspace);
-  const second = await realpath(secondDirectory);
-  const empty = await realpath(emptyDirectory);
-  const firstSession = await seedSession(home, "plain");
-  const secondSession = await seedSession(home, "branching", { project: second });
-  const launch = await scriptedPiLaunch(home, script);
-  const server = await startServer({
-    projects: [first, second, empty],
-    sessionDir: home.sessionsDir,
-    port: home.ports.allocate(),
-    pi: {
-      args: launch.args,
-      env: launch.env,
-      provider: launch.provider,
-      model: launch.model,
-    },
-  });
-  const client = await startClientPageServer();
-  return { home, first, second, empty, firstSession, secondSession, server, client };
-}
-
-async function disposeHarness(harness: Harness): Promise<void> {
-  await harness.client.close();
-  await harness.server.close();
-  await harness.home.dispose();
-}
-
-interface SingleHarness {
-  readonly home: HermeticHome;
-  readonly project: string;
-  readonly session: FixtureSession;
-  readonly server: RunningServer;
-  readonly client: ClientPageServer;
-}
-
-async function startSingleProjectHarness(): Promise<SingleHarness> {
-  const home = await createHermeticHome();
-  const project = await realpath(home.workspace);
-  const session = await seedSession(home, "plain");
-  const launch = await scriptedPiLaunch(home, UNUSED_SCRIPT);
-  const server = await startServer({
-    projects: [project],
-    sessionDir: home.sessionsDir,
-    port: home.ports.allocate(),
-    pi: {
-      args: launch.args,
-      env: launch.env,
-      provider: launch.provider,
-      model: launch.model,
-    },
-  });
-  const client = await startClientPageServer();
-  return { home, project, session, server, client };
-}
-
-async function disposeSingleHarness(harness: SingleHarness): Promise<void> {
-  await harness.client.close();
-  await harness.server.close();
-  await harness.home.dispose();
-}
-
-function projectUrl(harness: Harness, project: string, sessionId?: string): string {
-  const params = new URLSearchParams({ project, ws: harness.server.url });
-  if (sessionId !== undefined) {
-    params.set("session", sessionId);
-  }
-  return `${harness.client.url}?${params.toString()}`;
-}
-
-async function openProject(page: Page, harness: Harness, project: string): Promise<void> {
-  await page.goto(projectUrl(harness, project));
-  await expect(page.getByTestId("connection-status")).toHaveAttribute("data-status", "connected");
-}
-
-/** A bare page: no Project linked, so the picker or a remembered Project decides the first screen. */
-async function openBarePage(page: Page, harness: Harness): Promise<void> {
-  await page.goto(`${harness.client.url}?ws=${encodeURIComponent(harness.server.url)}`);
-  await expect(page.getByTestId("connection-status")).toHaveAttribute("data-status", "connected");
-}
-
-/** Seed the device's remembered Project before the page's own scripts run. */
-async function rememberProject(page: Page, project: string): Promise<void> {
-  await page.addInitScript((value: string) => {
-    window.localStorage.setItem("pi-my-ui.project", value);
-  }, project);
-}
-
-function projectRow(page: Page, project: string) {
-  return page.locator(`[data-testid="project-row"][data-project="${project}"]`);
-}
-
-/** Open the drawer's Project level and tap one Project, which returns to its Sessions. */
-async function switchProject(page: Page, project: string): Promise<void> {
-  await openDrawer(page);
-  await page.getByTestId("project-switch").click();
-  await projectRow(page, project).click();
-  await expect(page.getByTestId("session-drawer")).toHaveAttribute("data-level", "sessions");
-}
-
-async function openSession(page: Page, sessionId: string): Promise<void> {
-  await openDrawer(page);
-  await page.locator(`[data-testid="session-row"][data-session-id="${sessionId}"]`).click();
-}
-
-async function openDrawer(page: Page): Promise<void> {
-  const toggle = page.getByRole("button", { name: "Toggle sessions sidebar" });
-  if ((await page.getByTestId("session-drawer").count()) === 0) {
-    await toggle.click();
-  }
-  await expect(page.getByTestId("session-drawer")).toBeVisible();
-}
-
-async function sendMessage(page: Page, text: string): Promise<void> {
-  await page.getByTestId("composer-input").fill(text);
-  await page.getByTestId("composer-send").click();
-}
-
 /** The next frame of one type; the server also pushes lists and attach surfaces on its own. */
 async function nextOf<T extends ServerMessage["type"]>(
   client: Awaited<ReturnType<typeof connectWsSession>>,
@@ -281,6 +138,39 @@ async function focusAgent(page: Page): Promise<void> {
   await page.getByTestId("agent-pill").click();
   await page.locator('[data-testid="agent-row"][data-row-kind="agent"]').first().click();
   await expect(page.getByTestId("agent-list")).toHaveCount(0);
+}
+
+/**
+ * Start a run in the first Project, leave for the other, and come back to the run still finishing.
+ * `leave` and `returnToFirst` choose how the reader travels; everything a run must survive is the
+ * same either way, so the body is written once.
+ */
+async function runSurvivesLeaving(
+  page: Page,
+  harness: Harness,
+  leave: () => Promise<void>,
+  returnToFirst: () => Promise<void>,
+): Promise<void> {
+  await page.goto(projectUrl(harness, harness.first, harness.firstSession.id));
+  await expect(page.getByTestId("connection-status")).toHaveAttribute("data-status", "connected");
+  await expect(page.getByTestId("transcript")).toContainText(FIRST_MARKER, {
+    timeout: PI_START_TIMEOUT_MS,
+  });
+  await sendMessage(page, "run the slow background command");
+  await expect(page.getByTestId("transcript")).toContainText("starting the background run");
+
+  await leave();
+  await expect(page.getByTestId("session-row")).toHaveCount(1);
+  await expect(page.getByTestId("session-row")).toHaveAttribute(
+    "data-session-id",
+    harness.secondSession.id,
+  );
+  await expect(page.getByTestId("transcript")).not.toContainText("starting the background run");
+
+  await returnToFirst();
+  await expect(page.getByTestId("transcript")).toContainText("background run finished", {
+    timeout: PI_TEST_TIMEOUT_MS,
+  });
 }
 
 test("the drawer lists only the chosen Project's Sessions", async ({ page }) => {
@@ -399,29 +289,19 @@ test("creating a Session starts it in the chosen Project", async ({ page }) => {
 test("a run keeps working while another Project is viewed", async ({ page }) => {
   const harness = await startHarness(BACKGROUND_SCRIPT);
   try {
-    await page.goto(projectUrl(harness, harness.first, harness.firstSession.id));
-    await expect(page.getByTestId("connection-status")).toHaveAttribute("data-status", "connected");
-    await expect(page.getByTestId("transcript")).toContainText(FIRST_MARKER, {
-      timeout: PI_START_TIMEOUT_MS,
-    });
-    await sendMessage(page, "run the slow background command");
-    await expect(page.getByTestId("transcript")).toContainText("starting the background run");
-
-    // The other Project is a different page load, which is the strongest form of leaving: the socket
-    // the run first reached is gone, and the child must still finish on the server.
-    await openProject(page, harness, harness.second);
-    await openDrawer(page);
-    await expect(page.getByTestId("session-row")).toHaveCount(1);
-    await expect(page.getByTestId("session-row")).toHaveAttribute(
-      "data-session-id",
-      harness.secondSession.id,
+    await runSurvivesLeaving(
+      page,
+      harness,
+      async () => {
+        // The other Project is a different page load, which is the strongest form of leaving: the
+        // socket the run first reached is gone, and the child must still finish on the server.
+        await openProject(page, harness, harness.second);
+        await openDrawer(page);
+      },
+      async () => {
+        await page.goto(projectUrl(harness, harness.first, harness.firstSession.id));
+      },
     );
-    await expect(page.getByTestId("transcript")).not.toContainText("starting the background run");
-
-    await page.goto(projectUrl(harness, harness.first, harness.firstSession.id));
-    await expect(page.getByTestId("transcript")).toContainText("background run finished", {
-      timeout: PI_START_TIMEOUT_MS,
-    });
   } finally {
     await disposeHarness(harness);
   }
@@ -500,6 +380,34 @@ test("a pair naming an id from another Project is refused and nothing is searche
     expect(firstList.sessions.map((session) => session.id)).toEqual([harness.firstSession.id]);
   } finally {
     await client.close();
+    await disposeHarness(harness);
+  }
+});
+
+test("a refused pair leaves the Session the connection was watching attached", async () => {
+  const harness = await startHarness(REPLY_SCRIPT);
+  const watcher = await connectWsSession(harness.server.url);
+  const runner = await connectWsSession(harness.server.url);
+  try {
+    const session = { project: harness.first, id: harness.firstSession.id };
+    watcher.send({ type: "subscribe", session });
+    expect((await nextOf(watcher, "snapshot")).session).toEqual(session);
+
+    // The pair names an id the second Project does not hold, so the server refuses it.
+    watcher.send({ type: "subscribe", session: { project: harness.second, id: session.id } });
+    expect(await nextOf(watcher, "error")).toMatchObject({
+      type: "error",
+      error: { code: "unknownSession" },
+      session: { project: harness.second, id: session.id },
+    });
+
+    // The run reaches the Session the connection was legitimately watching, so the refusal did not
+    // detach the attach that refused pair never replaced.
+    runner.send({ type: "prompt", session, text: "hello there" });
+    expect((await nextOf(watcher, "delta")).session).toEqual(session);
+  } finally {
+    await watcher.close();
+    await runner.close();
     await disposeHarness(harness);
   }
 });
@@ -783,139 +691,57 @@ test("a steer reaches a running agent in another Project", async ({ page }) => {
   }
 });
 
-test("the first load shows the Project picker and one tap lists that Project's Sessions", async ({
-  page,
-}) => {
+test("the drawer's Sessions and the file panel change together on one switch", async ({ page }) => {
   const harness = await startHarness();
   try {
-    await openBarePage(page, harness);
+    await page.goto(projectUrl(harness, harness.first, harness.firstSession.id));
+    await expect(page.getByTestId("transcript")).toContainText(FIRST_MARKER, {
+      timeout: PI_START_TIMEOUT_MS,
+    });
 
-    await expect(page.getByTestId("project-picker")).toBeVisible();
-    await expect(page.getByTestId("project-row")).toHaveCount(3);
-    await expect(page.getByTestId("files-toggle")).toBeDisabled();
+    // The panel names the chosen Project and holds only that Project's rows.
+    await page.getByTestId("files-toggle").click();
+    await expect(page.getByTestId("file-tree-root")).toHaveText(harness.first);
+    await expect(
+      page.getByTestId("file-tree-file").filter({ hasText: "first-only.txt" }),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("file-tree-file").filter({ hasText: "second-only.txt" }),
+    ).toHaveCount(0);
+    await page.getByTestId("file-tree-close").click();
+    await expect(page.getByTestId("file-tree")).toHaveCount(0);
 
+    // One switch, taken from the drawer, moves the Session rows to the other Project.
+    await openDrawer(page);
+    await expect(page.getByTestId("session-row")).toHaveAttribute(
+      "data-session-id",
+      harness.firstSession.id,
+    );
+    await page.getByTestId("project-switch").click();
     await projectRow(page, harness.second).click();
-    await expect(page.getByTestId("project-picker")).toHaveCount(0);
-    await expect(page.getByTestId("session-drawer")).toBeVisible();
+    await expect(page.getByTestId("session-drawer")).toHaveAttribute("data-level", "sessions");
     await expect(page.getByTestId("session-row")).toHaveCount(1);
     await expect(page.getByTestId("session-row")).toHaveAttribute(
       "data-session-id",
       harness.secondSession.id,
     );
-    expect(new URL(page.url()).searchParams.get("project")).toBe(harness.second);
-  } finally {
-    await disposeHarness(harness);
-  }
-});
-
-test("a remembered Project opens directly and a ?project= link does too", async ({ page }) => {
-  const harness = await startHarness();
-  try {
-    await rememberProject(page, harness.second);
-    await openBarePage(page, harness);
-    await expect(page.getByTestId("project-picker")).toHaveCount(0);
-    await expect(page.getByTestId("session-drawer")).toBeVisible();
-    await expect(page.getByTestId("session-row")).toHaveAttribute(
-      "data-session-id",
-      harness.secondSession.id,
-    );
-
-    await openProject(page, harness, harness.first);
-    await expect(page.getByTestId("project-picker")).toHaveCount(0);
-    await expect(page.getByTestId("session-drawer")).toBeVisible();
-    await expect(page.getByTestId("session-row")).toHaveAttribute(
+    await expect(page.getByTestId("session-row")).not.toHaveAttribute(
       "data-session-id",
       harness.firstSession.id,
     );
-  } finally {
-    await disposeHarness(harness);
-  }
-});
+    await page.getByRole("button", { name: "Close sessions sidebar" }).click();
 
-test("an unserved remembered Project shows the picker with a notice naming the path", async ({
-  page,
-}) => {
-  const harness = await startHarness();
-  try {
-    await rememberProject(page, "/workspace/not-served");
-    await openBarePage(page, harness);
-
-    await expect(page.getByTestId("project-picker")).toBeVisible();
-    await expect(page.getByTestId("project-warning")).toContainText("/workspace/not-served");
-    await expect(page.getByTestId("session-row")).toHaveCount(0);
-  } finally {
-    await disposeHarness(harness);
-  }
-});
-
-test("an unserved linked Project shows the picker with a notice naming the path", async ({
-  page,
-}) => {
-  const harness = await startHarness();
-  try {
-    await page.goto(projectUrl(harness, "/workspace/not-served"));
-    await expect(page.getByTestId("connection-status")).toHaveAttribute("data-status", "connected");
-
-    await expect(page.getByTestId("project-picker")).toBeVisible();
-    await expect(page.getByTestId("project-warning")).toContainText("/workspace/not-served");
-  } finally {
-    await disposeHarness(harness);
-  }
-});
-
-test("a server serving one Project skips the picker", async ({ page }) => {
-  const harness = await startSingleProjectHarness();
-  try {
-    await page.goto(`${harness.client.url}?ws=${encodeURIComponent(harness.server.url)}`);
-    await expect(page.getByTestId("connection-status")).toHaveAttribute("data-status", "connected");
-
-    await expect(page.getByTestId("project-picker")).toHaveCount(0);
-    await expect(page.getByTestId("session-drawer")).toBeVisible();
-    await expect(page.getByTestId("session-row")).toHaveAttribute(
-      "data-session-id",
-      harness.session.id,
-    );
-    await expect(page.getByTestId("files-toggle")).toBeEnabled();
-  } finally {
-    await disposeSingleHarness(harness);
-  }
-});
-
-test("an unserved remembered Project keeps its notice even when one Project is served", async ({
-  page,
-}) => {
-  const harness = await startSingleProjectHarness();
-  try {
-    await rememberProject(page, "/workspace/not-served");
-    await page.goto(`${harness.client.url}?ws=${encodeURIComponent(harness.server.url)}`);
-    await expect(page.getByTestId("connection-status")).toHaveAttribute("data-status", "connected");
-
-    await expect(page.getByTestId("project-picker")).toBeVisible();
-    await expect(page.getByTestId("project-warning")).toContainText("/workspace/not-served");
-    await expect(page.getByTestId("files-toggle")).toBeDisabled();
-  } finally {
-    await disposeSingleHarness(harness);
-  }
-});
-
-test("a Project with no Sessions opens to an empty transcript with New Session available", async ({
-  page,
-}) => {
-  const harness = await startHarness();
-  try {
-    await openBarePage(page, harness);
-    await projectRow(page, harness.empty).click();
-
-    await expect(page.getByTestId("session-drawer")).toBeVisible();
-    await expect(page.getByTestId("session-list-empty")).toHaveText("No sessions yet.");
-    await expect(page.getByTestId("transcript-empty")).toBeVisible();
-    await expect(page.getByTestId("new-session-action")).toBeVisible();
-
-    await page.getByTestId("new-session-action").click();
-    await expect(page.getByTestId("app-shell")).toHaveAttribute(
-      "data-session-id",
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
-    );
+    // The panel named the first Project, so that switch closed it rather than leaving it to draw
+    // another root's rows. Reopening asks for the Project now chosen.
+    await expect(page.getByTestId("file-tree")).toHaveCount(0);
+    await page.getByTestId("files-toggle").click();
+    await expect(page.getByTestId("file-tree-root")).toHaveText(harness.second);
+    await expect(
+      page.getByTestId("file-tree-file").filter({ hasText: "second-only.txt" }),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("file-tree-file").filter({ hasText: "first-only.txt" }),
+    ).toHaveCount(0);
   } finally {
     await disposeHarness(harness);
   }
@@ -924,26 +750,17 @@ test("a Project with no Sessions opens to an empty transcript with New Session a
 test("a run keeps working while another Project is viewed without reloading", async ({ page }) => {
   const harness = await startHarness(BACKGROUND_SCRIPT);
   try {
-    await page.goto(projectUrl(harness, harness.first, harness.firstSession.id));
-    await expect(page.getByTestId("connection-status")).toHaveAttribute("data-status", "connected");
-    await expect(page.getByTestId("transcript")).toContainText(FIRST_MARKER, {
-      timeout: PI_START_TIMEOUT_MS,
-    });
-    await sendMessage(page, "run the slow background command");
-    await expect(page.getByTestId("transcript")).toContainText("starting the background run");
-
-    await switchProject(page, harness.second);
-    await expect(page.getByTestId("session-row")).toHaveAttribute(
-      "data-session-id",
-      harness.secondSession.id,
+    await runSurvivesLeaving(
+      page,
+      harness,
+      async () => {
+        await switchProject(page, harness.second);
+      },
+      async () => {
+        await switchProject(page, harness.first);
+        await openSession(page, harness.firstSession.id);
+      },
     );
-    await expect(page.getByTestId("transcript")).not.toContainText("starting the background run");
-
-    await switchProject(page, harness.first);
-    await openSession(page, harness.firstSession.id);
-    await expect(page.getByTestId("transcript")).toContainText("background run finished", {
-      timeout: PI_TEST_TIMEOUT_MS,
-    });
   } finally {
     await disposeHarness(harness);
   }
@@ -972,44 +789,6 @@ test("a Session from the Project left behind still opens after switching away", 
     });
     await expect(page.getByTestId("transcript")).not.toContainText(SECOND_MARKER);
   } finally {
-    await disposeHarness(harness);
-  }
-});
-
-test("two pages on different Projects do not change each other's view", async ({
-  page,
-  context,
-}) => {
-  const harness = await startHarness(REPLY_SCRIPT);
-  const secondPage = await context.newPage();
-  try {
-    await page.goto(projectUrl(harness, harness.first, harness.firstSession.id));
-    await expect(page.getByTestId("transcript")).toContainText(FIRST_MARKER, {
-      timeout: PI_START_TIMEOUT_MS,
-    });
-
-    await secondPage.goto(projectUrl(harness, harness.second, harness.secondSession.id));
-    await expect(secondPage.getByTestId("transcript")).toContainText(SECOND_MARKER, {
-      timeout: PI_START_TIMEOUT_MS,
-    });
-
-    await sendMessage(secondPage, "hello there");
-    await expect(secondPage.getByTestId("transcript")).toContainText(
-      "reply from the chosen Project",
-      { timeout: PI_START_TIMEOUT_MS },
-    );
-
-    // The other page's run is not this page's news: its transcript and its list stay on its Project.
-    await expect(page.getByTestId("transcript")).toContainText(FIRST_MARKER);
-    await expect(page.getByTestId("transcript")).not.toContainText("reply from the chosen Project");
-    await openDrawer(page);
-    await expect(page.getByTestId("session-row")).toHaveCount(1);
-    await expect(page.getByTestId("session-row")).toHaveAttribute(
-      "data-session-id",
-      harness.firstSession.id,
-    );
-  } finally {
-    await secondPage.close();
     await disposeHarness(harness);
   }
 });

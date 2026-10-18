@@ -14,6 +14,7 @@ import {
   type ServerMessage,
   type SessionRef,
   type SessionStats,
+  sessionMatches,
 } from "@pi-my-ui/protocol";
 
 export interface CommandsSlice {
@@ -44,11 +45,6 @@ function mutationNotice(mutation: SessionMutation, created: boolean): string {
     : `${verb} was cancelled, so nothing was performed.`;
 }
 
-/** Whether a response names the Session whose commands this slice is holding. */
-function sameSession(left: SessionRef | null, right: SessionRef): boolean {
-  return left !== null && left.project === right.project && left.id === right.id;
-}
-
 export function createCommandsSlice(): CommandsSlice {
   let discoverable = $state<readonly CommandInfo[]>([]);
   let active: SessionRef | null = null;
@@ -75,14 +71,16 @@ export function createCommandsSlice(): CommandsSlice {
     },
     receive(message) {
       if (message.type === ServerMessageType.Snapshot) {
-        if (active !== null && !sameSession(active, message.session)) {
-          discoverable = [];
+        // A Snapshot for another Session is not this slice's news. A switch clears the slice, so the
+        // next Snapshot is accepted without the old Session being able to blank it on the way out.
+        if (active !== null && !sessionMatches(active, message.session)) {
+          return;
         }
         active = message.session;
         return;
       }
       if (message.type === ServerMessageType.Commands) {
-        if (active !== null && !sameSession(active, message.session)) {
+        if (active !== null && !sessionMatches(active, message.session)) {
           return;
         }
         active = message.session;
@@ -90,7 +88,7 @@ export function createCommandsSlice(): CommandsSlice {
         return;
       }
       if (message.type === ServerMessageType.SessionStats) {
-        if (!sameSession(active, message.session)) {
+        if (!sessionMatches(active, message.session)) {
           return;
         }
         stats = message.stats;
@@ -99,7 +97,7 @@ export function createCommandsSlice(): CommandsSlice {
         return;
       }
       if (message.type === ServerMessageType.SessionExported) {
-        if (!sameSession(active, message.session)) {
+        if (!sessionMatches(active, message.session)) {
           return;
         }
         exportedPath = message.path;
@@ -108,7 +106,7 @@ export function createCommandsSlice(): CommandsSlice {
         return;
       }
       if (message.type === ServerMessageType.SessionRenamed) {
-        if (!sameSession(active, message.session)) {
+        if (!sessionMatches(active, message.session)) {
           return;
         }
         notice = `Session renamed to "${message.name}".`;
@@ -117,7 +115,7 @@ export function createCommandsSlice(): CommandsSlice {
         return;
       }
       if (message.type === ServerMessageType.ForkMessages) {
-        if (!sameSession(active, message.session)) {
+        if (!sessionMatches(active, message.session)) {
           return;
         }
         forkMessages = message.messages;
@@ -126,7 +124,7 @@ export function createCommandsSlice(): CommandsSlice {
       if (message.type === ServerMessageType.SessionForked) {
         // The transport opens a created Session before handing the answer on, so this slice has
         // already been cleared when the notice arrives. It is still about the Session that asked.
-        if (active !== null && !sameSession(active, message.sourceSession)) {
+        if (active !== null && !sessionMatches(active, message.sourceSession)) {
           return;
         }
         notice = mutationNotice(message.mutation, message.session !== undefined);

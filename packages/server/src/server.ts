@@ -220,6 +220,18 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     attachment.generation += 1;
   }
 
+  /**
+   * Point the connection at one Project's list. Leaving a Project is leaving the Session watched
+   * there, so the detach happens with the move and never as a separate decision per message type.
+   */
+  function watchProject(attachment: SocketAttachment, project: string): void {
+    if (attachment.watchedProject === project) {
+      return;
+    }
+    detachWatchedSession(attachment);
+    attachment.watchedProject = project;
+  }
+
   async function handle(
     socket: WebSocket,
     attachment: SocketAttachment,
@@ -243,12 +255,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       }
       if (message.type === ClientMessageType.ListSessions) {
         const project = registry.require(message.project);
-        if (attachment.watchedProject !== project) {
-          // One connection watches one Project's list, so the Session it was watching belongs to the
-          // view it is leaving.
-          detachWatchedSession(attachment);
-          attachment.watchedProject = project;
-        }
+        watchProject(attachment, project);
         send(socket, {
           type: ServerMessageType.Sessions,
           project,
@@ -287,39 +294,34 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
         });
         return;
       }
-      if (
-        message.type === ClientMessageType.Subscribe ||
-        message.type === ClientMessageType.Prompt ||
-        message.type === ClientMessageType.Abort
-      ) {
-        if (attachment.watchedProject !== message.session.project) {
-          detachWatchedSession(attachment);
-          attachment.watchedProject = message.session.project;
-        }
-        const host = await pool.hostFor(message.session);
-        if (message.type === ClientMessageType.Subscribe) {
-          // A connection watches one Session, so subscribing elsewhere releases the one it had.
-          detachWatchedSession(attachment);
-          const generation = attachment.generation;
-          const detach = await host.attach(viewer, message.cursor);
-          // A browser can close its socket, or subscribe somewhere else, while its Snapshot is still
-          // being built. A detach that is latched after that would never be called, and the Session
-          // it belongs to stays watched, so it is never evicted: nothing can reclaim it.
-          if (attachment.generation !== generation || socket.readyState !== WebSocket.OPEN) {
-            detach();
-            return;
-          }
-          attachment.detach = detach;
+      // Every remaining frame names one Session, so the pair is resolved before the connection's
+      // watch moves: a pair this Project does not hold is refused with the Session the connection was
+      // legitimately watching still attached.
+      const host = await pool.hostFor(message.session);
+      watchProject(attachment, message.session.project);
+      if (message.type === ClientMessageType.Subscribe) {
+        // A connection watches one Session, so subscribing elsewhere releases the one it had.
+        detachWatchedSession(attachment);
+        const generation = attachment.generation;
+        const detach = await host.attach(viewer, message.cursor);
+        // A browser can close its socket, or subscribe somewhere else, while its Snapshot is still
+        // being built. A detach that is latched after that would never be called, and the Session
+        // it belongs to stays watched, so it is never evicted: nothing can reclaim it.
+        if (attachment.generation !== generation || socket.readyState !== WebSocket.OPEN) {
+          detach();
           return;
         }
-        if (message.type === ClientMessageType.Prompt) {
-          await host.prompt(message.text, message.images ?? [], message.streamingBehavior);
-          return;
-        }
+        attachment.detach = detach;
+        return;
+      }
+      if (message.type === ClientMessageType.Prompt) {
+        await host.prompt(message.text, message.images ?? [], message.streamingBehavior);
+        return;
+      }
+      if (message.type === ClientMessageType.Abort) {
         await host.abort();
         return;
       }
-      const host = await pool.hostFor(message.session);
       if (message.type === ClientMessageType.SteerSubagent) {
         await host.steerSubagent(message.agentId, message.message);
         return;

@@ -86,7 +86,7 @@
   } = $props();
 
   let filesOpen = $state(false);
-  /** The Project the open panel names as its root, so a different choice can close it. */
+  /** The Project the open panel was opened for, so a different choice can close it. */
   let filesProject = $state<string | null>(null);
   let sessionsOpen = $state(false);
   /**
@@ -454,9 +454,9 @@
       }}
     />
   {/if}
-  {#if filesOpen}
+  {#if filesOpen && store.projects.chosen !== null}
     <FileTreePanel
-      project={filesProject ?? ""}
+      project={store.projects.chosen}
       files={store.files}
       onClose={() => {
         filesOpen = false;

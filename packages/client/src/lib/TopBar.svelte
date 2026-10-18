@@ -21,12 +21,15 @@
     onToggleSessions,
     onToggleFiles,
     onOpenAgents,
+    filesEnabled = true,
   }: {
     store: ClientStore;
     status: ConnectionStatus;
     onToggleSessions: () => void;
     onToggleFiles: () => void;
     onOpenAgents: () => void;
+    /** Whether the file panel can be opened without showing a Project the browser did not choose. */
+    filesEnabled?: boolean;
   } = $props();
 </script>
 
@@ -53,9 +56,10 @@
     <ConnectionStatusIndicator {status} />
     <button
       type="button"
-      class="grid size-11 shrink-0 place-items-center rounded border border-hairline-strong text-dim"
+      class="grid size-11 shrink-0 place-items-center rounded border border-hairline-strong text-dim disabled:opacity-40"
       aria-label="Files"
       data-testid="files-toggle"
+      disabled={!filesEnabled}
       onclick={onToggleFiles}
     >
       <Icon name="folder" />

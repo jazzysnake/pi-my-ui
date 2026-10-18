@@ -6,6 +6,7 @@ import { createComposerSlice, type ComposerSlice } from "./composer.svelte.js";
 import { createCommandsSlice, type CommandsSlice } from "./commands.svelte.js";
 import { createContextSlice, type ContextSlice } from "./context.svelte.js";
 import { createFilesSlice, type FilesSlice } from "./files.svelte.js";
+import type { ProjectStorage } from "../projects/storage.js";
 import { createProjectsSlice, type ProjectsSlice } from "./projects.svelte.js";
 import { createSessionsSlice, type SessionsSlice } from "./sessions.svelte.js";
 import { createSettingsSlice, type SettingsSlice } from "./settings.svelte.js";
@@ -25,8 +26,8 @@ export class ClientStore {
   readonly context: ContextSlice = createContextSlice();
   readonly tree: TreeSlice = createTreeSlice();
 
-  constructor(linkedProject: string | null = null) {
-    this.projects = createProjectsSlice(linkedProject);
+  constructor(linkedProject: string | null = null, projectStorage?: ProjectStorage) {
+    this.projects = createProjectsSlice(linkedProject, projectStorage);
   }
 
   receive(message: ServerMessage): void {
@@ -60,9 +61,13 @@ export class ClientStore {
 
   /**
    * Switch the watched Project. Its Session list is asked for again, and nothing from the previous
-   * Project stays on screen while that answer is in flight.
+   * Project stays on screen while that answer is in flight. Choosing the Project already chosen is
+   * not a switch: clearing its list would ask for nothing to replace it.
    */
   selectProject(project: string): void {
+    if (project === this.projects.chosen) {
+      return;
+    }
     this.projects.select(project);
     this.sessions.clear();
     this.transcript.clear();

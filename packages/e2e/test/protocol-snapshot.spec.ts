@@ -159,7 +159,8 @@ test("malformed and unknown inbound messages are rejected loudly", async () => {
       error: { code: "malformedPayload" },
     });
 
-    // A bare id is no longer a Session identity: it is refused at the boundary, not looked up.
+    // A Session is named by the pair on the wire, so a frame carrying only a bare id is a protocol
+    // error rather than a lookup with the Project guessed.
     client.send({ type: "subscribe", sessionId: harness.seeded.id });
     expect(await client.next()).toMatchObject({
       type: "error",

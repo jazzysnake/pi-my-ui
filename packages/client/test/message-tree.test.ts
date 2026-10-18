@@ -253,6 +253,26 @@ describe("the message tree modal", () => {
     expect(rowIds(target)).toContain("u6");
   });
 
+  it("closes on a switch to another Session instead of showing that Session's tree", () => {
+    const store = new ClientStore();
+    const { target } = mountShell(store);
+    openTree(target, store, TREE);
+    expect(rowIds(target)).toContain("u6");
+
+    flushSync(() => {
+      store.selectSession({ project: "/workspace", id: "session-2" });
+    });
+    expect(target.querySelector('[data-testid="message-tree-modal"]')).toBeNull();
+
+    // Reopening asks the new Session for its own tree: the previous Session's tree is not kept to
+    // be drawn under a name it does not belong to.
+    flushSync(() => {
+      target.querySelector<HTMLButtonElement>('[data-testid="composer-branch"]')?.click();
+    });
+    expect(target.querySelector('[data-testid="message-tree-loading"]')).not.toBeNull();
+    expect(rowIds(target)).toEqual([]);
+  });
+
   it("expands the active path only, counting what each alternative hides", () => {
     const store = new ClientStore();
     const { target } = mountShell(store);

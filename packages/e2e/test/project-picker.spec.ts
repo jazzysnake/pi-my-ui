@@ -171,7 +171,10 @@ test("two Projects sharing a last path segment are distinguishable in the picker
     // The last segment alone would make these one row; each label carries its parent instead.
     const pickerLabels = await page.getByTestId("project-label").allTextContents();
     expect(pickerLabels).toEqual(["work/api", "oss/api"]);
-    expect(new Set(pickerLabels).size).toBe(2);
+    // The disambiguated label is a convenience, not the identity: each row still shows the path
+    // that names the Project, so two rows can never leave the user guessing which is which.
+    const pickerPaths = await page.getByTestId("project-path").allTextContents();
+    expect(pickerPaths).toEqual([harness.first, harness.second]);
 
     await projectRow(page, harness.first).click();
     await expect(page.getByTestId("session-drawer")).toBeVisible();

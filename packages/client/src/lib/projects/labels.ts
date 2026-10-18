@@ -42,3 +42,13 @@ export function projectLabels(projects: readonly string[]): ReadonlyMap<string, 
 
   return labels;
 }
+
+/**
+ * The label a row shows for `project`. A Project reaches the drawer before the served list does (the
+ * drawer can name the chosen path alone), so a path the map has no entry for is labelled by itself
+ * rather than left blank.
+ */
+export function projectLabeler(projects: readonly string[]): (project: string) => string {
+  const labels = projectLabels(projects);
+  return (project) => labels.get(project) ?? project;
+}

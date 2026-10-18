@@ -29,10 +29,8 @@ export interface SessionRef {
  * Whether two references name the same Session. A missing reference names nothing, so a slice that
  * has established no Session yet matches no frame: the first Snapshot is what establishes one.
  */
-export function sessionMatches(left: SessionRef | null | undefined, right: SessionRef): boolean {
-  return (
-    left !== null && left !== undefined && left.project === right.project && left.id === right.id
-  );
+export function sessionMatches(left: SessionRef | null, right: SessionRef): boolean {
+  return left !== null && left.project === right.project && left.id === right.id;
 }
 
 /** A position in one Session's ordered stream of Delta batches. */

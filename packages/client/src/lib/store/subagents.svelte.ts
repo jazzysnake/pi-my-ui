@@ -242,8 +242,6 @@ export function createSubagentsSlice(): SubagentsSlice {
         return;
       }
       if (message.type === ServerMessageType.Snapshot) {
-        // A Snapshot for another Session is not this slice's news. A switch clears the slice, so the
-        // next Snapshot is accepted without the old Session being able to blank it on the way out.
         if (active !== null && !sessionMatches(active, message.session)) {
           return;
         }

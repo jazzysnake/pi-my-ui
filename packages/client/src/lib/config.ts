@@ -24,6 +24,28 @@ export function defaultWebSocketUrl(href: string): string {
   return url.toString();
 }
 
+/**
+ * The page address naming a Project and, when one is open, its Session. The `ws` override survives
+ * the rewrite so a dev or test page keeps reaching the server it was opened against.
+ */
+export function projectAddress(
+  href: string,
+  project: string,
+  sessionId: string | null,
+  wsOverride: string | null,
+): string {
+  const params = new URLSearchParams({ project });
+  if (sessionId !== null) {
+    params.set("session", sessionId);
+  }
+  if (wsOverride !== null) {
+    params.set("ws", wsOverride);
+  }
+  const url = new URL(href);
+  url.search = params.toString();
+  return url.toString();
+}
+
 export function resolveClientConfig(href: string, search: string): ClientConfig {
   const params = new URLSearchParams(search);
   const session = params.get("session");

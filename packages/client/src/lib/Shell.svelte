@@ -89,10 +89,12 @@
   let sessionsOpen = $state(false);
   /**
    * File requests still resolve against the server's first Project, so only a server serving exactly
-   * one Project can show files without showing another Project's tree. Scoping every file request to
-   * a Project removes this guard.
+   * one Project can show files without risking another Project's tree, and only once that Project is
+   * the chosen one. Scoping every file request to a Project removes this guard.
    */
-  const filesAllowed = $derived(store.projects.projects?.length === 1);
+  const filesAllowed = $derived(
+    store.projects.chosen !== null && store.projects.projects?.length === 1,
+  );
   let forkOpen = $state(false);
   let agentsOpen = $state(false);
   /** The composer's draft, so the message tree can hand one of the user's messages back to it. */

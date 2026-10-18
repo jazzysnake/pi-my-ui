@@ -10,10 +10,7 @@
 
 import { ServerMessageType, type ServerMessage } from "@pi-my-ui/protocol";
 
-import {
-  createNoopProjectStorage,
-  type ProjectStorage,
-} from "../projects/storage.js";
+import { createNoopProjectStorage, type ProjectStorage } from "../projects/storage.js";
 
 export interface ProjectsSlice {
   /** The served Projects, or `null` until the server answers. */

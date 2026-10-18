@@ -31,7 +31,10 @@
   </header>
 
   {#if warning !== null}
-    <p class="border-b border-hairline px-4 py-3 text-body text-warning" data-testid="project-warning">
+    <p
+      class="border-b border-hairline px-4 py-3 text-body text-warning"
+      data-testid="project-warning"
+    >
       {warning}
     </p>
   {/if}

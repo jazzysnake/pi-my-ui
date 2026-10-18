@@ -61,9 +61,13 @@ export class ClientStore {
 
   /**
    * Switch the watched Project. Its Session list is asked for again, and nothing from the previous
-   * Project stays on screen while that answer is in flight.
+   * Project stays on screen while that answer is in flight. Choosing the Project already chosen is
+   * not a switch: clearing its list would ask for nothing to replace it.
    */
   selectProject(project: string): void {
+    if (project === this.projects.chosen) {
+      return;
+    }
     this.projects.select(project);
     this.sessions.clear();
     this.transcript.clear();

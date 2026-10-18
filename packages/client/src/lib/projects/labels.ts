@@ -42,8 +42,3 @@ export function projectLabels(projects: readonly string[]): ReadonlyMap<string, 
 
   return labels;
 }
-
-/** The label for one served Project, or its path when it is not in the list. */
-export function projectLabel(project: string, projects: readonly string[]): string {
-  return projectLabels(projects).get(project) ?? project;
-}

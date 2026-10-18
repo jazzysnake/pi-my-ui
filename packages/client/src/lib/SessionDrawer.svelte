@@ -91,9 +91,8 @@
       <div class="flex items-center gap-1 border-b border-hairline px-3 py-2">
         <span class="min-w-0 flex-1">
           <span class="block text-meta tracking-wider text-dim uppercase">Sessions</span>
-          <span
-            class="block truncate text-body text-ink"
-            data-testid="current-project-label">{currentLabel}</span
+          <span class="block truncate text-body text-ink" data-testid="current-project-label"
+            >{currentLabel}</span
           >
         </span>
         <button

@@ -1,6 +1,6 @@
 <script lang="ts">
   import Shell from "./lib/Shell.svelte";
-  import { resolveClientConfig } from "./lib/config.js";
+  import { projectAddress, resolveClientConfig } from "./lib/config.js";
   import { fileDownloadUrl, startFileDownload } from "./lib/files/download.js";
   import { createDeviceProjectStorage } from "./lib/projects/storage.js";
   import { ClientStore } from "./lib/store/client-store.svelte.js";
@@ -13,16 +13,8 @@
 
   /** Keep the address copyable: a Project choice lands there, and a Session choice names both. */
   function writeAddress(project: string, sessionId: string | null): void {
-    const params = new URLSearchParams({ project });
-    if (sessionId !== null) {
-      params.set("session", sessionId);
-    }
-    if (config.wsOverride !== null) {
-      params.set("ws", config.wsOverride);
-    }
-    const url = new URL(window.location.href);
-    url.search = params.toString();
-    window.history.replaceState(null, "", url);
+    const address = projectAddress(window.location.href, project, sessionId, config.wsOverride);
+    window.history.replaceState(null, "", address);
   }
 
   $effect(() => {
@@ -66,10 +58,7 @@
   {store}
   {status}
   startWithSessionsOpen={config.sessionId === null}
-  onSelectProject={(project) => {
-    store.selectProject(project);
-    transport?.switchProject(project);
-  }}
+  onSelectProject={(project) => store.selectProject(project)}
   onSelectSession={(sessionId) => {
     const project = store.projects.chosen;
     if (project === null) {

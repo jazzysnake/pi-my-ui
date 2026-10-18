@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 (the composite identity and core path).
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Every remaining session-scoped request carries the composite Project+id value
 - [ ] Every response to those requests echoes the pair

@@ -44,6 +44,7 @@ async function waitForDevServer(
   throw new Error(`vite never served ${url}: ${output()}`);
 }
 
+// Wiring claim: a browser served by the dev server reaches real pi through the proxy.
 test("the dev server reaches real pi from a browser through the proxy", async ({ page }) => {
   const home = await createHermeticHome();
   const seeded = await seedSession(home, "plain");

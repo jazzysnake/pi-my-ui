@@ -48,6 +48,7 @@ async function openHarness(page: Page, harness: Harness, marker: string): Promis
   await expect(page.getByTestId("transcript")).toContainText(marker);
 }
 
+// Wiring claim: every control the composer's states put on screen is at least a 44 px target.
 test("every control the composer's own states put on screen meets the minimum", async ({
   page,
 }) => {
@@ -136,6 +137,7 @@ test("every control the composer's own states put on screen meets the minimum", 
   }
 });
 
+// Wiring claim: the Starting row's controls are full touch targets before any Snapshot arrives.
 test("a Session that is still starting meets the minimum", async ({ page }) => {
   const harness = await startHarness({
     script: () => [
@@ -160,6 +162,7 @@ test("a Session that is still starting meets the minimum", async ({ page }) => {
   }
 });
 
+// Wiring claim: the agent list, notification controls and a focused subagent's composer are full touch targets.
 test("the agent list and the transcript's own controls meet the minimum", async ({ page }) => {
   const harness = await startHarness({
     seeds: [{ fixture: "subagents" }],

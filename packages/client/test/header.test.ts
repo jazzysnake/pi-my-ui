@@ -27,6 +27,29 @@ describe("the header's end group", () => {
     expect(controls.at(-1), "Files must be the header's last control").toBe(files);
   });
 
+  it("hides the connection label at opacity 0 until the status control takes the tap", () => {
+    const { target } = mountShell(new ClientStore());
+    const status = target.querySelector<HTMLElement>('[data-testid="connection-status"]');
+    const label = target.querySelector<HTMLElement>('[data-testid="connection-status-label"]');
+    if (status === null || label === null) {
+      throw new Error("the header is missing its connection status or its label");
+    }
+
+    expect(label.textContent).toBe("Connected");
+    // jsdom has no cascade, so the reveal's two halves are asserted where they live: the label's own
+    // opacity is 0, and only the wrapper's focus-within rule raises it. A tap focuses the wrapper
+    // because it is in the tab order, which is what makes the label readable without hover.
+    expect(label.classList.contains("opacity-0")).toBe(true);
+    expect(label.classList.contains("group-focus-within:opacity-100")).toBe(true);
+    expect(status.classList.contains("group")).toBe(true);
+    expect(status.tabIndex).toBe(0);
+    expect(status.matches(":focus-within")).toBe(false);
+
+    status.focus();
+    expect(document.activeElement).toBe(status);
+    expect(status.matches(":focus-within")).toBe(true);
+  });
+
   it("holds navigation controls only while a subagent runs", () => {
     const store = new ClientStore();
     const { target } = mountShell(store);

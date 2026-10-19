@@ -50,6 +50,7 @@ async function disposeHarness(harness: Harness): Promise<void> {
   await harness.home.dispose();
 }
 
+// Wiring claim: the built bundle opens on a phone, connects, and renders pi's Snapshot.
 test("the app opens, connects and renders a seeded transcript on a phone", async ({ page }) => {
   const harness = await startHarness();
   try {
@@ -65,23 +66,6 @@ test("the app opens, connects and renders a seeded transcript on a phone", async
     await expect(transcript).toContainText("Seed text block 3.", { timeout: PI_START_TIMEOUT_MS });
     await expect(transcript).toContainText("Seed text block 54.");
     await expect(page.getByTestId("transcript-entry").first()).toBeVisible();
-  } finally {
-    await disposeHarness(harness);
-  }
-});
-
-test("the connection label is revealed on tap", async ({ page }) => {
-  const harness = await startHarness();
-  try {
-    await page.goto(
-      `${harness.client.url}?session=${encodeURIComponent(harness.seeded.id)}&ws=${encodeURIComponent(harness.server.url)}`,
-    );
-
-    const label = page.getByTestId("connection-status-label");
-    await expect(label).toHaveCSS("opacity", "0");
-    await page.getByTestId("connection-status").click();
-    await expect(label).toHaveText("Connected");
-    await expect(label).toHaveCSS("opacity", "1");
   } finally {
     await disposeHarness(harness);
   }

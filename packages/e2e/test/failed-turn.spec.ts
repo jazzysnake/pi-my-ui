@@ -85,6 +85,7 @@ function failedCard(page: Page) {
   return page.getByTestId("message-card").filter({ has: page.getByTestId("error-block") });
 }
 
+// Wiring claim: pi's error shows live and again from the Session file after a server restart.
 test("a failed turn states pi's error in the transcript, live and again from the Session file", async ({
   page,
 }) => {
@@ -139,6 +140,7 @@ test("a failed turn states pi's error in the transcript, live and again from the
   }
 });
 
+// Wiring claim: a blank error from pi becomes the same fallback sentence in the row and the card.
 test("a live failure whose error text is blank states the fallback in both places", async ({
   page,
 }) => {
@@ -170,6 +172,7 @@ test("a live failure whose error text is blank states the fallback in both place
   }
 });
 
+// Wiring claim: pi's own failed attempts project with content before error and no row for an empty one.
 test("a seeded attempt keeps its error after the content, and an attempt with no content leaves no row", async ({
   page,
 }) => {

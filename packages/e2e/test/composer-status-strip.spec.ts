@@ -84,6 +84,7 @@ async function paintedTone(locator: ReturnType<Page["getByTestId"]>): Promise<Pa
   });
 }
 
+// Wiring claim: the strip's tones are the theme's resolved palette, and green follows pi's own auto-compaction state.
 test("model and thinking read in the accent tone and auto-compact is green only while on", async ({
   page,
 }) => {
@@ -129,6 +130,7 @@ test("model and thinking read in the accent tone and auto-compact is green only 
   }
 });
 
+// Wiring claim: every status-strip label fits inside the strip at the narrowest phone widths.
 test("the status strip fits the narrowest phone and never cuts a label", async ({ page }) => {
   const harness = await startHarness();
   try {
@@ -178,6 +180,7 @@ test("the status strip fits the narrowest phone and never cuts a label", async (
  * The model name is pi's to choose, so it arrives through the scripted provider rather than being
  * written into the page: a name that does not fit must give way itself.
  */
+// Wiring claim: a long model name ellipsizes at 320 px and leaves the toggle on the row.
 test("a long model name ellipsizes instead of pushing the toggle off the row", async ({ page }) => {
   const harness = await startHarness(LONG_MODEL_NAME);
   try {

@@ -234,6 +234,31 @@ describe("the session drawer over the store's ServerMessage input", () => {
     expect(labelled.some((label) => /rename|delete/i.test(label ?? ""))).toBe(false);
   });
 
+  it("renders an empty Project with no Sessions and offers New Session", () => {
+    const store = new ClientStore();
+    const { target, create } = mountShell(store);
+    flushSync(() => {
+      store.receive(sessionsMessage([]));
+    });
+    openDrawer(target);
+
+    expect(target.querySelector('[data-testid="session-list-empty"]')?.textContent).toBe(
+      "No sessions yet.",
+    );
+    // No Session is open, so the transcript says so instead of drawing an unexplained blank.
+    expect(target.querySelector('[data-testid="transcript-empty"]')).not.toBeNull();
+    expect(target.querySelectorAll('[data-testid="transcript-entry"]')).toHaveLength(0);
+
+    const plus = target.querySelector<HTMLButtonElement>('[data-testid="new-session-action"]');
+    if (plus === null) {
+      throw new Error("the new-session control is missing");
+    }
+    flushSync(() => {
+      plus.click();
+    });
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
   it("reports a create request from the plus control", () => {
     const store = new ClientStore();
     const { target, create } = mountShell(store);

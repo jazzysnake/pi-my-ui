@@ -83,6 +83,7 @@ async function sendMessage(page: Page, text: string): Promise<void> {
   await page.getByTestId("composer-send").click();
 }
 
+// Wiring claim: wide content stays contained and scrolls inside itself at every phone width.
 test("wide content scrolls inside itself and never widens the page at any phone width", async ({
   page,
 }) => {
@@ -191,6 +192,7 @@ test("wide content scrolls inside itself and never widens the page at any phone 
   }
 });
 
+// Wiring claim: scrolling the drawer never moves the page or the transcript behind it.
 test("a drawer scrolls itself and never the page or the transcript behind it", async ({ page }) => {
   const harness = await startHarness(
     [
@@ -267,6 +269,7 @@ function headerControl(controls: readonly HeaderControl[], testId: string): Head
   return control;
 }
 
+// Wiring claim: every top-bar control fits inside the narrowest phone, with Files rightmost.
 test("the top bar holds its controls inside the narrowest phone", async ({ page }) => {
   // The subagents seed carries a subagent, so the pill is on screen and its absence from the header
   // means something; the header must still fit the narrowest phone without it.
@@ -324,6 +327,7 @@ test("the top bar holds its controls inside the narrowest phone", async ({ page 
   }
 });
 
+// Wiring claim: the agent pill leads the session bar and leaves the readout inside it at 320 px.
 test("the session bar leads with the agent pill inside the narrowest phone", async ({ page }) => {
   // This seed puts the pill and the context readout on the same row, which is the widest the session
   // bar ever gets.

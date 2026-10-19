@@ -133,6 +133,7 @@ async function scrollTo(transcript: Locator, top: number | "top" | "bottom"): Pr
   }, top);
 }
 
+// Wiring claim: a 500+ entry transcript renders a bounded window that scrolling and loading older rows never exceed.
 test("a 500+ entry Session loads within the budget with a bounded, scrolling window", async ({
   page,
 }) => {
@@ -207,6 +208,7 @@ test("a 500+ entry Session loads within the budget with a bounded, scrolling win
   }
 });
 
+// Wiring claim: a streamed reply updates one row in place instead of remounting the mounted rows.
 test("a streaming Delta updates text without remounting the mounted rows", async ({ page }) => {
   const harness = await startHarness(STREAM_SCRIPT, SMALL_ENTRIES);
   try {
@@ -275,6 +277,7 @@ test("a streaming Delta updates text without remounting the mounted rows", async
   }
 });
 
+// Wiring claim: a fresh Snapshot after a stale Cursor keeps the mounted range and the reader's pixel position.
 test("preserves the reader's scroll position when a stale Cursor is answered with a Snapshot", async ({
   page,
 }) => {

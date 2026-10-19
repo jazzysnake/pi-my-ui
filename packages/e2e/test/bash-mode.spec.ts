@@ -25,30 +25,7 @@ const NO_MODEL_CALL: Script = [
   },
 ];
 
-test("states the bash mode before the command is sent", async ({ page }) => {
-  const harness = await startHarness({ script: () => NO_MODEL_CALL });
-  try {
-    await openHarness(page, harness);
-    const input = page.getByTestId("composer-input");
-
-    await input.fill("!echo hello");
-    const include = page.getByTestId("bash-mode-indicator");
-    await expect(include).toHaveAttribute("data-bash-mode", "include");
-    await expect(include).toContainText("adds to context");
-    await expect(include).toContainText(
-      "The output will enter the model's context on the next prompt.",
-    );
-
-    await input.fill("!!echo secret");
-    const exclude = page.getByTestId("bash-mode-indicator");
-    await expect(exclude).toHaveAttribute("data-bash-mode", "exclude");
-    await expect(exclude).toContainText("not added to context");
-    await expect(exclude).toContainText("The output will not enter the model's context.");
-  } finally {
-    await harness.dispose();
-  }
-});
-
+// Wiring claim: a real command's output is streamed before it exits and pi's exit code closes the card.
 test("streams the command's output live and ends with its exit code", async ({ page }) => {
   const harness = await startHarness({ script: () => NO_MODEL_CALL });
   const first = harness.gate("first");
@@ -80,6 +57,7 @@ test("streams the command's output live and ends with its exit code", async ({ p
   }
 });
 
+// Wiring claim: a real command's non-zero exit status reaches the card as pi reports it.
 test("shows a non-zero exit as an error", async ({ page }) => {
   const harness = await startHarness({ script: () => NO_MODEL_CALL });
   try {
@@ -94,6 +72,7 @@ test("shows a non-zero exit as an error", async ({ page }) => {
   }
 });
 
+// Wiring claim: a dropped socket and resync re-send the projected bash execution rather than re-creating it.
 test("the bash card survives a dropped connection and resync", async ({ page }) => {
   const harness = await startHarness({ script: () => NO_MODEL_CALL });
   try {
@@ -121,6 +100,7 @@ test("the bash card survives a dropped connection and resync", async ({ page }) 
   }
 });
 
+// Wiring claim: a real command's excluded output is visible in the web UI and absent from pi's context.
 test("`!!` output never enters the model's context", async ({ page }) => {
   const harness = await startHarness({
     script: () => [

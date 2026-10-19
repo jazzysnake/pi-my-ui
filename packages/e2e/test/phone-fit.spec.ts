@@ -45,6 +45,7 @@ async function sendMessage(page: Page, text: string): Promise<void> {
   await page.getByTestId("composer-send").click();
 }
 
+// Wiring claim: the shell's palette, type and composer geometry are the ones the design states, as rendered.
 test("the shell is drawn in the console theme: palette, monospace type and composer geometry", async ({
   page,
 }) => {
@@ -112,6 +113,7 @@ test("the shell is drawn in the console theme: palette, monospace type and compo
   }
 });
 
+// Wiring claim: reduced motion stops the pulse without losing the text or the stop control.
 test("reduced motion stops the pulse and loses no text", async ({ page }) => {
   const harness = await startHarness({ script: runningScript });
   const hold = harness.gate("hold");
@@ -152,6 +154,7 @@ test("reduced motion stops the pulse and loses no text", async ({ page }) => {
   }
 });
 
+// Wiring claim: an open overlay covers only points that act, and a hidden label swallows no tap.
 test("an overlay covers nothing it cannot act on, and a hidden label holds no tap", async ({
   page,
 }) => {

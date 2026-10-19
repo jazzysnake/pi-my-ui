@@ -16,7 +16,7 @@ until you deliberately bind beyond loopback and allow your browser's origin.
   `@earendil-works/pi-coding-agent` package as a child and does not need `pi` on `PATH`.
 - **Caddy plus Tailscale** to reach the app from a phone. The exact setup is in the
   [Caddy + Tailscale guide](docs/deploy/caddy.md).
-- **Chromium** for the browser tests: `npx playwright install chromium`.
+- **Chromium** for the browser suite: `npx playwright install chromium`.
 
 Both gates need no model credentials and never touch your real `~/.pi`: the test suite runs real pi
 in a hermetic home with a scripted model provider.
@@ -35,14 +35,14 @@ npm run build
 
 Six packages in one npm workspace:
 
-| Package                       | What it is                                                                                  |
-| ----------------------------- | ------------------------------------------------------------------------------------------- |
-| `@pi-my-ui/protocol`          | The wire contract: message types, validators, the Delta reducer, Cursor semantics           |
-| `@pi-my-ui/server`            | HTTP and WebSocket backend; owns the Session pool and each Session's Projection             |
-| `@pi-my-ui/client`            | Svelte 5 phone UI, fed by one stream of `ServerMessage` values                              |
-| `@pi-my-ui/bridge-extension`  | pi extension loaded into every Pi child; reaches past pi's RPC for subagents and Leaf moves |
-| `@pi-my-ui/scripted-provider` | A pi model-provider extension that replays recorded replies (test-only)                     |
-| `@pi-my-ui/e2e`               | Hermetic harness, fixture builder, Playwright browser specs and vitest backend specs        |
+| Package                       | What it is                                                                                               |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `@pi-my-ui/protocol`          | The wire contract: message types, validators, the Delta reducer, Cursor semantics                        |
+| `@pi-my-ui/server`            | HTTP and WebSocket backend; owns the Session pool and each Session's Projection                          |
+| `@pi-my-ui/client`            | Svelte 5 phone UI, fed by one stream of `ServerMessage` values                                           |
+| `@pi-my-ui/bridge-extension`  | pi extension loaded into every Pi child; reaches past pi's RPC for subagents and Leaf moves              |
+| `@pi-my-ui/scripted-provider` | A pi model-provider extension that replays recorded replies (test-only)                                  |
+| `@pi-my-ui/e2e`               | Hermetic harness, fixture builder, the browser suite under Playwright and the backend suite under vitest |
 
 The bridge is required. It ships with this repository and is loaded into every Pi child
 automatically; if it cannot load or connect, the Session or the server start reports the failure
@@ -110,28 +110,29 @@ pass `--allowed-origin`, add the exact dev origin you open (for example
 
 ## Commands
 
-| Command                      | What it does                                                                                                                                                                                        |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run verify`             | **The fast gate.** Typecheck (tests included) → lint, hygiene, e2e style and fixture checks → format check → build → store, component and backend tests. Stops before the browser end-to-end suite. |
-| `npm run verify:full`        | The fast gate plus the browser end-to-end suite (one Playwright process, eight workers).                                                                                                            |
-| `npm run typecheck`          | Build the protocol package, then typecheck every workspace including tests                                                                                                                          |
-| `npm run lint`               | ESLint, the comment hygiene, e2e style and fixture checks                                                                                                                                           |
-| `npm run format`             | Prettier write                                                                                                                                                                                      |
-| `npm run format:check`       | Prettier check (non-mutating)                                                                                                                                                                       |
-| `npm run test`               | Store, component and backend tests                                                                                                                                                                  |
-| `npm run build`              | Build every workspace                                                                                                                                                                               |
-| `npm run test:e2e`           | The Playwright browser suite in one process, pinned to eight workers and failing over a 45 s budget                                                                                                 |
-| `npm run test:e2e:raw`       | The same browser suite without the stopwatch, for when a run is expected to be slow                                                                                                                 |
-| `npm run test:smoke`         | Opt-in: record one real-provider run and replay it through the scripted provider                                                                                                                    |
-| `npm run measure:pool`       | Measure the pool's resident memory and eviction behaviour                                                                                                                                           |
-| `npm run rerecord -- <name>` | Re-record one scripted-provider script from a real provider run                                                                                                                                     |
+| Command                      | What it does                                                                                                                                                                             |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run verify`             | **The fast gate.** Typecheck (tests included) → lint, hygiene, e2e style and fixture checks → format check → build → store, component and backend tests. Stops before the browser suite. |
+| `npm run verify:full`        | The fast gate plus the browser suite (one Playwright process, eight workers).                                                                                                            |
+| `npm run typecheck`          | Build the protocol package, then typecheck every workspace including tests                                                                                                               |
+| `npm run lint`               | ESLint, the comment hygiene, e2e style and fixture checks                                                                                                                                |
+| `npm run format`             | Prettier write                                                                                                                                                                           |
+| `npm run format:check`       | Prettier check (non-mutating)                                                                                                                                                            |
+| `npm run test`               | Store and component tests plus the backend suite                                                                                                                                         |
+| `npm run build`              | Build every workspace                                                                                                                                                                    |
+| `npm run test:e2e`           | The Playwright browser suite in one process, pinned to eight workers and failing over a 45 s budget                                                                                      |
+| `npm run test:e2e:raw`       | The same browser suite without the stopwatch, for when a run is expected to be slow                                                                                                      |
+| `npm run test:smoke`         | Opt-in: record one real-provider run and replay it through the scripted provider                                                                                                         |
+| `npm run measure:pool`       | Measure the pool's resident memory and eviction behaviour                                                                                                                                |
+| `npm run rerecord -- <name>` | Re-record one scripted-provider script from a real provider run                                                                                                                          |
 
 The browser commands need a build first (`npm run build`) and a one-time
 `npx playwright install chromium`.
 
 ### What the gates cover
 
-`npm run verify` stops after the build. `npm run verify:full` adds the end-to-end suite.
+`npm run verify` stops after the store, component and backend tests. `npm run verify:full` adds the
+browser suite.
 
 - **Typecheck** covers tests as well as source.
 - **Lint** includes `scripts/hygiene-check.mjs`, which fails on a ticket id or a date in a source
@@ -139,9 +140,13 @@ The browser commands need a build first (`npm run build`) and a one-time
   `scripts/e2e-style-check.mjs`, which rejects raw theme colours in e2e specs.
 - **Store and component tests** feed `ServerMessage` values straight into the client store and
   assert on rendered output. They never open a socket and never touch a store internal.
-- **End-to-end tests** run a real browser against real pi, in a hermetic home per test, with the
-  scripted provider as the only substitute for the model and the real bridge loaded. Reconnect and
-  resync are exercised through a test-only hook that drops viewer connections.
+- **Backend suite** runs under vitest in a node environment against the built server, with real Pi
+  children and a real WebSocket. It carries the Claims that need a real server, socket or child but
+  no browser.
+- **Browser suite** runs under Playwright with a real browser against real pi, in a hermetic home
+  per test, with the scripted provider as the only substitute for the model and the real bridge
+  loaded. Reconnect and resync are exercised through a test-only hook that drops viewer
+  connections. It carries the Claims that need a browser or a layout engine.
 - **Fixture check** refuses a committed raw or oversized pi Session file; only the curated,
   sanitised seeds under `packages/e2e/fixtures/seeds` are allowed.
 
@@ -158,4 +163,4 @@ set, and it never runs as part of either gate.
 - [Architecture decisions](docs/adr/) — the choices and their costs.
 - [Measurements](docs/measurements.md) — the numbers the pool defaults come from.
 - [Glossary](GLOSSARY.md) — Session, Pi child, Projection, Snapshot, Delta, Cursor, Leaf, Bridge,
-  Subagent.
+  Subagent, Journey, Claim, Wiring claim, Browser suite, Backend suite, Rig.

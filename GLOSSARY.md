@@ -41,3 +41,27 @@ _Avoid_: Plugin, sidecar
 **Subagent**:
 An agent started by a Session to do part of its work.
 _Avoid_: Child agent, worker
+
+**Journey**:
+A path a user takes across a seam, named by its outcome. One reason a test exists, not the only one: two tests may cover one Journey when their Claims differ.
+_Avoid_: Flow, scenario, user story
+
+**Claim**:
+One sentence a test fails on if it turns false.
+_Avoid_: Assertion, check, expectation
+
+**Wiring claim**:
+A Claim whose truth needs a real Pi child, a real socket, a real browser, or a real layout engine behind it.
+_Avoid_: Integration test, end-to-end test
+
+**Browser suite**:
+The tests whose Claims need a real browser or a real layout engine; run by Playwright.
+_Avoid_: E2E suite, end-to-end tests, frontend tests
+
+**Backend suite**:
+The tests whose Claims need a real server, socket or Pi child but no browser; run by vitest against the built server.
+_Avoid_: Integration tests, server tests
+
+**Rig**:
+The harness, fixture builder, recorder and lint scripts that start and support tests, as distinct from the promises the tests check.
+_Avoid_: Framework, tooling, infrastructure

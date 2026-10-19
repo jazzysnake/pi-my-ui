@@ -347,3 +347,17 @@ claim before the browser test leaves:
 **Correction to the proposal:** `current-project-label` for Projects sharing a last segment is
 already carried by `projects.test.ts` — its "distinguishes Projects that share a last segment by
 their parents" test asserts the drawer label `oss/api`. No new store test is needed for that cut.
+
+### Additional decision: message-tree depth cap moves down
+
+The ticket requires the message tree's *rendering* rules to be carried at store level, with the
+browser keeping the pi-confirmed Leaf move. The 100-deep test's depth cap is pure component logic, and
+its overflow claim is already asserted by the kept "both entry points open one modal" test. So:
+
+- **Add** a `message-tree.test.ts` test that a 100-deep Session renders with depth at most two and no
+  horizontal overflow, using the existing store/component harness and a generated deep fixture.
+- **Cut** `message-tree.spec.ts` — "a 100-deep Session renders flat and every visible row is one tap
+  away" once that store test is green. The browser keeps the overflow measurement in the kept
+  entry-points test and the pi-confirmed Leaf move in its own test.
+
+**Revised final counts: 85 keep, 28 cut** (113 browser tests).

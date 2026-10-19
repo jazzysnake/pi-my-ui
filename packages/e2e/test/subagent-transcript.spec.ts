@@ -164,7 +164,7 @@ test("the focused agent's transcript survives a resync", async ({ page }) => {
 
     // The agent's later output reaches the focused view after the resync, so the stream continued
     // into the same rows rather than being restored as a frozen copy.
-    await expect(transcript).toContainText("the agent finished", { timeout: 60_000 });
+    await expect(transcript).toContainText("the agent finished");
   } finally {
     await harness.dispose();
   }

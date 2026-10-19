@@ -9,10 +9,6 @@ import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/
 import { piChildPids } from "../src/pi-processes";
 import { connectWsSession, type WsSessionClient } from "../src/ws-session-client";
 
-const PI_TEST_TIMEOUT_MS = 120_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
-
 /**
  * The default idle window, in seconds, as `--help` states it: the pool's footprint is the measured
  * cost of every child it keeps, so a reader's window and the pool's must be one number.

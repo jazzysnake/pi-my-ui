@@ -17,9 +17,6 @@ import {
 } from "../src/fixture-builder";
 import { createHermeticHome, startScriptedPi, type HermeticHome } from "../src/pi-harness";
 
-const PI_TEST_TIMEOUT_MS = 120_000;
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
-
 const SEEDS_DIR = fileURLToPath(new URL("../fixtures/seeds/", import.meta.url));
 const ALLOW_LIST = fileURLToPath(new URL("../fixtures/seeds.json", import.meta.url));
 const FIXTURE_CHECK = fileURLToPath(new URL("../../../scripts/fixture-check.mjs", import.meta.url));

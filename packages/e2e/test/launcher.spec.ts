@@ -20,9 +20,6 @@ import { seedSession } from "../src/fixture-builder";
 import { createHermeticHome, createPortNamespace, scriptedPiLaunch } from "../src/pi-harness";
 import { connectWsSession } from "../src/ws-session-client";
 
-const PI_TEST_TIMEOUT_MS = 90_000;
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
-
 const CLI_PATH = fileURLToPath(new URL("../../server/dist/cli.js", import.meta.url));
 
 /** The flags `--help` must name; a flagship without a line here is undiscoverable. */

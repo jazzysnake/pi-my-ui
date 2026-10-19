@@ -9,9 +9,6 @@ import type { Script } from "@pi-my-ui/scripted-provider";
 import { seedSession } from "../src/fixture-builder";
 import { createHermeticHome, scriptedPiLaunch } from "../src/pi-harness";
 
-const PI_TEST_TIMEOUT_MS = 90_000;
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
-
 const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 const VITE_BIN = join(REPO_ROOT, "node_modules", "vite", "bin", "vite.js");
 const CLIENT_DIR = join(REPO_ROOT, "packages", "client");

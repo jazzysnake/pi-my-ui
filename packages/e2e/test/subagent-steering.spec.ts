@@ -7,10 +7,6 @@ import { startClientPageServer, type ClientPageServer } from "../src/client-page
 import { seedSession, type FixtureSession } from "../src/fixture-builder";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 
-const PI_TEST_TIMEOUT_MS = 120_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
-
 /** What the agent says before it starts the command that outlives the steer. */
 const AGENT_TEXT = "watching the build now";
 const STEER_TEXT = "tighten the loop";

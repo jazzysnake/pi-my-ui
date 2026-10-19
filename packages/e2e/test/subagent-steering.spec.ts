@@ -1,11 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { startServer, type RunningServer } from "@pi-my-ui/server";
 import type { Script } from "@pi-my-ui/scripted-provider";
 
-import { startClientPageServer, type ClientPageServer } from "../src/client-page-server";
-import { seedSession, type FixtureSession } from "../src/fixture-builder";
-import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
+import type { Gate } from "../src/gate";
+import { startHarness, type Harness } from "../src/test-harness";
 
 /** What the agent says before it starts the command that outlives the steer. */
 const AGENT_TEXT = "watching the build now";
@@ -14,55 +12,58 @@ const STEER_TEXT = "tighten the loop";
 const STEERED_REPLY = "the agent tightened the loop";
 
 /**
- * The parent delegates one task; the agent speaks and then runs a command slow enough that the steer
- * is typed while it is still working. pi delivers a steer after the current tool call, so the model
- * call that follows is prompted by the steer itself — the script binds that call to the steer text,
- * which is what proves the text reached this agent and not the Session.
+ * The parent delegates one task; the agent speaks and then blocks on this test's build gate, so the
+ * steer is typed while the agent is genuinely working and the test decides when the tool call
+ * returns. pi delivers a steer after the current tool call, so the model call that follows is
+ * prompted by the steer itself — the script binds that call to the steer text, which is what proves
+ * the text reached this agent and not the Session.
  */
-const STEERING_SCRIPT: Script = [
-  {
-    expect: { role: "user", text: "delegate the build" },
-    reply: {
-      content: [
-        {
-          type: "toolCall",
-          id: "call_agent_1",
-          name: "Agent",
-          arguments: {
-            subagent_type: "general-purpose",
-            prompt: "watch the build",
-            description: "Watch the build",
-            run_in_background: false,
+function steeringScript(gate: (name: string) => Gate): Script {
+  return [
+    {
+      expect: { role: "user", text: "delegate the build" },
+      reply: {
+        content: [
+          {
+            type: "toolCall",
+            id: "call_agent_1",
+            name: "Agent",
+            arguments: {
+              subagent_type: "general-purpose",
+              prompt: "watch the build",
+              description: "Watch the build",
+              run_in_background: false,
+            },
           },
-        },
-      ],
-      stopReason: "toolUse",
+        ],
+        stopReason: "toolUse",
+      },
     },
-  },
-  {
-    expect: { role: "user", text: "watch the build" },
-    reply: {
-      content: [
-        { type: "text", text: AGENT_TEXT },
-        {
-          type: "toolCall",
-          id: "call_subagent_bash_1",
-          name: "bash",
-          arguments: { command: "sleep 12 && echo built", timeout: 60 },
-        },
-      ],
-      stopReason: "toolUse",
+    {
+      expect: { role: "user", text: "watch the build" },
+      reply: {
+        content: [
+          { type: "text", text: AGENT_TEXT },
+          {
+            type: "toolCall",
+            id: "call_subagent_bash_1",
+            name: "bash",
+            arguments: { ...gate("build").command("echo built") },
+          },
+        ],
+        stopReason: "toolUse",
+      },
     },
-  },
-  {
-    expect: { role: "user", text: STEER_TEXT },
-    reply: { content: [{ type: "text", text: STEERED_REPLY }], stopReason: "stop" },
-  },
-  {
-    expect: { role: "toolResult", toolName: "Agent" },
-    reply: { content: [{ type: "text", text: "the parent finished" }], stopReason: "stop" },
-  },
-];
+    {
+      expect: { role: "user", text: STEER_TEXT },
+      reply: { content: [{ type: "text", text: STEERED_REPLY }], stopReason: "stop" },
+    },
+    {
+      expect: { role: "toolResult", toolName: "Agent" },
+      reply: { content: [{ type: "text", text: "the parent finished" }], stopReason: "stop" },
+    },
+  ];
+}
 
 /** An agent that finishes on its own, so the composer can be asked to steer a settled run. */
 const SETTLED_SCRIPT: Script = [
@@ -95,40 +96,8 @@ const SETTLED_SCRIPT: Script = [
   },
 ];
 
-interface Harness {
-  readonly home: HermeticHome;
-  readonly seeded: FixtureSession;
-  readonly server: RunningServer;
-  readonly client: ClientPageServer;
-}
-
-async function startHarness(script: Script): Promise<Harness> {
-  const home = await createHermeticHome();
-  const seeded = await seedSession(home, "plain");
-  const launch = await scriptedPiLaunch(home, script, { piSubagents: true });
-  const server = await startServer({
-    projects: [launch.cwd],
-    sessionDir: home.sessionsDir,
-    port: home.ports.allocate(),
-    pi: {
-      args: launch.args,
-      env: launch.env,
-      provider: launch.provider,
-      model: launch.model,
-    },
-  });
-  const client = await startClientPageServer();
-  return { home, seeded, server, client };
-}
-
-async function disposeHarness(harness: Harness): Promise<void> {
-  await harness.client.close();
-  await harness.server.close();
-  await harness.home.dispose();
-}
-
 async function openHarness(page: Page, harness: Harness): Promise<void> {
-  const url = `${harness.client.url}?session=${encodeURIComponent(harness.seeded.id)}&ws=${encodeURIComponent(harness.server.url)}`;
+  const url = `${harness.client.url}?session=${encodeURIComponent(harness.session.id)}&ws=${encodeURIComponent(harness.server.url)}`;
   await page.goto(url);
   await expect(page.getByTestId("connection-status")).toHaveAttribute("data-status", "connected");
   await expect(page.getByTestId("transcript")).toContainText("Seed text block 3.");
@@ -160,7 +129,8 @@ async function steer(page: Page, text: string): Promise<void> {
 test("typed text steers the focused running agent and is shown until it lands", async ({
   page,
 }) => {
-  const harness = await startHarness(STEERING_SCRIPT);
+  const harness = await startHarness({ script: steeringScript, piSubagents: true });
+  const build = harness.gate("build");
   try {
     await openHarness(page, harness);
     await sendMessage(page, "delegate the build");
@@ -171,17 +141,20 @@ test("typed text steers the focused running agent and is shown until it lands", 
 
     await steer(page, STEER_TEXT);
 
-    // The agent is still inside its slow command, so the message is in flight rather than delivered:
-    // the status line says where it is, and the agent's conversation has not gained the turn yet.
+    // The agent is still inside its gated command, so the message is in flight rather than
+    // delivered: the status line says where it is, and the agent's conversation has not gained the
+    // turn yet. Observing that before the release is what makes this a decision rather than a race.
     const pending = page.getByTestId("steer-pending");
-    await expect(pending).toBeVisible();
-    await expect(pending).toContainText("@");
-    await expect(transcript).not.toContainText(STEER_TEXT);
+    await build.releaseAfter(async () => {
+      await expect(pending).toBeVisible();
+      await expect(pending).toContainText("@");
+      await expect(transcript).not.toContainText(STEER_TEXT);
+    });
 
     // pi delivers at the turn boundary: the steer becomes a user turn in that agent's conversation
     // and the model call it prompts is the one the script bound to it.
-    await expect(transcript).toContainText(STEER_TEXT, { timeout: 60_000 });
-    await expect(transcript).toContainText(STEERED_REPLY, { timeout: 60_000 });
+    await expect(transcript).toContainText(STEER_TEXT, { timeout: 30_000 });
+    await expect(transcript).toContainText(STEERED_REPLY, { timeout: 30_000 });
     await expect(pending).toHaveCount(0);
 
     // The Session's own conversation never received the text, so the message went to the agent.
@@ -189,17 +162,20 @@ test("typed text steers the focused running agent and is shown until it lands", 
     await page.locator('[data-testid="agent-row"][data-row-kind="main"]').click();
     await expect(page.getByTestId("transcript")).not.toContainText(STEER_TEXT);
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("a settled agent disables sending and says why", async ({ page }) => {
-  const harness = await startHarness(SETTLED_SCRIPT);
+  const harness = await startHarness({
+    script: () => SETTLED_SCRIPT,
+    piSubagents: true,
+  });
   try {
     await openHarness(page, harness);
     await sendMessage(page, "delegate the build");
     await expect(page.getByTestId("transcript")).toContainText("the parent finished", {
-      timeout: 60_000,
+      timeout: 30_000,
     });
 
     await focusAgent(page);
@@ -214,6 +190,6 @@ test("a settled agent disables sending and says why", async ({ page }) => {
     await expect(page.getByTestId("composer-input")).toHaveValue(STEER_TEXT);
     await expect(page.getByTestId("transcript")).not.toContainText(STEER_TEXT);
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });

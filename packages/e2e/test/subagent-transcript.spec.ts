@@ -1,11 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { startServer, type RunningServer } from "@pi-my-ui/server";
 import type { Script } from "@pi-my-ui/scripted-provider";
 
-import { startClientPageServer, type ClientPageServer } from "../src/client-page-server";
-import { seedSession, type FixtureSession } from "../src/fixture-builder";
-import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
+import type { Gate } from "../src/gate";
+import { startHarness, type Harness } from "../src/test-harness";
 import { connectWsSession } from "../src/ws-session-client";
 import { projectionText } from "../src/ws-transcript";
 
@@ -13,89 +11,60 @@ import { projectionText } from "../src/ws-transcript";
 const AGENT_TEXT = "watching the build now";
 
 /**
- * The parent delegates one task. The agent speaks, then runs a command slow enough that everything
- * the browser asserts happens while the agent is still working; only the model is scripted, so the
- * agent, its session and its event stream are pi's.
+ * The parent delegates one task. The agent speaks, then waits on this test's build gate: everything
+ * the browser asserts happens while the agent is genuinely working, and the gate decides when the
+ * command returns. Only the model is scripted, so the agent, its session and its event stream are
+ * pi's.
  */
-const SCRIPT: Script = [
-  {
-    expect: { role: "user", text: "delegate the build" },
-    reply: {
-      content: [
-        {
-          type: "toolCall",
-          id: "call_agent_1",
-          name: "Agent",
-          arguments: {
-            subagent_type: "general-purpose",
-            prompt: "watch the build",
-            description: "Watch the build",
-            run_in_background: false,
+function buildScript(gate: (name: string) => Gate): Script {
+  return [
+    {
+      expect: { role: "user", text: "delegate the build" },
+      reply: {
+        content: [
+          {
+            type: "toolCall",
+            id: "call_agent_1",
+            name: "Agent",
+            arguments: {
+              subagent_type: "general-purpose",
+              prompt: "watch the build",
+              description: "Watch the build",
+              run_in_background: false,
+            },
           },
-        },
-      ],
-      stopReason: "toolUse",
+        ],
+        stopReason: "toolUse",
+      },
     },
-  },
-  {
-    expect: { role: "user", text: "watch the build" },
-    reply: {
-      content: [
-        { type: "text", text: AGENT_TEXT },
-        {
-          type: "toolCall",
-          id: "call_subagent_bash_1",
-          name: "bash",
-          arguments: { command: "sleep 20 && echo built", timeout: 60 },
-        },
-      ],
-      stopReason: "toolUse",
+    {
+      expect: { role: "user", text: "watch the build" },
+      reply: {
+        content: [
+          { type: "text", text: AGENT_TEXT },
+          {
+            type: "toolCall",
+            id: "call_subagent_bash_1",
+            name: "bash",
+            arguments: { ...gate("build").command("echo built") },
+          },
+        ],
+        stopReason: "toolUse",
+      },
     },
-  },
-  {
-    expect: { role: "toolResult", toolName: "bash" },
-    reply: { content: [{ type: "text", text: "the agent finished" }], stopReason: "stop" },
-  },
-  {
-    expect: { role: "toolResult", toolName: "Agent" },
-    reply: { content: [{ type: "text", text: "the parent finished" }], stopReason: "stop" },
-  },
-];
-
-interface Harness {
-  readonly home: HermeticHome;
-  readonly seeded: FixtureSession;
-  readonly server: RunningServer;
-  readonly client: ClientPageServer;
-}
-
-async function startHarness(): Promise<Harness> {
-  const home = await createHermeticHome();
-  const seeded = await seedSession(home, "plain");
-  const launch = await scriptedPiLaunch(home, SCRIPT, { piSubagents: true });
-  const server = await startServer({
-    projects: [launch.cwd],
-    sessionDir: home.sessionsDir,
-    port: home.ports.allocate(),
-    pi: {
-      args: launch.args,
-      env: launch.env,
-      provider: launch.provider,
-      model: launch.model,
+    {
+      expect: { role: "toolResult", toolName: "bash" },
+      reply: { content: [{ type: "text", text: "the agent finished" }], stopReason: "stop" },
     },
-  });
-  const client = await startClientPageServer();
-  return { home, seeded, server, client };
-}
-
-async function disposeHarness(harness: Harness): Promise<void> {
-  await harness.client.close();
-  await harness.server.close();
-  await harness.home.dispose();
+    {
+      expect: { role: "toolResult", toolName: "Agent" },
+      reply: { content: [{ type: "text", text: "the parent finished" }], stopReason: "stop" },
+    },
+  ];
 }
 
 async function openHarness(page: Page, harness: Harness): Promise<void> {
-  const url = `${harness.client.url}?session=${encodeURIComponent(harness.seeded.id)}&ws=${encodeURIComponent(harness.server.url)}`;
+  const url = `${harness.client.url}?session=${encodeURIComponent(harness.session.id)}&ws=${encodeURIComponent(harness.server.url)}`;
   await page.goto(url);
   await expect(page.getByTestId("connection-status")).toHaveAttribute("data-status", "connected");
   await expect(page.getByTestId("transcript")).toContainText("Seed text block 3.");
@@ -121,7 +90,7 @@ async function focusAgent(page: Page): Promise<void> {
 test("a focused running agent's conversation streams into the transcript view", async ({
   page,
 }) => {
-  const harness = await startHarness();
+  const harness = await startHarness({ script: buildScript, piSubagents: true });
   try {
     await openHarness(page, harness);
     await sendMessage(page, "delegate the build");
@@ -133,17 +102,18 @@ test("a focused running agent's conversation streams into the transcript view", 
     // underneath the agent's.
     await expect(transcript).not.toContainText("Seed text block 3.");
 
-    // The text arrived while the agent was still working: its next step is a command that outlasts
-    // this check, so a run that had already settled could not still be running here.
+    // The text arrived while the agent was still working: its next step blocks on the build gate,
+    // so a run that had already settled could not still be running here. Teardown releases the gate.
     await page.getByTestId("agent-pill").click();
     await expect(agentRow(page).getByTestId("agent-row-status")).toHaveText("running");
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("the focused agent's transcript survives a resync", async ({ page }) => {
-  const harness = await startHarness();
+  const harness = await startHarness({ script: buildScript, piSubagents: true });
+  const build = harness.gate("build");
   try {
     await openHarness(page, harness);
     await sendMessage(page, "delegate the build");
@@ -167,7 +137,7 @@ test("the focused agent's transcript survives a resync", async ({ page }) => {
     try {
       viewer.send({
         type: "subscribe",
-        session: { project: harness.home.workspace, id: harness.seeded.id },
+        session: { project: harness.project, id: harness.session.id },
       });
       const first = await viewer.next();
       if (first.type !== "snapshot") {
@@ -181,10 +151,21 @@ test("the focused agent's transcript survives a resync", async ({ page }) => {
       await viewer.close();
     }
 
+    // The run is live now, not merely restored: the agent is still working, blocked on the build
+    // gate this test has not opened yet. Opening it last is what makes the final assertion a
+    // continuation rather than a re-read of a finished run.
+    await build.releaseAfter(async () => {
+      await page.getByTestId("agent-pill").click();
+      await expect(agentRow(page).getByTestId("agent-row-status")).toHaveText("running");
+      // Back to the focused conversation, so the assertion below reads the view the reader sees.
+      await page.getByTestId("agent-list-scrim").click();
+      await expect(page.getByTestId("agent-list")).toHaveCount(0);
+    });
+
     // The agent's later output reaches the focused view after the resync, so the stream continued
     // into the same rows rather than being restored as a frozen copy.
-    await expect(transcript).toContainText("the agent finished", { timeout: 60_000 });
+    await expect(transcript).toContainText("the agent finished");
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });

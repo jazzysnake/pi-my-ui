@@ -7,10 +7,6 @@ import { startClientPageServer, type ClientPageServer } from "../src/client-page
 import { seedSession, type FixtureSession, type SeedName } from "../src/fixture-builder";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 
-const PI_TEST_TIMEOUT_MS = 120_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
-
 /** The widths the layout has to hold at: the narrowest phone in use to the widest. */
 const PHONE_WIDTHS_PX = [320, 360, 393, 430] as const;
 /** The long edge of the suite's phone profile, so a width change keeps the height realistic. */

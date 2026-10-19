@@ -9,6 +9,10 @@ const config: PlaywrightTestConfig = {
   fullyParallel: true,
   forbidOnly: process.env["CI"] !== undefined,
   retries: 0,
+  // One budget for every spec, so no spec can negotiate its own and a hang costs 45 seconds instead
+  // of two minutes. Forty-five is roughly four times the slowest real path in the suite, which is
+  // why it absorbs a loaded machine without flaking.
+  timeout: 45_000,
   // A `*.smoke.ts` file needs real provider credentials, so it is opt-in on its own config and
   // must never be discovered here: `npm run verify:full` runs this configuration.
   testIgnore: ["**/*.smoke.ts"],

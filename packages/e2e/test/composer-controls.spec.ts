@@ -8,8 +8,6 @@ import { expectComposerSend } from "../src/composer-send";
 import { seedSession, type FixtureSession, type SeedName } from "../src/fixture-builder";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 
-const PI_TEST_TIMEOUT_MS = 120_000;
-
 // A 2×2 red PNG: small enough for a thumbnail, and a valid image pi's resizer can decode.
 const TINY_PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR4nGP4z8DwH4QZYAwAR8oH+WdZbrcAAAAASUVORK5CYII=";
@@ -21,8 +19,6 @@ const UNUSED_SCRIPT: Script = [
     reply: { content: [{ type: "text", text: "unused" }], stopReason: "stop" },
   },
 ];
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
 
 interface Harness {
   readonly home: HermeticHome;

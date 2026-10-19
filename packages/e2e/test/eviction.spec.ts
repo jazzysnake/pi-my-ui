@@ -9,12 +9,9 @@ import { createManualClock, type ManualClock } from "../src/manual-clock";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 import { piChildPids } from "../src/pi-processes";
 
-const PI_TEST_TIMEOUT_MS = 120_000;
 const PI_START_TIMEOUT_MS = 30_000;
 /** Short enough that a spec advances past it by hand instead of a test taking minutes. */
 const IDLE_TIMEOUT_MS = 60_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
 
 // Neither seeded Session asks the model anything, but pi still has to be launched with a model it
 // can resolve, and the scripted provider is the only model substitute the suite has.

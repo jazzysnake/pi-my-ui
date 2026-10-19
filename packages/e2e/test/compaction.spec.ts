@@ -18,10 +18,6 @@ import { seedSession, type FixtureSession, type SeedName } from "../src/fixture-
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 import { connectWsSession } from "../src/ws-session-client";
 
-const PI_TEST_TIMEOUT_MS = 120_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
-
 const SUMMARY = "The session had read the API surface and agreed on the next step.";
 const TURN_PREFIX_SUMMARY = "The turn under way was comparing two options.";
 

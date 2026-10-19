@@ -13,10 +13,7 @@ import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/
 import { connectWsSession, type WsSessionClient } from "../src/ws-session-client";
 import { readAttachSurfaces, readUntilText } from "../src/ws-transcript";
 
-const PI_TEST_TIMEOUT_MS = 120_000;
 const PI_START_TIMEOUT_MS = 30_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
 
 /**
  * The only prompt any test here sends. It goes to the original after a fork, so a child that forked

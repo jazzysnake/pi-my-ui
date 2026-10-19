@@ -11,7 +11,6 @@ import {
   disposeHarness,
   FIRST_MARKER,
   MULTI_PROJECT_START_TIMEOUT_MS as PI_START_TIMEOUT_MS,
-  MULTI_PROJECT_TEST_TIMEOUT_MS as PI_TEST_TIMEOUT_MS,
   nextOf,
   openDrawer,
   projectUrl,
@@ -20,8 +19,6 @@ import {
   startHarness,
 } from "../src/multi-project-harness";
 import { connectWsSession } from "../src/ws-session-client";
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
 
 /** What the delegated agent says before it starts the command the steer interrupts. */
 const AGENT_TEXT = "watching the build now";

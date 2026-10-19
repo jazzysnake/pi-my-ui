@@ -45,10 +45,11 @@ transcript entries like any other, so there is no separate per-command record to
 above opened Sessions with 60 entries each and returned to its starting footprint after eviction.
 Retained Deltas have code bounds rather than measured ones, so they are not claimed here.
 
-## Full end-to-end suite — 2026-10-17
+## The suite before the split — 2026-10-17
 
-**Command:** `npm run test:e2e` — the whole suite as one Playwright process, with the worker count
-pinned in `packages/e2e/playwright.config.ts`.
+**Command:** `npm run test:e2e`, which then ran the whole suite as one Playwright process, with the
+worker count pinned in `packages/e2e/playwright.config.ts`. Before the runner split, both halves ran
+under Playwright; today that command runs the browser suite only.
 
 **Instrument:** The gate itself: one `playwright test` run, wall-clock from spawn to exit, over the
 suite as it stood before the shrink (169 tests, 361.6 s of test bodies). The figures below are that
@@ -71,11 +72,12 @@ under load rather than on behaviour. Eight is the knee, and pinning the count ra
 inheriting a share of whatever host the run lands on is what makes the budget a fixed number. A
 smaller machine oversubscribes at eight and will not reproduce these figures.
 
-## Full end-to-end suite, after the gates and the worker pin — 2026-10-19
+## The suite after the gates and the worker pin — 2026-10-19
 
 **Command:** `npm run test:e2e`, which is `scripts/e2e-budget.mjs`: one Playwright process at the
 worker count pinned in `packages/e2e/playwright.config.ts`, timed from spawn to exit and failing
-above the 45-second budget declared in that script.
+above the 45-second budget declared in that script. At this checkpoint the suite still held both
+halves; after the runner split it is the browser suite.
 
 **Instrument:** the budget script's own stopwatch for wall clock, and the sum of every test's
 `results[].duration` from a `--reporter=list,json` run for the body total. Nothing here is
@@ -108,13 +110,13 @@ the same built tree the browser half exercises.
 | Run | Tests | Test bodies | Wall-clock |
 | --- | --- | --- | --- |
 | Browser half, before the split (Playwright) | 125 | not re-measured | 37.1 s (last integration run); 39.8 s locally just before the move |
-| Browser half, after the split (Playwright) | 85 | 202.1 s | 29.6–30.2 s at 8 workers across runs (29.9 s from a JSON run) |
-| Backend half, after the split (vitest, node) | 40 | not measured | 14.3 s (15.7 s on a second run) |
+| Browser suite, after the split (Playwright) | 85 | 202.1 s | 29.6–30.2 s at 8 workers across runs (29.9 s from a JSON run) |
+| Backend suite, after the split (vitest, node) | 40 | not measured | 14.3 s (15.7 s on a second run) |
 
-The browser half itself is unchanged by the move: the same surviving specs, the same import depth,
+The browser suite itself is unchanged by the move: the same surviving specs, the same import depth,
 and the same runner settings. Its wall clock falls because the 40 page-less tests left for the
-backend runner, not because the browser tests got faster. The budget stays at 45 s, which the
-browser half now meets with about 15 s to spare, while the fast gate pays the backend half's
+backend suite, not because the browser tests got faster. The budget stays at 45 s, which the
+browser suite now meets with about 15 s to spare, while the fast gate pays the backend suite's
 parallel run in exchange for coverage that no longer needs a browser.
 
 ## What these numbers set

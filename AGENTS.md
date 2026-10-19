@@ -10,8 +10,8 @@ Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/ag
 
 ### Verification
 
-`npm run verify` is the fast gate; `npm run verify:full` adds end-to-end.
-Tests live at two heights only — see `docs/adr/0005-test-policy-two-layers.md`.
+`npm run verify` is the fast gate (store, component and backend suites); `npm run verify:full` adds the browser suite.
+Tests live at two heights, each free to choose its runner — see `docs/adr/0005-test-policy-two-layers.md`. A browser test needs a wiring claim no store or component test carries — see `docs/adr/0009-wiring-claim-admission-rule.md`.
 
 ## Comments
 

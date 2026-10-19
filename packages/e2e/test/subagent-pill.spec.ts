@@ -1,111 +1,113 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { startServer, type RunningServer } from "@pi-my-ui/server";
 import type { Script } from "@pi-my-ui/scripted-provider";
 
-import { startClientPageServer, type ClientPageServer } from "../src/client-page-server";
-import { seedSession, type FixtureSession } from "../src/fixture-builder";
-import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
+import type { Gate } from "../src/gate";
+import { startHarness, type Harness } from "../src/test-harness";
 
 /**
- * The parent asks the real `Agent` tool for a subagent, and the subagent spends long enough on a
- * shell command for the browser to observe it working. Both model calls are the scripted provider's,
- * so the run is deterministic without standing in for pi or for pi-subagents.
+ * The parent asks the real `Agent` tool for a subagent, and the subagent blocks on this test's run
+ * gate, so the browser observes it working for as long as the test needs. Both model calls are the
+ * scripted provider's, so the run is deterministic without standing in for pi or for pi-subagents.
  */
-const SPAWN_SCRIPT: Script = [
-  {
-    expect: { role: "user", text: "spawn a helper" },
-    reply: {
-      content: [
-        {
-          type: "toolCall",
-          id: "call_agent_1",
-          name: "Agent",
-          arguments: {
-            subagent_type: "general-purpose",
-            prompt: "say hi slowly",
-            description: "Say hi slowly",
-            run_in_background: false,
+function spawnScript(gate: (name: string) => Gate): Script {
+  return [
+    {
+      expect: { role: "user", text: "spawn a helper" },
+      reply: {
+        content: [
+          {
+            type: "toolCall",
+            id: "call_agent_1",
+            name: "Agent",
+            arguments: {
+              subagent_type: "general-purpose",
+              prompt: "say hi slowly",
+              description: "Say hi slowly",
+              run_in_background: false,
+            },
           },
-        },
-      ],
-      stopReason: "toolUse",
+        ],
+        stopReason: "toolUse",
+      },
     },
-  },
-  {
-    expect: { role: "user", text: "say hi slowly" },
-    reply: {
-      content: [
-        {
-          type: "toolCall",
-          id: "call_subagent_bash_1",
-          name: "bash",
-          arguments: { command: "sleep 5 && echo subagent-ran", timeout: 30 },
-        },
-      ],
-      stopReason: "toolUse",
+    {
+      expect: { role: "user", text: "say hi slowly" },
+      reply: {
+        content: [
+          {
+            type: "toolCall",
+            id: "call_subagent_bash_1",
+            name: "bash",
+            arguments: { ...gate("subagent-run").command("echo subagent-ran") },
+          },
+        ],
+        stopReason: "toolUse",
+      },
     },
-  },
-  {
-    expect: { role: "toolResult", toolName: "bash" },
-    reply: { content: [{ type: "text", text: "the subagent finished" }], stopReason: "stop" },
-  },
-  {
-    expect: { role: "toolResult", toolName: "Agent" },
-    reply: { content: [{ type: "text", text: "the parent finished" }], stopReason: "stop" },
-  },
-];
+    {
+      expect: { role: "toolResult", toolName: "bash" },
+      reply: { content: [{ type: "text", text: "the subagent finished" }], stopReason: "stop" },
+    },
+    {
+      expect: { role: "toolResult", toolName: "Agent" },
+      reply: { content: [{ type: "text", text: "the parent finished" }], stopReason: "stop" },
+    },
+  ];
+}
 
 /**
- * A background spawn: the parent settles while the subagent is still holding a shell command open, so
+ * A background spawn: the parent settles while the subagent is still blocked on the run gate, so
  * the count on `main` is the only thing showing that work continues behind the main view.
  */
-const BACKGROUND_SCRIPT: Script = [
-  {
-    expect: { role: "user", text: "spawn a helper in the background" },
-    reply: {
-      content: [
-        {
-          type: "toolCall",
-          id: "call_agent_bg",
-          name: "Agent",
-          arguments: {
-            subagent_type: "general-purpose",
-            prompt: "say hi slowly",
-            description: "Say hi slowly",
-            run_in_background: true,
+function backgroundScript(gate: (name: string) => Gate): Script {
+  return [
+    {
+      expect: { role: "user", text: "spawn a helper in the background" },
+      reply: {
+        content: [
+          {
+            type: "toolCall",
+            id: "call_agent_bg",
+            name: "Agent",
+            arguments: {
+              subagent_type: "general-purpose",
+              prompt: "say hi slowly",
+              description: "Say hi slowly",
+              run_in_background: true,
+            },
           },
-        },
-      ],
-      stopReason: "toolUse",
+        ],
+        stopReason: "toolUse",
+      },
     },
-  },
-  {
-    expect: { role: "toolResult", toolName: "Agent" },
-    reply: {
-      content: [{ type: "text", text: "the background helper is running" }],
-      stopReason: "stop",
+    {
+      expect: { role: "toolResult", toolName: "Agent" },
+      reply: {
+        content: [{ type: "text", text: "the background helper is running" }],
+        stopReason: "stop",
+      },
     },
-  },
-  {
-    expect: { role: "user", text: "say hi slowly" },
-    reply: {
-      content: [
-        {
-          type: "toolCall",
-          id: "call_subagent_bg_bash",
-          name: "bash",
-          arguments: { command: "sleep 5 && echo subagent-ran", timeout: 30 },
-        },
-      ],
-      stopReason: "toolUse",
+    {
+      expect: { role: "user", text: "say hi slowly" },
+      reply: {
+        content: [
+          {
+            type: "toolCall",
+            id: "call_subagent_bg_bash",
+            name: "bash",
+            arguments: { ...gate("subagent-run").command("echo subagent-ran") },
+          },
+        ],
+        stopReason: "toolUse",
+      },
     },
-  },
-  {
-    expect: { role: "toolResult", toolName: "bash" },
-    reply: { content: [{ type: "text", text: "the subagent finished" }], stopReason: "stop" },
-  },
-];
+    {
+      expect: { role: "toolResult", toolName: "bash" },
+      reply: { content: [{ type: "text", text: "the subagent finished" }], stopReason: "stop" },
+    },
+  ];
+}
 
 const PLAIN_SCRIPT: Script = [
   {
@@ -114,43 +116,8 @@ const PLAIN_SCRIPT: Script = [
   },
 ];
 
-interface Harness {
-  readonly home: HermeticHome;
-  readonly seeded: FixtureSession;
-  readonly server: RunningServer;
-  readonly client: ClientPageServer;
-}
-
-async function startHarness(
-  script: Script,
-  options: { readonly piSubagents: boolean },
-): Promise<Harness> {
-  const home = await createHermeticHome();
-  const seeded = await seedSession(home, "plain");
-  const launch = await scriptedPiLaunch(home, script, { piSubagents: options.piSubagents });
-  const server = await startServer({
-    projects: [launch.cwd],
-    sessionDir: home.sessionsDir,
-    port: home.ports.allocate(),
-    pi: {
-      args: launch.args,
-      env: launch.env,
-      provider: launch.provider,
-      model: launch.model,
-    },
-  });
-  const client = await startClientPageServer();
-  return { home, seeded, server, client };
-}
-
-async function disposeHarness(harness: Harness): Promise<void> {
-  await harness.client.close();
-  await harness.server.close();
-  await harness.home.dispose();
-}
-
 async function openHarness(page: Page, harness: Harness): Promise<void> {
-  const url = `${harness.client.url}?session=${encodeURIComponent(harness.seeded.id)}&ws=${encodeURIComponent(harness.server.url)}`;
+  const url = `${harness.client.url}?session=${encodeURIComponent(harness.session.id)}&ws=${encodeURIComponent(harness.server.url)}`;
   await page.goto(url);
   await expect(page.getByTestId("connection-status")).toHaveAttribute("data-status", "connected");
   await expect(page.getByTestId("transcript")).toContainText("Seed text block 3.");
@@ -162,7 +129,8 @@ async function sendMessage(page: Page, text: string): Promise<void> {
 }
 
 test("a scripted Agent call spawns a real subagent and the pill counts it", async ({ page }) => {
-  const harness = await startHarness(SPAWN_SCRIPT, { piSubagents: true });
+  const harness = await startHarness({ script: spawnScript, piSubagents: true });
+  const run = harness.gate("subagent-run");
   try {
     await openHarness(page, harness);
     await expect(page.getByTestId("agent-pill")).toHaveCount(0);
@@ -174,11 +142,14 @@ test("a scripted Agent call spawns a real subagent and the pill counts it", asyn
 
     await sendMessage(page, "spawn a helper");
 
-    // The subagent is on its shell command, so main reports one other agent working.
+    // The subagent is blocked on its gated command, so main reports one other agent working. The
+    // count is read before the release, so it is a live reading rather than a lucky sample.
     const pill = page.getByTestId("agent-pill");
     await expect(pill).toBeVisible();
-    await expect(pill).toHaveAttribute("data-pill-kind", "main");
-    await expect(page.getByTestId("agent-pill-label")).toHaveText("main +1");
+    await run.releaseAfter(async () => {
+      await expect(pill).toHaveAttribute("data-pill-kind", "main");
+      await expect(page.getByTestId("agent-pill-label")).toHaveText("main +1");
+    });
 
     // Once the run settles the count is gone; the pill still says where the view is.
     await expect(page.getByTestId("transcript")).toContainText("the parent finished", {
@@ -186,12 +157,13 @@ test("a scripted Agent call spawns a real subagent and the pill counts it", asyn
     });
     await expect(page.getByTestId("agent-pill-label")).toHaveText("main");
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("a background subagent is counted on main after the parent settles", async ({ page }) => {
-  const harness = await startHarness(BACKGROUND_SCRIPT, { piSubagents: true });
+  const harness = await startHarness({ script: backgroundScript, piSubagents: true });
+  const run = harness.gate("subagent-run");
   try {
     await openHarness(page, harness);
     await sendMessage(page, "spawn a helper in the background");
@@ -201,22 +173,24 @@ test("a background subagent is counted on main after the parent settles", async 
       timeout: 30_000,
     });
     const pill = page.getByTestId("agent-pill");
-    await expect(pill).toHaveAttribute("data-pill-kind", "main");
-    await expect(page.getByTestId("agent-pill-label")).toHaveText("main +1");
+    await run.releaseAfter(async () => {
+      await expect(pill).toHaveAttribute("data-pill-kind", "main");
+      await expect(page.getByTestId("agent-pill-label")).toHaveText("main +1");
+    });
 
     await expect(page.getByTestId("transcript")).toContainText("the subagent finished", {
       timeout: 30_000,
     });
     await expect(page.getByTestId("agent-pill-label")).toHaveText("main");
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("without pi-subagents the extension is absent and no agent pill is shown", async ({
   page,
 }) => {
-  const harness = await startHarness(PLAIN_SCRIPT, { piSubagents: false });
+  const harness = await startHarness({ script: () => PLAIN_SCRIPT, piSubagents: false });
   try {
     await openHarness(page, harness);
 
@@ -233,6 +207,6 @@ test("without pi-subagents the extension is absent and no agent pill is shown", 
     await expect(page.getByTestId("app-shell")).toBeVisible();
     await expect(page.getByTestId("agent-pill")).toHaveCount(0);
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });

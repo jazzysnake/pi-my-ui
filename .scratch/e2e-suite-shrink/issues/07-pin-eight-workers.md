@@ -6,10 +6,14 @@ The measurements behind this: 109 seconds at four workers, 67 at eight, 56 at tw
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The Playwright configuration sets a fixed worker count of eight, with a comment naming the machine and the alternatives measured
-- [ ] The sharded runner script and its npm script are deleted
-- [ ] The full verification gate runs the end-to-end suite as one process
-- [ ] No reference to sharding, shards or shard reconciliation remains in scripts, documentation or comments
-- [ ] The full gate is green and its reported wall clock matches the worker count it used
+- [x] The Playwright configuration sets a fixed worker count of eight, with a comment naming the machine and the alternatives measured
+- [x] The sharded runner script and its npm script are deleted
+- [x] The full verification gate runs the end-to-end suite as one process
+- [x] No reference to sharding, shards or shard reconciliation remains in scripts, documentation or comments
+- [x] The full gate is green and its reported wall clock matches the worker count it used
+
+## Comments
+
+Implemented. `packages/e2e/playwright.config.ts` pins `workers: 8` with the measured machine and the 4/8/12-worker alternatives in the comment; the sharded runner script and its npm script are deleted; `verify:full` runs `test:e2e` as one process. `grep -rni shard` outside `.scratch` and generated directories is empty. The full gate is green at the pinned worker count. Landed in `b131dba`.

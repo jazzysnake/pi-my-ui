@@ -6,13 +6,17 @@ The helper's contract records the rule that makes a gate different from a sleep:
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] One harness factory replaces the per-spec start-and-dispose pairs in every spec it touches, and every spec it does not touch still compiles and passes
-- [ ] A gate's path comes from the per-test hermetic root and is absolute, so two workers and two gates in one test cannot collide
-- [ ] A gate never appears inside a served Project, so no file-panel, tree or listing assertion can see it
-- [ ] Disposal releases every gate the factory handed out, including when an assertion failed before the test released it
-- [ ] The blocked command's poll is bounded and its tool timeout is longer than that bound, so a leaked gate degrades to a timeout rather than a hang
-- [ ] The gate's contract documents observe-then-release, and the converted spec releases after asserting the agent is still running
-- [ ] The Subagent transcript resync case holds its run with a gate instead of a 20-second command, and still asserts that the later agent output reached the same rows after the resync
-- [ ] That test's duration falls from roughly 22 seconds to a few, and the whole suite is green afterwards
+- [x] One harness factory replaces the per-spec start-and-dispose pairs in every spec it touches, and every spec it does not touch still compiles and passes
+- [x] A gate's path comes from the per-test hermetic root and is absolute, so two workers and two gates in one test cannot collide
+- [x] A gate never appears inside a served Project, so no file-panel, tree or listing assertion can see it
+- [x] Disposal releases every gate the factory handed out, including when an assertion failed before the test released it
+- [x] The blocked command's poll is bounded and its tool timeout is longer than that bound, so a leaked gate degrades to a timeout rather than a hang
+- [x] The gate's contract documents observe-then-release, and the converted spec releases after asserting the agent is still running
+- [x] The Subagent transcript resync case holds its run with a gate instead of a 20-second command, and still asserts that the later agent output reached the same rows after the resync
+- [x] That test's duration falls from roughly 22 seconds to a few, and the whole suite is green afterwards
+
+## Comments
+
+Implemented. The gate helper is `packages/e2e/src/gate.ts` and the single-test factory is `packages/e2e/src/test-harness.ts`. A gate file is absolute under `<hermetic root>/gates/<n>-<name>` and outside every served Project; the blocked command polls for 30 s and its Bash tool timeout is 60 s; `dispose()` releases every gate before closing the server and home, including after a failed assertion. The only test-facing release is `releaseAfter(observe)`; the public surface is `harness.gate(name)`, and the teardown release is internal. The Subagent transcript resync case fell from ~21.9 s to 2.5–3.9 s while still asserting the later agent output reached the same rows. Landed in `f6d6082`.

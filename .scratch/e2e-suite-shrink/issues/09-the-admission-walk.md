@@ -6,13 +6,17 @@ The cuts are expected to land on the composer's model and effort pickers, the Pr
 
 **Blocked by:** 02, 03, 04 — the keep-and-cut table quotes costs measured after the gates, so the sequence must be gates first.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Every surviving browser test names, in its own words, the wiring claim it carries
-- [ ] Every deleted browser test names the store or component test that already carries its claim
-- [ ] The keep-and-cut table is reviewed before any deletion happens
-- [ ] The composer's picker mechanics are represented by store tests rather than by browser tests
-- [ ] One Project picker variant survives and the rest are carried at the store level
-- [ ] The message tree's rendering rules are carried at the store level, with the browser keeping the wiring claim about pi confirming a Leaf move
-- [ ] Every one of the seven journeys still has at least one browser test
-- [ ] The suite is green with the reduced set, and the measured saving is recorded
+- [x] Every surviving browser test names, in its own words, the wiring claim it carries
+- [x] Every deleted browser test names the store or component test that already carries its claim
+- [x] The keep-and-cut table is reviewed before any deletion happens
+- [x] The composer's picker mechanics are represented by store tests rather than by browser tests
+- [x] One Project picker variant survives and the rest are carried at the store level
+- [x] The message tree's rendering rules are carried at the store level, with the browser keeping the wiring claim about pi confirming a Leaf move
+- [x] Every one of the seven journeys still has at least one browser test
+- [x] The suite is green with the reduced set, and the measured saving is recorded
+
+## Comments
+
+Implemented from the reviewed table in `.scratch/e2e-suite-shrink/admission-walk.md`: 85 browser tests kept and 28 cut — the 29 proposed cuts minus the two review keeps (sessions drawer metadata, the failing tool card), plus the message-tree 100-deep test after its depth cap moved to `message-tree.test.ts`. Seven store/component tests were added first: four composer picker rules, empty-Project state, connection-label reveal, and the 100-deep depth cap. Every survivor carries a `// Wiring claim:` comment (85); every cut names the store/component test that carries its claim. Playwright went 153→125 tests and 41.5→38.4 s; the browser suite went 113→85 tests. All seven Journeys retain a browser test. Landed in `604e3d1`.

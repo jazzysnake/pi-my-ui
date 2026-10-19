@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: implemented
 
 # A suite that earns its wall clock
 
@@ -137,3 +137,4 @@ A good test asserts an observable outcome and nothing about how it was produced.
 **Deferred.** Publication of the implementation issues and the measured comment on this file happen when work starts, not now.
 
 ## Comments
+- Implemented on `integration/e2e-suite-shrink` (merge `0b0b28e`). Final `verify:full`: 212 store/component, 40 backend and 85 browser tests; the browser suite took 30.3 s of the 45 s budget. All 11 tickets are resolved; the reviewed keep/cut table is `.scratch/e2e-suite-shrink/admission-walk.md`.

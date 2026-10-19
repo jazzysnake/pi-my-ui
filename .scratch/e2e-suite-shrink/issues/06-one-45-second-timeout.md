@@ -6,9 +6,13 @@ This is safe to land before the gates: the current worst case is the 21.9-second
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] One timeout declaration exists in the harness and the per-file two-minute declarations are gone
-- [ ] Every spec runs under the shared timeout, including the ones that declare their own test data
-- [ ] A deliberately hanging test fails in 45 seconds rather than 120
-- [ ] The suite is green at the new bound
+- [x] One timeout declaration exists in the harness and the per-file two-minute declarations are gone
+- [x] Every spec runs under the shared timeout, including the ones that declare their own test data
+- [x] A deliberately hanging test fails in 45 seconds rather than 120
+- [x] The suite is green at the new bound
+
+## Comments
+
+Implemented. One `BROWSER_TEST_TIMEOUT_MS = 45_000` is declared in `packages/e2e/src/test-timeout.ts` and imported by `packages/e2e/playwright.config.ts`; all 40 per-spec timeout declarations were removed. A deliberately hanging probe failed at 45.0 s (`Test timeout of 45000ms exceeded`), not 120 s. The opt-in credentialed smoke suite keeps its own longer bound, as the spec's Out of Scope says. Landed in `f5941f7`; the declaration moved into the harness in review fix `0b0b28e`.

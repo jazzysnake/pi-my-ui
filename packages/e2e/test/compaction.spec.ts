@@ -190,6 +190,7 @@ function usageIn(frames: readonly ServerMessage[]): ContextUsage | null | undefi
   return message?.type === "contextUsage" ? message.contextUsage : undefined;
 }
 
+// Wiring claim: a compaction pi already wrote is projected from the Session file, not from a server-side event.
 test("a Session pi already compacted shows its boundary straight from the Session file", async ({
   page,
 }) => {
@@ -213,6 +214,7 @@ test("a Session pi already compacted shows its boundary straight from the Sessio
   }
 });
 
+// Wiring claim: a real compaction leaves pi's boundary and its readout recalculates only after a model call.
 test("compaction from the palette leaves a boundary and clears the context readout", async ({
   page,
 }) => {
@@ -263,6 +265,7 @@ test("compaction from the palette leaves a boundary and clears the context reado
   }
 });
 
+// Wiring claim: the instructions typed after /compact are the focus pi summarizes with.
 test("compaction typed with instructions reaches pi as the summary's focus", async ({ page }) => {
   const harness = await startHarness(instructionCompactionSteps());
   try {

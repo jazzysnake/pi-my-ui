@@ -128,6 +128,7 @@ async function sendMessage(page: Page, text: string): Promise<void> {
   await page.getByTestId("composer-send").click();
 }
 
+// Wiring claim: a real Agent call spawns a subagent the pill counts while it works.
 test("a scripted Agent call spawns a real subagent and the pill counts it", async ({ page }) => {
   const harness = await startHarness({ script: spawnScript, piSubagents: true });
   const run = harness.gate("subagent-run");
@@ -161,6 +162,7 @@ test("a scripted Agent call spawns a real subagent and the pill counts it", asyn
   }
 });
 
+// Wiring claim: a background subagent stays counted after the parent settles.
 test("a background subagent is counted on main after the parent settles", async ({ page }) => {
   const harness = await startHarness({ script: backgroundScript, piSubagents: true });
   const run = harness.gate("subagent-run");
@@ -187,6 +189,7 @@ test("a background subagent is counted on main after the parent settles", async 
   }
 });
 
+// Wiring claim: without pi-subagents the child reports no /agents command and no pill appears.
 test("without pi-subagents the extension is absent and no agent pill is shown", async ({
   page,
 }) => {

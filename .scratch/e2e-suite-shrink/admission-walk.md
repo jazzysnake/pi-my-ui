@@ -361,3 +361,29 @@ its overflow claim is already asserted by the kept "both entry points open one m
   entry-points test and the pi-confirmed Leaf move in its own test.
 
 **Revised final counts: 85 keep, 28 cut** (113 browser tests).
+
+## Measured after the walk
+
+| field | value |
+| --- | --- |
+| commit | `472bc1ca39ffb8e597a314597cde0d328ed1525b` |
+| result | 125 passed, 0 failed, 0 skipped, 0 flaky — 85 browser tests and the 40 page-less tests |
+| wall clock | **38.4 s** through `npm run test:e2e` (Playwright 37.3 s for that run; the JSON run below took 36.6 s) |
+| test bodies | 238.4 s, down from 276.5 s |
+| cut | 28 browser tests: the 27 from the reviewed Cut table (29 rows minus the two review Keep overrides) plus the 100-deep message-tree test |
+| machine | AMD Ryzen 7 7840HS, 16 CPUs, Linux, Node v26.9.0 |
+| workers | 8 (the config's pinned count, one process) |
+| load | `11:34:09 ... load average: 1.48, 2.96, 3.70`; after the run `11:34:48 ... 6.51, 4.12, 4.06`; the JSON run started at 6.51 and ended at 7.76, 4.80, 4.30 |
+
+The 40 page-less tests still run under Playwright until ticket 10 moves them; today's Playwright
+total is 125. Against the before figures (153 tests, 276.5 s of bodies, 41.5 s wall clock) the walk
+removed 28 browser tests and 38.1 s of bodies for 3.1 s of wall clock: the cut set is cheap and the
+slow tests are the ones carrying wiring claims, so the budget's headroom comes from the gates and
+the rig deletion rather than from this walk.
+
+Two claims moved down with a caveat. jsdom has no layout, so the new `message-tree.test.ts` test
+proves the 100-deep Session's depth cap (every row at depth two or less) and leaves the
+horizontal-overflow measurement to the kept "both entry points" browser test. jsdom also has no
+cascade, so the new `header.test.ts` test proves the label starts at `opacity-0` and is revealed by
+the wrapper's focus-within rule when the tap focuses it; the kept `phone-fit.spec.ts` overlay test
+still measures the hidden label's rendered `opacity: 0`.

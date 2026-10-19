@@ -139,6 +139,7 @@ async function focusAgentAfterRestart(page: Page, harness: Harness): Promise<voi
   await expect(page.getByTestId("agent-list")).toHaveCount(0);
 }
 
+// Wiring claim: a settled run survives a server restart in pi's files and its conversation opens from them.
 test("past subagent runs are listed after a server restart", async ({ page }) => {
   const harness = await startHarness();
   try {
@@ -168,6 +169,7 @@ test("past subagent runs are listed after a server restart", async ({ page }) =>
   }
 });
 
+// Wiring claim: a settled run with no child file says its conversation is gone.
 test("a settled run with no child session file says its conversation is gone", async ({ page }) => {
   const harness = await startHarness();
   try {
@@ -186,6 +188,7 @@ test("a settled run with no child session file says its conversation is gone", a
   }
 });
 
+// Wiring claim: two child files matching one run are refused rather than guessed between.
 test("two child sessions matching one run are refused instead of guessed", async ({ page }) => {
   const harness = await startHarness();
   try {
@@ -206,6 +209,7 @@ test("two child sessions matching one run are refused instead of guessed", async
   }
 });
 
+// Wiring claim: an unreadable child file is reported as unavailable, never as gone.
 test("an unreadable child session refuses instead of reporting the conversation gone", async ({
   page,
 }) => {

@@ -78,6 +78,7 @@ async function send(page: Page, text: string): Promise<void> {
   await page.getByTestId("composer-send").click();
 }
 
+// Wiring claim: the palette lists pi's own prompt templates and forwards an unknown command to pi.
 test("the palette lists built-ins and pi's prompt templates, filters, and inserts without sending", async ({
   page,
 }) => {
@@ -125,6 +126,7 @@ test("the palette lists built-ins and pi's prompt templates, filters, and insert
   }
 });
 
+// Wiring claim: /resume, /name, /session and /export round-trip through pi and show pi's own answers.
 test("/resume opens the list, /name renames, /session shows pi's statistics, /export downloads", async ({
   page,
 }) => {
@@ -175,21 +177,6 @@ test("/resume opens the list, /name renames, /session shows pi's statistics, /ex
     expect(download.suggestedFilename()).toMatch(/\.html$/);
     await expect(page.getByTestId("session-export-path")).toContainText(".html");
     await expect(page.getByTestId("session-export-download")).toHaveCount(0);
-  } finally {
-    await disposeHarness(harness);
-  }
-});
-
-test("/new opens a Session with a server-generated id", async ({ page }) => {
-  const harness = await startHarness(UNKNOWN_COMMAND_SCRIPT);
-  try {
-    await openHarness(page, harness);
-    const shell = page.getByTestId("app-shell");
-
-    await send(page, "/new");
-    await expect(shell).not.toHaveAttribute("data-session-id", harness.seeded.id);
-    const created = await shell.getAttribute("data-session-id");
-    expect(created).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
   } finally {
     await disposeHarness(harness);
   }

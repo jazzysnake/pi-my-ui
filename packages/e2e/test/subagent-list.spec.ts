@@ -107,6 +107,7 @@ function row(page: Page, kind: string): ReturnType<Page["getByTestId"]> {
   return page.locator(`[data-testid="agent-row"][data-row-kind="${kind}"]`);
 }
 
+// Wiring claim: a real subagent's row reports its type, name, live status and elapsed time.
 test("the list shows each agent's type, name, status and elapsed time, and a row focuses it", async ({
   page,
 }) => {
@@ -152,6 +153,7 @@ test("the list shows each agent's type, name, status and elapsed time, and a row
   }
 });
 
+// Wiring claim: a real workflow run is its own row and focusing it changes nothing.
 test("a workflow run is its own row in the list", async ({ page }) => {
   const harness = await startHarness({
     script: () => WORKFLOW_CALL_SCRIPT,

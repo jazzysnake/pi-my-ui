@@ -61,6 +61,7 @@ async function openHarness(page: Page, harness: Harness): Promise<void> {
   await expect(page.getByTestId("transcript")).toContainText("Seed text block 3.");
 }
 
+// Wiring claim: a dropped socket rejoins at the first backoff and catches up on output produced while down.
 test("a drop rejoins after the first backoff and catches up on output produced meanwhile", async ({
   page,
 }) => {

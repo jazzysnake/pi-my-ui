@@ -87,6 +87,7 @@ async function focusAgent(page: Page): Promise<void> {
   await expect(page.getByTestId("agent-list")).toHaveCount(0);
 }
 
+// Wiring claim: a focused running agent's own conversation replaces the Session transcript and streams live.
 test("a focused running agent's conversation streams into the transcript view", async ({
   page,
 }) => {
@@ -111,6 +112,7 @@ test("a focused running agent's conversation streams into the transcript view", 
   }
 });
 
+// Wiring claim: a focused agent's conversation survives a resync and keeps streaming into the same view.
 test("the focused agent's transcript survives a resync", async ({ page }) => {
   const harness = await startHarness({ script: buildScript, piSubagents: true });
   const build = harness.gate("build");

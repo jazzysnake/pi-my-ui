@@ -62,6 +62,7 @@ async function sendMessage(page: Page, text: string): Promise<void> {
   await page.getByTestId("composer-send").click();
 }
 
+// Wiring claim: a prompt sent from the composer produces pi's streamed reply and thinking.
 test("sends a message and renders the streamed scripted reply and its thinking", async ({
   page,
 }) => {
@@ -97,6 +98,7 @@ test("sends a message and renders the streamed scripted reply and its thinking",
   }
 });
 
+// Wiring claim: the transcript stays pinned to the newest output while a real reply streams.
 test("keeps the view pinned to the newest output while streaming", async ({ page }) => {
   const harness = await startHarness(
     [
@@ -119,6 +121,7 @@ test("keeps the view pinned to the newest output while streaming", async ({ page
   }
 });
 
+// Wiring claim: stop aborts the real run and the settled state is aborted.
 test("turns send into stop while a run is active and stop aborts it", async ({ page }) => {
   const harness = await startHarness([
     {
@@ -158,6 +161,7 @@ test("turns send into stop while a run is active and stop aborts it", async ({ p
   }
 });
 
+// Wiring claim: a real failed turn sets an errored state carrying pi's message.
 test("renders an errored run with the failure text", async ({ page }) => {
   const harness = await startHarness([
     {
@@ -178,6 +182,7 @@ test("renders an errored run with the failure text", async ({ page }) => {
   }
 });
 
+// Wiring claim: pi's retry attempt count is shown and a recovered run leaves no row behind.
 test("renders the retry attempt count and recovers", async ({ page }) => {
   const harness = await startHarness([
     {

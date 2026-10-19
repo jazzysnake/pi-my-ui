@@ -12,7 +12,6 @@ import {
   openDrawer,
   openProject,
   openSession,
-  projectRow,
   projectUrl,
   REPLY_SCRIPT,
   SECOND_MARKER,
@@ -102,39 +101,7 @@ async function runSurvivesLeaving(
   });
 }
 
-test("the drawer lists only the chosen Project's Sessions", async ({ page }) => {
-  const harness = await startHarness();
-  try {
-    await openProject(page, harness, harness.first);
-    await openDrawer(page);
-
-    await expect(page.getByTestId("session-row")).toHaveCount(1);
-    await expect(page.getByTestId("session-row")).toHaveAttribute(
-      "data-session-id",
-      harness.firstSession.id,
-    );
-    await expect(page.getByTestId("session-row")).not.toHaveAttribute(
-      "data-session-id",
-      harness.secondSession.id,
-    );
-
-    await openProject(page, harness, harness.second);
-    await openDrawer(page);
-
-    await expect(page.getByTestId("session-row")).toHaveCount(1);
-    await expect(page.getByTestId("session-row")).toHaveAttribute(
-      "data-session-id",
-      harness.secondSession.id,
-    );
-    await expect(page.getByTestId("session-row")).not.toHaveAttribute(
-      "data-session-id",
-      harness.firstSession.id,
-    );
-  } finally {
-    await disposeHarness(harness);
-  }
-});
-
+// Wiring claim: a Session's Pi child runs in the Session's own Project and answers from that Project's file.
 test("a Session opens and answers a prompt inside its own Project", async ({ page }) => {
   const harness = await startHarness(REPLY_SCRIPT);
   try {
@@ -154,6 +121,7 @@ test("a Session opens and answers a prompt inside its own Project", async ({ pag
   }
 });
 
+// Wiring claim: a created Session's Pi child writes into the chosen Project and only that Project lists it.
 test("creating a Session starts it in the chosen Project", async ({ page }) => {
   const harness = await startHarness(REPLY_SCRIPT);
   try {
@@ -215,6 +183,7 @@ test("creating a Session starts it in the chosen Project", async ({ page }) => {
   }
 });
 
+// Wiring claim: a run in one Project survives a full reload into another Project.
 test("a run keeps working while another Project is viewed", async ({ page }) => {
   const harness = await startHarness(backgroundScript);
   const build = harness.gates.gate("build");
@@ -383,62 +352,7 @@ test("renaming in one Project refreshes only that Project's list", async () => {
   }
 });
 
-test("the drawer's Sessions and the file panel change together on one switch", async ({ page }) => {
-  const harness = await startHarness();
-  try {
-    await page.goto(projectUrl(harness, harness.first, harness.firstSession.id));
-    await expect(page.getByTestId("transcript")).toContainText(FIRST_MARKER, {
-      timeout: PI_START_TIMEOUT_MS,
-    });
-
-    // The panel names the chosen Project and holds only that Project's rows.
-    await page.getByTestId("files-toggle").click();
-    await expect(page.getByTestId("file-tree-root")).toHaveText(harness.first);
-    await expect(
-      page.getByTestId("file-tree-file").filter({ hasText: "first-only.txt" }),
-    ).toBeVisible();
-    await expect(
-      page.getByTestId("file-tree-file").filter({ hasText: "second-only.txt" }),
-    ).toHaveCount(0);
-    await page.getByTestId("file-tree-close").click();
-    await expect(page.getByTestId("file-tree")).toHaveCount(0);
-
-    // One switch, taken from the drawer, moves the Session rows to the other Project.
-    await openDrawer(page);
-    await expect(page.getByTestId("session-row")).toHaveAttribute(
-      "data-session-id",
-      harness.firstSession.id,
-    );
-    await page.getByTestId("project-switch").click();
-    await projectRow(page, harness.second).click();
-    await expect(page.getByTestId("session-drawer")).toHaveAttribute("data-level", "sessions");
-    await expect(page.getByTestId("session-row")).toHaveCount(1);
-    await expect(page.getByTestId("session-row")).toHaveAttribute(
-      "data-session-id",
-      harness.secondSession.id,
-    );
-    await expect(page.getByTestId("session-row")).not.toHaveAttribute(
-      "data-session-id",
-      harness.firstSession.id,
-    );
-    await page.getByRole("button", { name: "Close sessions sidebar" }).click();
-
-    // The panel named the first Project, so that switch closed it rather than leaving it to draw
-    // another root's rows. Reopening asks for the Project now chosen.
-    await expect(page.getByTestId("file-tree")).toHaveCount(0);
-    await page.getByTestId("files-toggle").click();
-    await expect(page.getByTestId("file-tree-root")).toHaveText(harness.second);
-    await expect(
-      page.getByTestId("file-tree-file").filter({ hasText: "second-only.txt" }),
-    ).toBeVisible();
-    await expect(
-      page.getByTestId("file-tree-file").filter({ hasText: "first-only.txt" }),
-    ).toHaveCount(0);
-  } finally {
-    await disposeHarness(harness);
-  }
-});
-
+// Wiring claim: a run in one Project survives an in-app switch to another Project and back.
 test("a run keeps working while another Project is viewed without reloading", async ({ page }) => {
   const harness = await startHarness(backgroundScript);
   const build = harness.gates.gate("build");
@@ -455,33 +369,6 @@ test("a run keeps working while another Project is viewed without reloading", as
         await openSession(page, harness.firstSession.id);
       },
     );
-  } finally {
-    await disposeHarness(harness);
-  }
-});
-
-test("a Session from the Project left behind still opens after switching away", async ({
-  page,
-}) => {
-  const harness = await startHarness();
-  try {
-    await page.goto(projectUrl(harness, harness.first, harness.firstSession.id));
-    await expect(page.getByTestId("transcript")).toContainText(FIRST_MARKER, {
-      timeout: PI_START_TIMEOUT_MS,
-    });
-
-    await switchProject(page, harness.second);
-    await expect(page.getByTestId("session-row")).toHaveAttribute(
-      "data-session-id",
-      harness.secondSession.id,
-    );
-
-    await switchProject(page, harness.first);
-    await openSession(page, harness.firstSession.id);
-    await expect(page.getByTestId("transcript")).toContainText(FIRST_MARKER, {
-      timeout: PI_START_TIMEOUT_MS,
-    });
-    await expect(page.getByTestId("transcript")).not.toContainText(SECOND_MARKER);
   } finally {
     await disposeHarness(harness);
   }

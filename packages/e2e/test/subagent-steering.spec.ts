@@ -65,37 +65,6 @@ function steeringScript(gate: (name: string) => Gate): Script {
   ];
 }
 
-/** An agent that finishes on its own, so the composer can be asked to steer a settled run. */
-const SETTLED_SCRIPT: Script = [
-  {
-    expect: { role: "user", text: "delegate the build" },
-    reply: {
-      content: [
-        {
-          type: "toolCall",
-          id: "call_agent_1",
-          name: "Agent",
-          arguments: {
-            subagent_type: "general-purpose",
-            prompt: "say done",
-            description: "Say done",
-            run_in_background: false,
-          },
-        },
-      ],
-      stopReason: "toolUse",
-    },
-  },
-  {
-    expect: { role: "user", text: "say done" },
-    reply: { content: [{ type: "text", text: "the agent finished" }], stopReason: "stop" },
-  },
-  {
-    expect: { role: "toolResult", toolName: "Agent" },
-    reply: { content: [{ type: "text", text: "the parent finished" }], stopReason: "stop" },
-  },
-];
-
 async function openHarness(page: Page, harness: Harness): Promise<void> {
   const url = `${harness.client.url}?session=${encodeURIComponent(harness.session.id)}&ws=${encodeURIComponent(harness.server.url)}`;
   await page.goto(url);
@@ -126,6 +95,7 @@ async function steer(page: Page, text: string): Promise<void> {
   await page.getByTestId("composer-send-while-running").click();
 }
 
+// Wiring claim: a steer reaches the focused agent at its turn boundary and never the Session.
 test("typed text steers the focused running agent and is shown until it lands", async ({
   page,
 }) => {
@@ -160,34 +130,6 @@ test("typed text steers the focused running agent and is shown until it lands", 
     // The Session's own conversation never received the text, so the message went to the agent.
     await page.getByTestId("agent-pill").click();
     await page.locator('[data-testid="agent-row"][data-row-kind="main"]').click();
-    await expect(page.getByTestId("transcript")).not.toContainText(STEER_TEXT);
-  } finally {
-    await harness.dispose();
-  }
-});
-
-test("a settled agent disables sending and says why", async ({ page }) => {
-  const harness = await startHarness({
-    script: () => SETTLED_SCRIPT,
-    piSubagents: true,
-  });
-  try {
-    await openHarness(page, harness);
-    await sendMessage(page, "delegate the build");
-    await expect(page.getByTestId("transcript")).toContainText("the parent finished", {
-      timeout: 30_000,
-    });
-
-    await focusAgent(page);
-    await expect(page.getByTestId("transcript")).toContainText("the agent finished");
-
-    await page.getByTestId("composer-input").fill(STEER_TEXT);
-    await expect(page.getByTestId("steer-refusal")).toContainText("settled");
-    await expect(page.getByTestId("composer-send")).toBeDisabled();
-
-    // A disabled control that still sent would be worse than a tap that does nothing, so the text
-    // stays where the user put it and nothing reaches the agent.
-    await expect(page.getByTestId("composer-input")).toHaveValue(STEER_TEXT);
     await expect(page.getByTestId("transcript")).not.toContainText(STEER_TEXT);
   } finally {
     await harness.dispose();

@@ -52,6 +52,7 @@ async function openBarePage(page: Page, harness: Harness): Promise<void> {
   await page.goto(`${harness.client.url}?ws=${encodeURIComponent(harness.server.url)}`);
 }
 
+// Wiring claim: a page with no Session still connects, lists the Project's Sessions and creates one.
 test("a bare page connects, lists the project's Sessions and offers a new one", async ({
   page,
 }) => {

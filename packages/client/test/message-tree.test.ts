@@ -125,6 +125,36 @@ const LINEAR_TREE: SessionTree = {
   ],
 };
 
+/**
+ * A generated deep chain. Each branch index carries one abandoned alternative, so the tree has real
+ * branch points while the chain below them stays a run of continuations rather than a staircase.
+ */
+function deepTree(depth: number, branchAt: readonly number[]): SessionTree {
+  let child: TreeNode | null = null;
+  for (let index = depth - 1; index >= 0; index--) {
+    const children: TreeNode[] = child === null ? [] : [child];
+    if (branchAt.includes(index)) {
+      children.push(
+        node(`b${String(index)}`, MessageRole.Assistant, `Abandoned at ${String(index)}`),
+      );
+    }
+    child = {
+      entry: {
+        id: `d${String(index)}`,
+        parentId: index === 0 ? null : `d${String(index - 1)}`,
+        role: index % 2 === 0 ? MessageRole.User : MessageRole.Assistant,
+        entryType: "message",
+        text: `Deep message ${String(index)}`,
+      },
+      children,
+    };
+  }
+  if (child === null) {
+    throw new Error("a deep tree needs at least one entry");
+  }
+  return { leafId: `d${String(depth - 1)}`, roots: [child] };
+}
+
 function treeOf(tree: SessionTree): SessionTreeMessage {
   return {
     type: ServerMessageType.SessionTree,
@@ -418,6 +448,33 @@ describe("the message tree modal", () => {
     )) {
       expect(element.dataset["depth"]).toBe("0");
     }
+  });
+
+  it("keeps a 100-deep Session at depth two so the tree never widens with depth", () => {
+    const store = new ClientStore();
+    const { target, moveLeaf } = mountShell(store);
+    openTree(target, store, deepTree(100, [20, 60]));
+
+    const rows = [...target.querySelectorAll<HTMLElement>('[data-testid="message-tree-row"]')];
+    const depths = rows.map((element) => Number(element.dataset["depth"] ?? "0"));
+    expect(rows).toHaveLength(102);
+    // A continuation adds no indent: only the two branch points step in, by one level each, however
+    // long the run below them grows. jsdom cannot measure the resulting width, so the kept browser
+    // entry-points test owns the horizontal-overflow measurement; the depth cap is what bounds it.
+    expect(depths.every((depth) => depth <= 2)).toBe(true);
+    expect(Math.max(...depths)).toBe(2);
+
+    // A row deep in the run is a visible row you can act on in one tap.
+    flushSync(() => {
+      row(target, "d90")
+        ?.querySelector<HTMLButtonElement>('[data-testid="message-tree-select"]')
+        ?.click();
+    });
+    expect(moveLeaf).toHaveBeenCalledWith("d90");
+    flushSync(() => {
+      store.receive(leafMovedOf("d90", "d89"));
+    });
+    expect(input(target).value).toBe("Deep message 90");
   });
 
   it("searches, then expands and highlights the entry the user picks", () => {

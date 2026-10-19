@@ -72,6 +72,7 @@ async function openHarness(page: Page, harness: Harness, marker: string): Promis
   await expect(page.getByTestId("transcript")).toContainText(marker);
 }
 
+// Wiring claim: wide markdown stays inside its block and the copy control writes the raw source.
 test("renders assistant markdown, contains a wide code block, and copies raw markdown", async ({
   page,
 }) => {
@@ -242,6 +243,7 @@ test("renders assistant markdown, contains a wide code block, and copies raw mar
   }
 });
 
+// Wiring claim: at 320 px the card's copy control stays inside the card and clear of its text.
 test("the message card keeps its corner control inside the card at 320 px", async ({ page }) => {
   const harness = await startHarness(UNUSED_SCRIPT, "plain");
   try {
@@ -292,20 +294,6 @@ test("the message card keeps its corner control inside the card at 320 px", asyn
     expect(measured.controlHeight).toBeGreaterThanOrEqual(44);
     expect(measured.firstBlockContentRight).toBeLessThanOrEqual(measured.controlLeft);
     expect(measured.documentScrollWidth).toBeLessThanOrEqual(measured.documentClientWidth);
-  } finally {
-    await disposeHarness(harness);
-  }
-});
-
-test("renders a recorded extension notification as a card in the transcript", async ({ page }) => {
-  const harness = await startHarness(UNUSED_SCRIPT, "subagents");
-  try {
-    await openHarness(page, harness, "Seed text block 9.");
-
-    const card = page.getByTestId("notification-card").first();
-    await expect(card).toBeVisible();
-    await expect(card.getByTestId("notification-summary")).toHaveText("Seed agent 4 completed");
-    await expect(card.getByTestId("notification-payload")).toContainText("<task-notification>");
   } finally {
     await disposeHarness(harness);
   }

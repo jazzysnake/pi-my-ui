@@ -81,6 +81,7 @@ async function switchTo(page: Page, title: string): Promise<void> {
   await page.getByRole("button", { name: "Close sessions sidebar" }).click();
 }
 
+// Wiring claim: an unwatched real child is evicted at the idle window and respawns from the Session file.
 test("an idle, unwatched Session's Pi child is evicted after the timeout and respawns when opened", async ({
   page,
 }) => {
@@ -120,6 +121,7 @@ test("an idle, unwatched Session's Pi child is evicted after the timeout and res
   }
 });
 
+// Wiring claim: keep-alive keeps the same real child however long it sits unwatched.
 test("keep-alive keeps an unwatched Session's Pi child, however long it sits", async ({ page }) => {
   const harness = await startHarness({ keepAlive: true });
   try {

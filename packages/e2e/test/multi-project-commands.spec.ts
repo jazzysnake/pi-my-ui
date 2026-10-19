@@ -141,6 +141,7 @@ test("a bare sessionId is refused for every Session command", async () => {
   }
 });
 
+// Wiring claim: fork and clone write into the source Project, and the other Project's list never sees them.
 test("fork and clone open their new Session in the source Project", async ({ page }) => {
   const harness = await startHarness();
   const otherClient = await connectWsSession(harness.server.url);
@@ -310,6 +311,7 @@ test("a settled subagent's transcript is read through its Project's pair", async
   }
 });
 
+// Wiring claim: a steer reaches a running agent that lives in a Project other than the one on screen.
 test("a steer reaches a running agent in another Project", async ({ page }) => {
   const harness = await startHarness(steeringScript);
   const build = harness.gates.gate("build");

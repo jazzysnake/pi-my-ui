@@ -76,6 +76,16 @@ describe("composer attachments", () => {
   });
 });
 
+/**
+ * A tap as the browser delivers one: a press and a lift at the same place. jsdom does no hit testing, so
+ * a test that dispatches this on an element is asserting the dismissal's own rules, not a scrim's.
+ */
+function tap(element: Element, x = 0, y = 0): void {
+  const init = { bubbles: true, pointerId: 1, clientX: x, clientY: y };
+  element.dispatchEvent(new PointerEvent("pointerdown", init));
+  element.dispatchEvent(new PointerEvent("pointerup", init));
+}
+
 describe("the status strip", () => {
   it("shows pi's settings and toggles automatic compaction", () => {
     const store = new ClientStore();
@@ -140,6 +150,149 @@ describe("the status strip", () => {
     flushSync(() => {
       (levels[2] as HTMLButtonElement | undefined)?.click();
     });
+    expect(setThinking).toHaveBeenCalledWith("high");
+  });
+
+  it("dismisses an open model list on a tap away, leaves the model alone, and the toggle closes rather than reopens it", () => {
+    const store = new ClientStore();
+    const { target, setModel } = mountShell(store);
+    flushSync(() => {
+      store.receive(snapshotOf([]));
+      store.receive(settingsOf());
+    });
+
+    const toggle = target.querySelector<HTMLButtonElement>('[data-testid="model-picker-toggle"]');
+    const model = target.querySelector('[data-testid="status-model"]');
+    const shown = model?.textContent;
+    flushSync(() => {
+      toggle?.click();
+    });
+    expect(target.querySelector('[data-testid="model-options"]')).not.toBeNull();
+
+    // A tap on plain text has no click handler of its own, which is where a click-based dismissal
+    // goes quiet on touch.
+    const away = target.querySelector('[data-testid="transcript"]');
+    if (away === null) {
+      throw new Error("the transcript is missing");
+    }
+    flushSync(() => {
+      tap(away);
+    });
+    expect(target.querySelector('[data-testid="model-options"]')).toBeNull();
+    expect(model?.textContent).toBe(shown);
+    expect(setModel).not.toHaveBeenCalled();
+
+    // The control that opened the list is not "away": its own tap closes the list and its click
+    // must not reopen it on the way back up.
+    flushSync(() => {
+      toggle?.click();
+    });
+    expect(target.querySelector('[data-testid="model-options"]')).not.toBeNull();
+    flushSync(() => {
+      if (toggle !== null) {
+        tap(toggle);
+      }
+      toggle?.click();
+    });
+    expect(target.querySelector('[data-testid="model-options"]')).toBeNull();
+  });
+
+  it("dismisses an open effort list on a tap on the composer, keeps the level, and lets the tap reach the input", () => {
+    const store = new ClientStore();
+    const { target, setThinking } = mountShell(store);
+    flushSync(() => {
+      store.receive(snapshotOf([]));
+      store.receive(settingsOf());
+    });
+
+    const input = target.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]');
+    const thinking = target.querySelector('[data-testid="status-thinking"]');
+    const shown = thinking?.textContent;
+    if (input === null) {
+      throw new Error("the composer input is missing");
+    }
+    let reached = false;
+    input.addEventListener("pointerup", () => {
+      reached = true;
+    });
+
+    flushSync(() => {
+      target.querySelector<HTMLButtonElement>('[data-testid="thinking-picker-toggle"]')?.click();
+    });
+    expect(target.querySelector('[data-testid="thinking-options"]')).not.toBeNull();
+
+    flushSync(() => {
+      tap(input);
+    });
+    expect(target.querySelector('[data-testid="thinking-options"]')).toBeNull();
+    expect(thinking?.textContent).toBe(shown);
+    expect(setThinking).not.toHaveBeenCalled();
+    // The dismissal did not swallow the gesture: the input saw the same lift that closed the list,
+    // and remains the control the next keystroke goes to.
+    expect(reached).toBe(true);
+    flushSync(() => {
+      input.focus();
+    });
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("leaves an open list open when the pointer moves past the tap slop before it lifts", () => {
+    const store = new ClientStore();
+    const { target } = mountShell(store);
+    flushSync(() => {
+      store.receive(snapshotOf([]));
+      store.receive(settingsOf());
+    });
+
+    flushSync(() => {
+      target.querySelector<HTMLButtonElement>('[data-testid="model-picker-toggle"]')?.click();
+    });
+    expect(target.querySelector('[data-testid="model-options"]')).not.toBeNull();
+
+    // A scroll or drag begins outside the list with a press and travels before it lifts; only the
+    // distance tells it apart from a tap, which is why the dismissal waits for the lift.
+    const away = target.querySelector('[data-testid="transcript"]');
+    if (away === null) {
+      throw new Error("the transcript is missing");
+    }
+    flushSync(() => {
+      away.dispatchEvent(
+        new PointerEvent("pointerdown", { bubbles: true, pointerId: 2, clientX: 0, clientY: 0 }),
+      );
+      away.dispatchEvent(
+        new PointerEvent("pointerup", { bubbles: true, pointerId: 2, clientX: 24, clientY: 0 }),
+      );
+    });
+    expect(target.querySelector('[data-testid="model-options"]')).not.toBeNull();
+  });
+
+  it("opening one picker closes the other, and a chosen row closes its list and applies once", () => {
+    const store = new ClientStore();
+    const { target, setThinking } = mountShell(store);
+    flushSync(() => {
+      store.receive(snapshotOf([]));
+      store.receive(settingsOf());
+    });
+
+    flushSync(() => {
+      target.querySelector<HTMLButtonElement>('[data-testid="model-picker-toggle"]')?.click();
+    });
+    expect(target.querySelector('[data-testid="model-options"]')).not.toBeNull();
+
+    flushSync(() => {
+      target.querySelector<HTMLButtonElement>('[data-testid="thinking-picker-toggle"]')?.click();
+    });
+    expect(target.querySelector('[data-testid="model-options"]')).toBeNull();
+    expect(target.querySelector('[data-testid="thinking-options"]')).not.toBeNull();
+
+    const row = target.querySelector<HTMLButtonElement>(
+      '[data-testid="thinking-option"][data-thinking-level="high"]',
+    );
+    flushSync(() => {
+      row?.click();
+    });
+    expect(target.querySelector('[data-testid="thinking-options"]')).toBeNull();
+    expect(setThinking).toHaveBeenCalledTimes(1);
     expect(setThinking).toHaveBeenCalledWith("high");
   });
 });

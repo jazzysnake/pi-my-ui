@@ -79,6 +79,7 @@ async function sendMessage(page: Page, text: string): Promise<void> {
   await page.getByTestId("composer-send").click();
 }
 
+// Wiring claim: an attached image reaches pi with the message and the accepted send clears it.
 test("an attached image reaches pi with the message", async ({ page }) => {
   const harness = await startHarness({
     script: () => [
@@ -106,6 +107,7 @@ test("an attached image reaches pi with the message", async ({ page }) => {
   }
 });
 
+// Wiring claim: pi delivers a steer at the next turn boundary, and the draft stays until then.
 test("steer enters the run at its next step", async ({ page }) => {
   const harness = await startHarness({ script: steerScript });
   const hold = harness.gate("hold");
@@ -134,6 +136,7 @@ test("steer enters the run at its next step", async ({ page }) => {
   }
 });
 
+// Wiring claim: a follow-up reaches pi only after the run in front of it settles.
 test("follow up waits until the run finishes", async ({ page }) => {
   const harness = await startHarness({ script: followUpScript });
   const hold = harness.gate("hold");
@@ -161,6 +164,7 @@ test("follow up waits until the run finishes", async ({ page }) => {
   }
 });
 
+// Wiring claim: the auto-compaction toggle round-trips through pi and shows only what pi reports.
 test("the status strip round-trips pi's automatic compaction", async ({ page }) => {
   const harness = await startHarness({ script: () => UNUSED_SCRIPT });
   try {
@@ -179,6 +183,7 @@ test("the status strip round-trips pi's automatic compaction", async ({ page }) 
   }
 });
 
+// Wiring claim: the pickers show pi's own models and levels, and a chosen level comes back from pi.
 test("the status strip lists pi's models and thinking levels", async ({ page }) => {
   const harness = await startHarness({ script: () => UNUSED_SCRIPT });
   try {
@@ -197,168 +202,7 @@ test("the status strip lists pi's models and thinking levels", async ({ page }) 
   }
 });
 
-test("a tap outside an open model list dismisses it and leaves the model alone", async ({
-  page,
-}) => {
-  const harness = await startHarness({ script: () => UNUSED_SCRIPT });
-  try {
-    await openHarness(page, harness);
-    const options = page.getByTestId("model-options");
-    const model = page.getByTestId("status-model");
-    const current = await model.textContent();
-    await page.getByTestId("model-picker-toggle").tap();
-    await expect(options).toBeVisible();
-
-    // A text block is the hardest tap target to observe: it has no click handler, which is where a
-    // click-based dismissal goes quiet on touch.
-    await page.getByTestId("transcript").getByText("Seed text block 3.").tap();
-    await expect(options).toHaveCount(0);
-    await expect(model).toHaveText(current ?? "");
-
-    // The control that opened the list is not "away": tapping it must close the list rather than
-    // close on the way down and reopen on the click.
-    await page.getByTestId("model-picker-toggle").tap();
-    await expect(options).toBeVisible();
-    await page.getByTestId("model-picker-toggle").tap();
-    await expect(options).toHaveCount(0);
-  } finally {
-    await harness.dispose();
-  }
-});
-
-test("a tap outside an open effort list dismisses it and leaves the effort alone", async ({
-  page,
-}) => {
-  const harness = await startHarness({ script: () => UNUSED_SCRIPT });
-  try {
-    await openHarness(page, harness);
-    const options = page.getByTestId("thinking-options");
-    const thinking = page.getByTestId("status-thinking");
-    const current = await thinking.textContent();
-    await page.getByTestId("thinking-picker-toggle").tap();
-    await expect(options).toBeVisible();
-
-    await page.getByTestId("composer-input").tap();
-    await expect(options).toHaveCount(0);
-    await expect(thinking).toHaveText(current ?? "");
-    // The same tap reached the input instead of being swallowed: a full-screen scrim would eat it.
-    await expect(page.getByTestId("composer-input")).toBeFocused();
-  } finally {
-    await harness.dispose();
-  }
-});
-
-test("a pointer that moves before it lifts leaves an open list open", async ({ page }) => {
-  const harness = await startHarness({ script: () => UNUSED_SCRIPT });
-  try {
-    await openHarness(page, harness);
-    const options = page.getByTestId("model-options");
-    await page.getByTestId("model-picker-toggle").tap();
-    await expect(options).toBeVisible();
-
-    // A scroll or a drag begins outside the list and travels before it lifts, which is the one thing
-    // that tells it apart from a tap.
-    await page.getByTestId("transcript").dragTo(page.getByTestId("composer-status"));
-
-    await expect(options).toBeVisible();
-  } finally {
-    await harness.dispose();
-  }
-});
-
-test("opening one picker closes the other, and a chosen row applies once", async ({ page }) => {
-  const harness = await startHarness({ script: () => UNUSED_SCRIPT });
-  try {
-    await openHarness(page, harness);
-    await page.getByTestId("model-picker-toggle").tap();
-    await expect(page.getByTestId("model-options")).toBeVisible();
-
-    await page.getByTestId("thinking-picker-toggle").tap();
-    await expect(page.getByTestId("model-options")).toHaveCount(0);
-    await expect(page.getByTestId("thinking-options")).toBeVisible();
-
-    // A row that is not pi's current level, so the strip changing proves the tap reached the row.
-    const row = page.locator('[data-testid="thinking-option"][aria-selected="false"]').first();
-    const chosen = (await row.textContent())?.trim() ?? "";
-    await row.tap();
-    await expect(page.getByTestId("thinking-options")).toHaveCount(0);
-    await expect(page.getByTestId("status-thinking")).toHaveText(chosen);
-
-    await page.getByTestId("model-picker-toggle").tap();
-    // A row that is not pi's current model, so the strip changing proves the tap reached the row.
-    const modelRow = page.locator('[data-testid="model-option"][aria-selected="false"]').first();
-    const chosenModel = (await modelRow.textContent())?.trim() ?? "";
-    await modelRow.tap();
-    await expect(page.getByTestId("model-options")).toHaveCount(0);
-    await expect(page.getByTestId("status-model")).toHaveText(chosenModel);
-    await expect(page.getByTestId("model-picker-toggle")).toHaveAttribute("aria-expanded", "false");
-  } finally {
-    await harness.dispose();
-  }
-});
-
-test("Enter inserts a newline and Ctrl+Enter sends", async ({ page }) => {
-  const harness = await startHarness({
-    script: () => [
-      {
-        expect: { role: "user", text: "sent from the keyboard" },
-        reply: { content: [{ type: "text", text: "keyboard reply" }], stopReason: "stop" },
-      },
-    ],
-  });
-  try {
-    await openHarness(page, harness);
-    const input = page.getByTestId("composer-input");
-    await input.click();
-    await input.press("Enter");
-    // Plain Enter is the textarea's own newline, never a send.
-    await expect(input).toHaveValue("\n");
-
-    await input.fill("sent from the keyboard");
-    await input.press("Control+Enter");
-    await expect(page.getByTestId("transcript")).toContainText("keyboard reply");
-  } finally {
-    await harness.dispose();
-  }
-});
-
-test("Escape cancels the running turn", async ({ page }) => {
-  const harness = await startHarness({
-    script: () => [
-      {
-        expect: { role: "user", text: "start the long job" },
-        reply: {
-          content: [
-            { type: "text", text: "starting the job" },
-            {
-              type: "toolCall",
-              id: "call_escape_1",
-              name: "bash",
-              // Aborting never waits for the command to finish, so it has no gate to open.
-              arguments: { command: "sleep 30", timeout: 60 },
-            },
-          ],
-          stopReason: "toolUse",
-        },
-      },
-    ],
-  });
-  try {
-    await openHarness(page, harness);
-    await sendMessage(page, "start the long job");
-    await expectComposerSend(page, "Stop");
-
-    const input = page.getByTestId("composer-input");
-    await input.click();
-    await input.press("Escape");
-
-    await expect(page.getByTestId("run-state")).toHaveAttribute("data-run-state", "aborted");
-    await expectComposerSend(page, "Send");
-  } finally {
-    await harness.dispose();
-  }
-});
-
+// Wiring claim: send is the row's last control, at the thumb corner and a full touch target.
 test("send is the row's last control in the thumb corner at a full touch size", async ({
   page,
 }) => {
@@ -423,6 +267,7 @@ test("send is the row's last control in the thumb corner at a full touch size", 
   }
 });
 
+// Wiring claim: a keyboard-sized viewport and a rotation leave the composer and send usable.
 test("the composer holds up with a keyboard-sized viewport and after rotation", async ({
   page,
 }) => {

@@ -103,6 +103,7 @@ async function nextOf<T extends ServerMessage["type"]>(
   }
 }
 
+// Wiring claim: pi forks a real Session from the chosen message and leaves the original untouched.
 test("/fork branches from a chosen message into a new Session and lists both", async ({ page }) => {
   const harness = await startHarness();
   try {
@@ -147,6 +148,7 @@ test("/fork branches from a chosen message into a new Session and lists both", a
   }
 });
 
+// Wiring claim: pi clones the active branch into a real Session and both remain listable.
 test("/clone copies the active branch into a new Session and lists both", async ({ page }) => {
   const harness = await startHarness();
   try {

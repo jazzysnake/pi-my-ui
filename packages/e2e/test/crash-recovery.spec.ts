@@ -61,6 +61,7 @@ async function openHarness(page: Page, harness: Harness): Promise<void> {
   });
 }
 
+// Wiring claim: a killed Pi child is reported as crashed and both recovery controls respawn it.
 test("a crashed Pi child shows its exit details, and Reconnect and Resume both restore it", async ({
   page,
 }) => {

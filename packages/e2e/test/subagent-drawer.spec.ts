@@ -68,6 +68,7 @@ function rowOf(page: Page, session: FixtureSession): ReturnType<Page["locator"]>
   return page.locator(`[data-testid="session-row"][data-session-id="${session.id}"]`);
 }
 
+// Wiring claim: a run's child Session is hidden from the drawer while the owner's own fork stays listed.
 test("the drawer hides a subagent child and keeps the owner's own fork", async ({ page }) => {
   const harness = await startHarness();
   try {
@@ -94,6 +95,7 @@ test("the drawer hides a subagent child and keeps the owner's own fork", async (
   }
 });
 
+// Wiring claim: one of a child's two facts is not enough to hide a Session from the drawer.
 test("a Session with only one of a child's facts stays listed", async ({ page }) => {
   const harness = await startHarness();
   try {

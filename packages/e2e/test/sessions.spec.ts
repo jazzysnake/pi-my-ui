@@ -96,6 +96,7 @@ async function sendMessage(page: Page, text: string): Promise<void> {
   await page.getByTestId("composer-send").click();
 }
 
+// Wiring claim: pi's own Session metadata — its name or first-message fallback and its age — reaches the drawer from the Session file.
 test("the drawer lists this project's Sessions with name, first message and recency", async ({
   page,
 }) => {
@@ -133,6 +134,7 @@ test("the drawer lists this project's Sessions with name, first message and rece
   }
 });
 
+// Wiring claim: a tapped Session starts its own child then, and its transcript replaces the previous one.
 test("tapping a row switches the transcript and starts that Session lazily", async ({ page }) => {
   const harness = await startSessionsHarness();
   try {
@@ -165,6 +167,7 @@ test("tapping a row switches the transcript and starts that Session lazily", asy
   }
 });
 
+// Wiring claim: the plus control opens a Session whose id only the server supplied.
 test("the plus control opens a new Session with a server-generated id", async ({ page }) => {
   const harness = await startSessionsHarness();
   try {
@@ -184,6 +187,7 @@ test("the plus control opens a new Session with a server-generated id", async ({
   }
 });
 
+// Wiring claim: a background Session's run continues while another is read and its output survives the return.
 test("a background Session keeps running and its output is there on return", async ({ page }) => {
   const harness = await startSessionsHarness(backgroundScript);
   const build = harness.gates.gate("build");
@@ -219,6 +223,7 @@ test("a background Session keeps running and its output is there on return", asy
   }
 });
 
+// Wiring claim: two Sessions run in separate children and never consume each other's replies.
 test("two Sessions run in separate Pi children and never share a transcript", async ({ page }) => {
   const harness = await startSessionsHarness(() => PER_CHILD_SCRIPT);
   try {

@@ -136,31 +136,6 @@ async function openHarness(page: Page, harness: Harness): Promise<void> {
   await expect(page.getByTestId("transcript")).toContainText("Seed text block 3.");
 }
 
-/**
- * Open a page straight at one Project, with no Session linked. The drawer opens because nothing is
- * open in the transcript; closing it leaves the header reachable.
- */
-async function openProjectPage(
-  page: Page,
-  harness: TwoProjectHarness,
-  project: string,
-): Promise<void> {
-  const params = new URLSearchParams({ project, ws: harness.server.url });
-  await page.goto(`${harness.client.url}?${params.toString()}`);
-  await expect(page.getByTestId("connection-status")).toHaveAttribute("data-status", "connected");
-  await expect(page.getByTestId("session-drawer")).toBeVisible();
-  await page.getByRole("button", { name: "Close sessions sidebar" }).click();
-  await expect(page.getByTestId("session-drawer")).toHaveCount(0);
-}
-
-async function switchToProject(page: Page, project: string): Promise<void> {
-  await page.getByTestId("sessions-toggle").click();
-  await page.getByTestId("project-switch").click();
-  await page.locator(`[data-testid="project-row"][data-project="${project}"]`).click();
-  await expect(page.getByTestId("session-drawer")).toHaveAttribute("data-level", "sessions");
-  await page.getByRole("button", { name: "Close sessions sidebar" }).click();
-}
-
 /** One download-route request carrying the query a file request would send. */
 function download(
   server: RunningServer,
@@ -187,6 +162,7 @@ function download(
   });
 }
 
+// Wiring claim: a real Project tree lists lazily, downloads through the browser and previews with truncation.
 test("browses, expands, downloads and previews files from the chosen Project", async ({ page }) => {
   const harness = await startHarness();
   try {
@@ -236,53 +212,6 @@ test("browses, expands, downloads and previews files from the chosen Project", a
     expect(own).toEqual({ status: 200, body: `${README_TEXT}\n` });
   } finally {
     await disposeHarness(harness);
-  }
-});
-
-test("the file panel follows the chosen Project, not the open Session", async ({ page }) => {
-  const harness = await startTwoProjectHarness();
-  try {
-    await openProjectPage(page, harness, harness.first);
-    await page.getByTestId("files-toggle").click();
-    await expect(page.getByTestId("file-tree-root")).toHaveText(harness.first);
-    await expect(
-      page.getByTestId("file-tree-file").filter({ hasText: "only-in-first.txt" }),
-    ).toBeVisible();
-    await expect(page.getByTestId("file-tree-file").filter({ hasText: "notes.md" })).toHaveCount(0);
-
-    // The panel named the Project it was opened for, so a switch closes it; reopening asks for the
-    // new root and shows only that Project's tree.
-    await page.getByTestId("file-tree-close").click();
-    await switchToProject(page, harness.second);
-    await page.getByTestId("files-toggle").click();
-    await expect(page.getByTestId("file-tree-root")).toHaveText(harness.second);
-    await expect(page.getByTestId("file-tree-file").filter({ hasText: "notes.md" })).toBeVisible();
-    await expect(
-      page.getByTestId("file-tree-file").filter({ hasText: "only-in-first.txt" }),
-    ).toHaveCount(0);
-
-    // The same relative name is a different file under each root: the preview is this Project's.
-    await page.getByRole("button", { name: "Preview README.md" }).click();
-    await expect(page.getByTestId("file-preview-text")).toContainText(SECOND_README_TEXT);
-    await expect(page.getByTestId("file-preview-text")).not.toContainText(README_TEXT);
-  } finally {
-    await disposeTwoProjectHarness(harness);
-  }
-});
-
-test("the folder control waits for a chosen Project", async ({ page }) => {
-  const harness = await startTwoProjectHarness();
-  try {
-    await page.goto(`${harness.client.url}?ws=${encodeURIComponent(harness.server.url)}`);
-    await expect(page.getByTestId("connection-status")).toHaveAttribute("data-status", "connected");
-
-    await expect(page.getByTestId("project-picker")).toBeVisible();
-    await expect(page.getByTestId("files-toggle")).toBeDisabled();
-
-    await page.locator(`[data-testid="project-row"][data-project="${harness.second}"]`).click();
-    await expect(page.getByTestId("files-toggle")).toBeEnabled();
-  } finally {
-    await disposeTwoProjectHarness(harness);
   }
 });
 

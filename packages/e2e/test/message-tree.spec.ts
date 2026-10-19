@@ -106,6 +106,7 @@ async function nextOf<T extends ServerMessage["type"]>(
   }
 }
 
+// Wiring claim: the tree body never scrolls horizontally on a phone.
 test("both entry points open one modal that collapses alternatives and searches the whole tree", async ({
   page,
 }) => {
@@ -219,6 +220,7 @@ test("both entry points open one modal that collapses alternatives and searches 
   }
 });
 
+// Wiring claim: the transcript follows the Leaf pi confirmed, and the branch it left stays in the tree.
 test("selecting a message moves the Leaf, follows it in the transcript and keeps the old branch", async ({
   page,
 }) => {
@@ -251,112 +253,7 @@ test("selecting a message moves the Leaf, follows it in the transcript and keeps
   }
 });
 
-test("one tap opens a whole abandoned branch, not one message of it", async ({ page }) => {
-  const harness = await startHarness();
-  try {
-    await openHarness(page, harness, harness.seeded.id);
-    await expect(page.getByTestId("transcript")).toContainText(LEAF_TEXT, {
-      timeout: PI_START_TIMEOUT_MS,
-    });
-
-    await page.getByTestId("composer-branch").click();
-    await expect(modal(page)).toBeVisible();
-    // The abandoned branch is an alternative, so it starts collapsed: one row for its head and
-    // nothing of what it holds.
-    const offPathRows = modal(page).locator(
-      '[data-testid="message-tree-row"][data-active="false"]',
-    );
-    const head = row(page, "Seed text block 2.");
-    await expect(head).toHaveAttribute("data-active", "false");
-    const reveal = head.getByTestId("message-tree-toggle");
-    await expect(reveal).toHaveAttribute("aria-expanded", "false");
-    await expect(offPathRows).toHaveCount(1);
-    await expect(row(page, ABANDONED_MODEL)).toHaveCount(0);
-    const announced = announcedRows(await reveal.getAttribute("aria-label"));
-
-    // One tap opens the run of the abandoned branch through to the entry it ends at. Walking back
-    // along a branch the Session left is how the Leaf moves between branches, so one tap per
-    // message in it is the bug, not the design.
-    await reveal.click();
-    await expect(reveal).toHaveAttribute("aria-expanded", "true");
-    await expect(row(page, ABANDONED_MODEL)).toBeVisible();
-    expect(await offPathRows.count()).toBe(1 + (announced ?? 0));
-
-    // Collapsing the head closes the run again: browsing destroyed nothing either way.
-    await reveal.click();
-    await expect(offPathRows).toHaveCount(1);
-    await expect(row(page, ABANDONED_MODEL)).toHaveCount(0);
-    await expect(head).toBeVisible();
-  } finally {
-    await disposeHarness(harness);
-  }
-});
-
-test("one tap on the row past a new Leaf reveals the branch behind it in full", async ({
-  page,
-}) => {
-  const harness = await startHarness();
-  try {
-    await openHarness(page, harness, harness.seeded.id);
-    await expect(page.getByTestId("transcript")).toContainText(LEAF_TEXT, {
-      timeout: PI_START_TIMEOUT_MS,
-    });
-
-    // Move the Leaf back the way the owner does: open the tree and take an earlier message.
-    await page.getByTestId("composer-branch").click();
-    await expect(modal(page)).toBeVisible();
-    await select(page, EDIT_TEXT);
-    await expect(modal(page)).toHaveCount(0);
-
-    // Reopening shows only the active path: the branch that was left hangs off the new Leaf
-    // collapsed, so the Leaf it came from is not on screen.
-    await page.getByTestId("composer-branch").click();
-    await expect(modal(page)).toBeVisible();
-    const head = row(page, EDIT_TEXT);
-    await expect(head).toHaveAttribute("data-active", "false");
-    await expect(row(page, LEAF_TEXT)).toHaveCount(0);
-    const reveal = head.getByTestId("message-tree-toggle");
-    await expect(reveal).toHaveAttribute("aria-expanded", "false");
-    const announced = announcedRows(await reveal.getAttribute("aria-label"));
-    const shown = await page.getByTestId("message-tree-row").count();
-
-    // One tap walks the whole run back to the Leaf the Session came from, and reveals exactly as
-    // many rows as the control said it would.
-    await reveal.click();
-    await expect(row(page, LEAF_TEXT)).toBeVisible();
-    expect((await page.getByTestId("message-tree-row").count()) - shown).toBe(announced);
-  } finally {
-    await disposeHarness(harness);
-  }
-});
-
-test("a linear Session opens the whole tree with no toggles", async ({ page }) => {
-  const harness = await startHarness("plain");
-  try {
-    await openHarness(page, harness, harness.seeded.id);
-    await page.getByTestId("composer-branch").click();
-    await expect(modal(page)).toBeVisible();
-    await expect(page.getByTestId("message-tree-row").first()).toBeVisible();
-
-    // One path and no alternatives: every entry is already on screen, so no row offers to open
-    // anything and none of them indents as if it nested.
-    const geometry = await page.evaluate(() => {
-      const rows = [...document.querySelectorAll('[data-testid="message-tree-row"]')];
-      const depths = new Set(rows.map((row) => row.getAttribute("data-depth")));
-      return {
-        rows: rows.length,
-        toggles: document.querySelectorAll('[data-testid="message-tree-toggle"]').length,
-        depths: [...depths],
-      };
-    });
-    expect(geometry.rows).toBe(harness.seeded.entryCount);
-    expect(geometry.toggles).toBe(0);
-    expect(geometry.depths).toEqual(["0"]);
-  } finally {
-    await disposeHarness(harness);
-  }
-});
-
+// Wiring claim: an entry pi records but the UI hides is absent from both the transcript and the tree.
 test("a hidden custom message has no tree row, exactly as the transcript has none", async ({
   page,
 }) => {
@@ -454,56 +351,5 @@ test("a Leaf move is confirmed by pi, and an unconfirmed one is refused honestly
   } finally {
     await client.close();
     await disposeHarness(harness);
-  }
-});
-
-test("a 100-deep Session renders flat and every visible row is one tap away", async ({ page }) => {
-  const home = await createHermeticHome();
-  const deep = await generateSession(home, "deep-tree");
-  const launch = await scriptedPiLaunch(home, UNUSED_SCRIPT);
-  const server = await startServer({
-    projects: [launch.cwd],
-    sessionDir: home.sessionsDir,
-    port: home.ports.allocate(),
-    pi: { args: launch.args, env: launch.env, provider: launch.provider, model: launch.model },
-  });
-  const client = await startClientPageServer();
-  const harness: Harness = { home, seeded: deep, server, client };
-  try {
-    await openHarness(page, harness, deep.id);
-    await page.getByTestId("composer-branch").click();
-    await expect(modal(page)).toBeVisible();
-    await expect(page.getByTestId("message-tree-row").first()).toBeVisible();
-
-    const geometry = await page.evaluate(() => {
-      const body = document.querySelector('[data-testid="message-tree-body"]');
-      const rows = [...document.querySelectorAll('[data-testid="message-tree-row"]')];
-      let deepest = 0;
-      for (const element of rows) {
-        deepest = Math.max(deepest, Number(element.getAttribute("data-depth") ?? "0"));
-      }
-      return {
-        rows: rows.length,
-        deepest,
-        overflows: body === null ? false : body.scrollWidth > body.clientWidth + 1,
-      };
-    });
-    // A continuation is not a branch point, so a 100-deep chain stays near the top level and never
-    // widens the page: the staircase that made a deep Session unnavigable on a phone is gone. Only
-    // the two real branch points on the active path step in, by one level each.
-    expect(geometry.rows).toBeGreaterThan(60);
-    expect(geometry.deepest).toBeLessThanOrEqual(2);
-    expect(geometry.overflows).toBe(false);
-
-    // A row deep in the chain is reachable with one tap: its text comes back to the composer.
-    const deepText = "Generated user message 60.";
-    await expect(row(page, deepText)).toBeVisible();
-    await select(page, deepText);
-    await expect(modal(page)).toHaveCount(0);
-    await expect(page.getByTestId("composer-input")).toHaveValue(deepText);
-  } finally {
-    await client.close();
-    await server.close();
-    await home.dispose();
   }
 });

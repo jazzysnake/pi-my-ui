@@ -1,12 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { startServer, type RunningServer } from "@pi-my-ui/server";
 import type { Script } from "@pi-my-ui/scripted-provider";
 
-import { startClientPageServer, type ClientPageServer } from "../src/client-page-server";
 import { expectComposerSend } from "../src/composer-send";
-import { seedSession, type FixtureSession, type SeedName } from "../src/fixture-builder";
-import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
+import type { Gate } from "../src/gate";
+import { startHarness, type Harness } from "../src/test-harness";
 
 // A 2×2 red PNG: small enough for a thumbnail, and a valid image pi's resizer can decode.
 const TINY_PNG_BASE64 =
@@ -20,40 +18,56 @@ const UNUSED_SCRIPT: Script = [
   },
 ];
 
-interface Harness {
-  readonly home: HermeticHome;
-  readonly seeded: FixtureSession;
-  readonly server: RunningServer;
-  readonly client: ClientPageServer;
-}
-
-async function startHarness(script: Script, seed: SeedName = "plain"): Promise<Harness> {
-  const home = await createHermeticHome();
-  const seeded = await seedSession(home, seed);
-  const launch = await scriptedPiLaunch(home, script);
-  const server = await startServer({
-    projects: [launch.cwd],
-    sessionDir: home.sessionsDir,
-    port: home.ports.allocate(),
-    pi: {
-      args: launch.args,
-      env: launch.env,
-      provider: launch.provider,
-      model: launch.model,
+/**
+ * A run whose only tool call waits on this test's gate, so the composer's mid-run controls are
+ * exercised against a run that cannot settle on its own schedule.
+ */
+function heldRunScript(gate: (name: string) => Gate): Script {
+  return [
+    {
+      expect: { role: "user", text: "start the long job" },
+      reply: {
+        content: [
+          { type: "text", text: "starting the job" },
+          {
+            type: "toolCall",
+            id: "call_hold_1",
+            name: "bash",
+            arguments: { ...gate("hold").command("echo released") },
+          },
+        ],
+        stopReason: "toolUse",
+      },
     },
-  });
-  const client = await startClientPageServer();
-  return { home, seeded, server, client };
+  ];
 }
 
-async function disposeHarness(harness: Harness): Promise<void> {
-  await harness.client.close();
-  await harness.server.close();
-  await harness.home.dispose();
+function steerScript(gate: (name: string) => Gate): Script {
+  return [
+    ...heldRunScript(gate),
+    {
+      expect: { role: "user", text: "steer it now" },
+      reply: { content: [{ type: "text", text: "redirected mid-run" }], stopReason: "stop" },
+    },
+  ];
+}
+
+function followUpScript(gate: (name: string) => Gate): Script {
+  return [
+    ...heldRunScript(gate),
+    {
+      expect: { role: "toolResult", toolName: "bash" },
+      reply: { content: [{ type: "text", text: "the job finished" }], stopReason: "stop" },
+    },
+    {
+      expect: { role: "user", text: "then say bye" },
+      reply: { content: [{ type: "text", text: "bye for now" }], stopReason: "stop" },
+    },
+  ];
 }
 
 async function openHarness(page: Page, harness: Harness): Promise<void> {
-  const url = `${harness.client.url}?session=${encodeURIComponent(harness.seeded.id)}&ws=${encodeURIComponent(harness.server.url)}`;
+  const url = `${harness.client.url}?session=${encodeURIComponent(harness.session.id)}&ws=${encodeURIComponent(harness.server.url)}`;
   await page.goto(url);
   await expect(page.getByTestId("connection-status")).toHaveAttribute("data-status", "connected");
   await expect(page.getByTestId("transcript")).toContainText("Seed text block 3.");
@@ -66,12 +80,14 @@ async function sendMessage(page: Page, text: string): Promise<void> {
 }
 
 test("an attached image reaches pi with the message", async ({ page }) => {
-  const harness = await startHarness([
-    {
-      expect: { role: "user", text: "look at this", images: 1 },
-      reply: { content: [{ type: "text", text: "I can see the image." }], stopReason: "stop" },
-    },
-  ]);
+  const harness = await startHarness({
+    script: () => [
+      {
+        expect: { role: "user", text: "look at this", images: 1 },
+        reply: { content: [{ type: "text", text: "I can see the image." }], stopReason: "stop" },
+      },
+    ],
+  });
   try {
     await openHarness(page, harness);
     await page.getByTestId("composer-attach-input").setInputFiles({
@@ -86,32 +102,13 @@ test("an attached image reaches pi with the message", async ({ page }) => {
     // The accepted message cleared the composer, thumbnails included.
     await expect(page.getByTestId("attachment")).toHaveCount(0);
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("steer enters the run at its next step", async ({ page }) => {
-  const harness = await startHarness([
-    {
-      expect: { role: "user", text: "start the long job" },
-      reply: {
-        content: [
-          { type: "text", text: "starting the job" },
-          {
-            type: "toolCall",
-            id: "call_steer_1",
-            name: "bash",
-            arguments: { command: "sleep 4", timeout: 60 },
-          },
-        ],
-        stopReason: "toolUse",
-      },
-    },
-    {
-      expect: { role: "user", text: "steer it now" },
-      reply: { content: [{ type: "text", text: "redirected mid-run" }], stopReason: "stop" },
-    },
-  ]);
+  const harness = await startHarness({ script: steerScript });
+  const hold = harness.gate("hold");
   try {
     await openHarness(page, harness);
     await sendMessage(page, "start the long job");
@@ -121,39 +118,25 @@ test("steer enters the run at its next step", async ({ page }) => {
     await page.getByTestId("composer-input").fill("steer it now");
     await page.getByTestId("composer-send-while-running").click();
 
-    await expect(page.getByTestId("transcript")).toContainText("redirected mid-run");
+    // The steer is handed to pi but not delivered: the running turn still owns the run, and the
+    // draft stays until pi echoes the message into the transcript, which happens only when the steer
+    // enters the run. The gate is what keeps that from happening before the release.
+    await hold.releaseAfter(async () => {
+      await expectComposerSend(page, "Stop");
+      await expect(page.getByTestId("composer-send-while-running")).toBeDisabled();
+      await expect(page.getByTestId("transcript")).not.toContainText("steer it now");
+    });
+
     await expect(page.getByTestId("transcript")).toContainText("steer it now");
+    await expect(page.getByTestId("transcript")).toContainText("redirected mid-run");
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("follow up waits until the run finishes", async ({ page }) => {
-  const harness = await startHarness([
-    {
-      expect: { role: "user", text: "start the long job" },
-      reply: {
-        content: [
-          { type: "text", text: "starting the job" },
-          {
-            type: "toolCall",
-            id: "call_follow_1",
-            name: "bash",
-            arguments: { command: "sleep 4", timeout: 60 },
-          },
-        ],
-        stopReason: "toolUse",
-      },
-    },
-    {
-      expect: { role: "toolResult", toolName: "bash" },
-      reply: { content: [{ type: "text", text: "the job finished" }], stopReason: "stop" },
-    },
-    {
-      expect: { role: "user", text: "then say bye" },
-      reply: { content: [{ type: "text", text: "bye for now" }], stopReason: "stop" },
-    },
-  ]);
+  const harness = await startHarness({ script: followUpScript });
+  const hold = harness.gate("hold");
   try {
     await openHarness(page, harness);
     await sendMessage(page, "start the long job");
@@ -163,15 +146,23 @@ test("follow up waits until the run finishes", async ({ page }) => {
     await page.getByTestId("streaming-choice-follow-up").click();
     await page.getByTestId("composer-send-while-running").click();
 
+    // The follow-up is queued behind a run the gate still holds: the row is disabled and the job has
+    // not reported finishing, so the replies below can only arrive after the release.
+    await hold.releaseAfter(async () => {
+      await expectComposerSend(page, "Stop");
+      await expect(page.getByTestId("composer-send-while-running")).toBeDisabled();
+      await expect(page.getByTestId("transcript")).not.toContainText("the job finished");
+    });
+
     await expect(page.getByTestId("transcript")).toContainText("the job finished");
     await expect(page.getByTestId("transcript")).toContainText("bye for now");
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("the status strip round-trips pi's automatic compaction", async ({ page }) => {
-  const harness = await startHarness(UNUSED_SCRIPT);
+  const harness = await startHarness({ script: () => UNUSED_SCRIPT });
   try {
     await openHarness(page, harness);
     const toggle = page.getByTestId("auto-compaction-toggle");
@@ -184,12 +175,12 @@ test("the status strip round-trips pi's automatic compaction", async ({ page }) 
     await toggle.click();
     await expect(toggle).toHaveAttribute("data-auto-compaction", before ?? "");
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("the status strip lists pi's models and thinking levels", async ({ page }) => {
-  const harness = await startHarness(UNUSED_SCRIPT);
+  const harness = await startHarness({ script: () => UNUSED_SCRIPT });
   try {
     await openHarness(page, harness);
     await page.getByTestId("model-picker-toggle").click();
@@ -202,14 +193,14 @@ test("the status strip lists pi's models and thinking levels", async ({ page }) 
     await page.getByTestId("thinking-option").filter({ hasText: "High" }).click();
     await expect(page.getByTestId("status-thinking")).toHaveText("High");
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("a tap outside an open model list dismisses it and leaves the model alone", async ({
   page,
 }) => {
-  const harness = await startHarness(UNUSED_SCRIPT);
+  const harness = await startHarness({ script: () => UNUSED_SCRIPT });
   try {
     await openHarness(page, harness);
     const options = page.getByTestId("model-options");
@@ -231,14 +222,14 @@ test("a tap outside an open model list dismisses it and leaves the model alone",
     await page.getByTestId("model-picker-toggle").tap();
     await expect(options).toHaveCount(0);
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("a tap outside an open effort list dismisses it and leaves the effort alone", async ({
   page,
 }) => {
-  const harness = await startHarness(UNUSED_SCRIPT);
+  const harness = await startHarness({ script: () => UNUSED_SCRIPT });
   try {
     await openHarness(page, harness);
     const options = page.getByTestId("thinking-options");
@@ -253,12 +244,12 @@ test("a tap outside an open effort list dismisses it and leaves the effort alone
     // The same tap reached the input instead of being swallowed: a full-screen scrim would eat it.
     await expect(page.getByTestId("composer-input")).toBeFocused();
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("a pointer that moves before it lifts leaves an open list open", async ({ page }) => {
-  const harness = await startHarness(UNUSED_SCRIPT);
+  const harness = await startHarness({ script: () => UNUSED_SCRIPT });
   try {
     await openHarness(page, harness);
     const options = page.getByTestId("model-options");
@@ -271,12 +262,12 @@ test("a pointer that moves before it lifts leaves an open list open", async ({ p
 
     await expect(options).toBeVisible();
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("opening one picker closes the other, and a chosen row applies once", async ({ page }) => {
-  const harness = await startHarness(UNUSED_SCRIPT);
+  const harness = await startHarness({ script: () => UNUSED_SCRIPT });
   try {
     await openHarness(page, harness);
     await page.getByTestId("model-picker-toggle").tap();
@@ -302,17 +293,19 @@ test("opening one picker closes the other, and a chosen row applies once", async
     await expect(page.getByTestId("status-model")).toHaveText(chosenModel);
     await expect(page.getByTestId("model-picker-toggle")).toHaveAttribute("aria-expanded", "false");
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("Enter inserts a newline and Ctrl+Enter sends", async ({ page }) => {
-  const harness = await startHarness([
-    {
-      expect: { role: "user", text: "sent from the keyboard" },
-      reply: { content: [{ type: "text", text: "keyboard reply" }], stopReason: "stop" },
-    },
-  ]);
+  const harness = await startHarness({
+    script: () => [
+      {
+        expect: { role: "user", text: "sent from the keyboard" },
+        reply: { content: [{ type: "text", text: "keyboard reply" }], stopReason: "stop" },
+      },
+    ],
+  });
   try {
     await openHarness(page, harness);
     const input = page.getByTestId("composer-input");
@@ -325,28 +318,31 @@ test("Enter inserts a newline and Ctrl+Enter sends", async ({ page }) => {
     await input.press("Control+Enter");
     await expect(page.getByTestId("transcript")).toContainText("keyboard reply");
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("Escape cancels the running turn", async ({ page }) => {
-  const harness = await startHarness([
-    {
-      expect: { role: "user", text: "start the long job" },
-      reply: {
-        content: [
-          { type: "text", text: "starting the job" },
-          {
-            type: "toolCall",
-            id: "call_escape_1",
-            name: "bash",
-            arguments: { command: "sleep 30", timeout: 60 },
-          },
-        ],
-        stopReason: "toolUse",
+  const harness = await startHarness({
+    script: () => [
+      {
+        expect: { role: "user", text: "start the long job" },
+        reply: {
+          content: [
+            { type: "text", text: "starting the job" },
+            {
+              type: "toolCall",
+              id: "call_escape_1",
+              name: "bash",
+              // Aborting never waits for the command to finish, so it has no gate to open.
+              arguments: { command: "sleep 30", timeout: 60 },
+            },
+          ],
+          stopReason: "toolUse",
+        },
       },
-    },
-  ]);
+    ],
+  });
   try {
     await openHarness(page, harness);
     await sendMessage(page, "start the long job");
@@ -359,14 +355,14 @@ test("Escape cancels the running turn", async ({ page }) => {
     await expect(page.getByTestId("run-state")).toHaveAttribute("data-run-state", "aborted");
     await expectComposerSend(page, "Send");
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("send is the row's last control in the thumb corner at a full touch size", async ({
   page,
 }) => {
-  const harness = await startHarness(UNUSED_SCRIPT);
+  const harness = await startHarness({ script: () => UNUSED_SCRIPT });
   try {
     await openHarness(page, harness);
     const labels = await page
@@ -423,19 +419,21 @@ test("send is the row's last control in the thumb corner at a full touch size", 
     }));
     expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(composer.right + 1);
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("the composer holds up with a keyboard-sized viewport and after rotation", async ({
   page,
 }) => {
-  const harness = await startHarness([
-    {
-      expect: { role: "user", text: "rotated message" },
-      reply: { content: [{ type: "text", text: "received after rotation" }], stopReason: "stop" },
-    },
-  ]);
+  const harness = await startHarness({
+    script: () => [
+      {
+        expect: { role: "user", text: "rotated message" },
+        reply: { content: [{ type: "text", text: "received after rotation" }], stopReason: "stop" },
+      },
+    ],
+  });
   try {
     await openHarness(page, harness);
 
@@ -456,6 +454,6 @@ test("the composer holds up with a keyboard-sized viewport and after rotation", 
     await sendMessage(page, "rotated message");
     await expect(page.getByTestId("transcript")).toContainText("received after rotation");
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });

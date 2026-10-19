@@ -1,69 +1,48 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { startServer, type RunningServer } from "@pi-my-ui/server";
 import type { Script } from "@pi-my-ui/scripted-provider";
 
-import { startClientPageServer, type ClientPageServer } from "../src/client-page-server";
 import { expectComposerSend } from "../src/composer-send";
-import { seedSession, type FixtureSession, type SeedName } from "../src/fixture-builder";
-import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
+import type { Gate } from "../src/gate";
+import { startHarness, type Harness } from "../src/test-harness";
 import { expectEveryControlMeetsTouchTarget } from "../src/touch-targets";
 
 const TINY_PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR4nGP4z8DwH4QZYAwAR8oH+WdZbrcAAAAASUVORK5CYII=";
 
 /**
- * A run that stays open long enough to measure the states only a live run has: the While-running
- * row, a running tool card and a running bash card. Its second step answers the tool's result, so pi
- * is never left waiting for a reply the recording does not hold.
+ * A run that stays open until the test opens its gate, so the states only a live run has — the
+ * While-running row, a running tool card, a running bash card — can be measured for as long as the
+ * sweep needs them. Its second step answers the tool's result, so pi is never left waiting for a
+ * reply the recording does not hold.
  */
-const RUNNING_SCRIPT: Script = [
-  {
-    expect: { role: "user", text: "hold the run open" },
-    reply: {
-      content: [
-        { type: "thinking", thinking: "Deciding how long to wait." },
-        { type: "text", text: "Holding the run open.\n\n```bash\nsleep 5\n```" },
-        { type: "toolCall", id: "call_hold", name: "bash", arguments: { command: "sleep 5" } },
-      ],
-      stopReason: "toolUse",
+function runningScript(gate: (name: string) => Gate): Script {
+  return [
+    {
+      expect: { role: "user", text: "hold the run open" },
+      reply: {
+        content: [
+          { type: "thinking", thinking: "Deciding how long to wait." },
+          { type: "text", text: "Holding the run open.\n\n```bash\ngit status\n```" },
+          {
+            type: "toolCall",
+            id: "call_hold",
+            name: "bash",
+            arguments: { ...gate("hold").command("echo released") },
+          },
+        ],
+        stopReason: "toolUse",
+      },
     },
-  },
-  {
-    expect: { role: "toolResult", toolName: "bash" },
-    reply: { content: [{ type: "text", text: "the wait is over" }], stopReason: "stop" },
-  },
-];
-
-interface Harness {
-  readonly home: HermeticHome;
-  readonly seeded: FixtureSession;
-  readonly server: RunningServer;
-  readonly client: ClientPageServer;
-}
-
-async function startHarness(script: Script, seed: SeedName): Promise<Harness> {
-  const home = await createHermeticHome();
-  const seeded = await seedSession(home, seed);
-  const launch = await scriptedPiLaunch(home, script);
-  const server = await startServer({
-    projects: [launch.cwd],
-    sessionDir: home.sessionsDir,
-    port: home.ports.allocate(),
-    pi: { args: launch.args, env: launch.env, provider: launch.provider, model: launch.model },
-  });
-  const client = await startClientPageServer();
-  return { home, seeded, server, client };
-}
-
-async function disposeHarness(harness: Harness): Promise<void> {
-  await harness.client.close();
-  await harness.server.close();
-  await harness.home.dispose();
+    {
+      expect: { role: "toolResult", toolName: "bash" },
+      reply: { content: [{ type: "text", text: "the wait is over" }], stopReason: "stop" },
+    },
+  ];
 }
 
 async function openHarness(page: Page, harness: Harness, marker: string): Promise<void> {
-  const url = `${harness.client.url}?session=${encodeURIComponent(harness.seeded.id)}&ws=${encodeURIComponent(harness.server.url)}`;
+  const url = `${harness.client.url}?session=${encodeURIComponent(harness.session.id)}&ws=${encodeURIComponent(harness.server.url)}`;
   await page.goto(url);
   await expect(page.getByTestId("connection-status")).toHaveAttribute("data-status", "connected");
   await expect(page.getByTestId("transcript")).toContainText(marker);
@@ -72,7 +51,8 @@ async function openHarness(page: Page, harness: Harness, marker: string): Promis
 test("every control the composer's own states put on screen meets the minimum", async ({
   page,
 }) => {
-  const harness = await startHarness(RUNNING_SCRIPT, "plain");
+  const harness = await startHarness({ script: runningScript });
+  const hold = harness.gate("hold");
   try {
     await openHarness(page, harness, "Seed text block 3.");
     await expect(page.getByTestId("status-model")).toBeVisible();
@@ -106,8 +86,13 @@ test("every control the composer's own states put on screen meets the minimum", 
     await page.getByTestId("reasoning-block").last().locator("summary").click();
     await expectEveryControlMeetsTouchTarget(page, "a reasoning block expanded");
 
-    await page.getByTestId("composer-send").click();
-    await expectComposerSend(page, "Send");
+    // The gate held the run for every sweep above, so the tap below really is the stop control and
+    // not a Send that happens to look the same once the run settled.
+    await hold.releaseAfter(async () => {
+      await expectComposerSend(page, "Stop");
+      await page.getByTestId("composer-send").click();
+      await expectComposerSend(page, "Send");
+    });
 
     await page.getByTestId("model-picker-toggle").click();
     await expect(page.getByTestId("model-option").first()).toBeVisible();
@@ -147,24 +132,23 @@ test("every control the composer's own states put on screen meets the minimum", 
     await expectEveryControlMeetsTouchTarget(page, "the fork picker open");
     await page.getByTestId("fork-picker-close").click();
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("a Session that is still starting meets the minimum", async ({ page }) => {
-  const harness = await startHarness(
-    [
+  const harness = await startHarness({
+    script: () => [
       {
         expect: { role: "user", text: "a prompt this recording never saw" },
         reply: { content: [{ type: "text", text: "unused" }], stopReason: "stop" },
       },
     ],
-    "plain",
-  );
+  });
   try {
     // The row exists from the first frame, before any Snapshot: recovery and a cold start are waits,
     // and every control they put on screen must still be tappable.
-    const url = `${harness.client.url}?session=${encodeURIComponent(harness.seeded.id)}&ws=${encodeURIComponent(harness.server.url)}`;
+    const url = `${harness.client.url}?session=${encodeURIComponent(harness.session.id)}&ws=${encodeURIComponent(harness.server.url)}`;
     await page.goto(url);
     await expect(page.getByTestId("run-state")).toHaveAttribute("data-run-state", "starting");
     await expectEveryControlMeetsTouchTarget(page, "a Session starting");
@@ -172,20 +156,20 @@ test("a Session that is still starting meets the minimum", async ({ page }) => {
       timeout: 30_000,
     });
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("the agent list and the transcript's own controls meet the minimum", async ({ page }) => {
-  const harness = await startHarness(
-    [
+  const harness = await startHarness({
+    seeds: [{ fixture: "subagents" }],
+    script: () => [
       {
         expect: { role: "user", text: "a prompt this recording never saw" },
         reply: { content: [{ type: "text", text: "unused" }], stopReason: "stop" },
       },
     ],
-    "subagents",
-  );
+  });
   try {
     await openHarness(page, harness, "Seed text block 9.");
     await expect(page.getByTestId("notification-card").first()).toBeVisible();
@@ -206,6 +190,6 @@ test("the agent list and the transcript's own controls meet the minimum", async 
     await expect(page.getByTestId("steer-refusal")).toBeVisible();
     await expectEveryControlMeetsTouchTarget(page, "a focused subagent's composer");
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });

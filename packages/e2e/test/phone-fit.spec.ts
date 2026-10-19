@@ -1,62 +1,40 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { startServer, type RunningServer } from "@pi-my-ui/server";
 import type { Script } from "@pi-my-ui/scripted-provider";
 
-import { startClientPageServer, type ClientPageServer } from "../src/client-page-server";
-import { expectComposerSend } from "../src/composer-send";
 import { PALETTE } from "../src/palette";
-import { seedSession, type FixtureSession, type SeedName } from "../src/fixture-builder";
-import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
+import { expectComposerSend } from "../src/composer-send";
+import type { Gate } from "../src/gate";
+import { startHarness, type Harness } from "../src/test-harness";
 
-/** A run that stays in flight, so the states that exist only mid-run can be measured. */
-const RUNNING_SCRIPT: Script = [
-  {
-    expect: { role: "user", text: "hold the run open" },
-    reply: {
-      content: [
-        { type: "text", text: "Holding the run open." },
-        { type: "toolCall", id: "call_hold", name: "bash", arguments: { command: "sleep 5" } },
-      ],
-      stopReason: "toolUse",
+/** A run that stays in flight until the test opens its gate, so mid-run states can be measured. */
+function runningScript(gate: (name: string) => Gate): Script {
+  return [
+    {
+      expect: { role: "user", text: "hold the run open" },
+      reply: {
+        content: [
+          { type: "text", text: "Holding the run open." },
+          {
+            type: "toolCall",
+            id: "call_hold",
+            name: "bash",
+            arguments: { ...gate("hold").command("echo released") },
+          },
+        ],
+        stopReason: "toolUse",
+      },
     },
-  },
-  {
-    expect: { role: "toolResult", toolName: "bash" },
-    reply: { content: [{ type: "text", text: "the wait is over" }], stopReason: "stop" },
-  },
-];
-
-interface Harness {
-  readonly home: HermeticHome;
-  readonly seeded: FixtureSession;
-  readonly server: RunningServer;
-  readonly client: ClientPageServer;
-}
-
-async function startHarness(script: Script, seed: SeedName): Promise<Harness> {
-  const home = await createHermeticHome();
-  const seeded = await seedSession(home, seed);
-  const launch = await scriptedPiLaunch(home, script);
-  const server = await startServer({
-    projects: [launch.cwd],
-    sessionDir: home.sessionsDir,
-    port: home.ports.allocate(),
-    pi: { args: launch.args, env: launch.env, provider: launch.provider, model: launch.model },
-  });
-  const client = await startClientPageServer();
-  return { home, seeded, server, client };
-}
-
-async function disposeHarness(harness: Harness): Promise<void> {
-  await harness.client.close();
-  await harness.server.close();
-  await harness.home.dispose();
+    {
+      expect: { role: "toolResult", toolName: "bash" },
+      reply: { content: [{ type: "text", text: "the wait is over" }], stopReason: "stop" },
+    },
+  ];
 }
 
 /** Open the seeded Session through the built client, the way Caddy serves it in production. */
 async function openHarness(page: Page, harness: Harness, marker: string): Promise<void> {
-  const url = `${harness.client.url}?session=${encodeURIComponent(harness.seeded.id)}&ws=${encodeURIComponent(harness.server.url)}`;
+  const url = `${harness.client.url}?session=${encodeURIComponent(harness.session.id)}&ws=${encodeURIComponent(harness.server.url)}`;
   await page.goto(url);
   await expect(page.getByTestId("connection-status")).toHaveAttribute("data-status", "connected");
   await expect(page.getByTestId("transcript")).toContainText(marker);
@@ -72,15 +50,15 @@ test("the shell is drawn in the console theme: palette, monospace type and compo
 }) => {
   // The subagents seed carries the session bar's widest content — the agent pill and the context
   // readout on one row — which is the widest the top of the screen ever gets.
-  const harness = await startHarness(
-    [
+  const harness = await startHarness({
+    seeds: [{ fixture: "subagents" }],
+    script: () => [
       {
         expect: { role: "user", text: "a prompt this recording never saw" },
         reply: { content: [{ type: "text", text: "unused" }], stopReason: "stop" },
       },
     ],
-    "subagents",
-  );
+  });
   try {
     await openHarness(page, harness, "Seed text block 9.");
     await expect(page.getByTestId("agent-pill")).toBeVisible();
@@ -130,12 +108,13 @@ test("the shell is drawn in the console theme: palette, monospace type and compo
     // The context readout lives in the session bar, apart from the composer's choosers.
     await expect(page.getByTestId("session-bar").getByTestId("context-usage")).toBeVisible();
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("reduced motion stops the pulse and loses no text", async ({ page }) => {
-  const harness = await startHarness(RUNNING_SCRIPT, "plain");
+  const harness = await startHarness({ script: runningScript });
+  const hold = harness.gate("hold");
   try {
     await openHarness(page, harness, "Seed text block 3.");
     await sendMessage(page, "hold the run open");
@@ -160,28 +139,30 @@ test("reduced motion stops the pulse and loses no text", async ({ page }) => {
     expect(await animationName(toolStatus)).toBe("none");
 
     // Nothing is lost when the animation goes: the status still says the same fact in text, and a
-    // tap on the composer's control still does what it says.
+    // tap on the composer's control still does what it says. The gate keeps the run live until the
+    // tap has been made, so this is a stop and not a coincidence of timing.
     await expect(toolStatus).toHaveText("Running");
-    await expectComposerSend(page, "Stop");
-    await page.getByTestId("composer-send").click();
-    await expectComposerSend(page, "Send");
+    await hold.releaseAfter(async () => {
+      await expectComposerSend(page, "Stop");
+      await page.getByTestId("composer-send").click();
+      await expectComposerSend(page, "Send");
+    });
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("an overlay covers nothing it cannot act on, and a hidden label holds no tap", async ({
   page,
 }) => {
-  const harness = await startHarness(
-    [
+  const harness = await startHarness({
+    script: () => [
       {
         expect: { role: "user", text: "a prompt this recording never saw" },
         reply: { content: [{ type: "text", text: "unused" }], stopReason: "stop" },
       },
     ],
-    "plain",
-  );
+  });
   try {
     await openHarness(page, harness, "Seed text block 3.");
 
@@ -258,6 +239,6 @@ test("an overlay covers nothing it cannot act on, and a hidden label holds no ta
     await page.getByTestId("composer-input").fill("still tappable");
     await expect(page.getByTestId("composer-input")).toHaveValue("still tappable");
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });

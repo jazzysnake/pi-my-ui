@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, vi } from "vitest";
 
 import { LAUNCHER_USAGE, startServer, type RunningServer } from "@pi-my-ui/server";
 import type { Script } from "@pi-my-ui/scripted-provider";
@@ -15,6 +15,9 @@ import { connectWsSession, type WsSessionClient } from "../src/ws-session-client
  */
 const DOCUMENTED_DEFAULT_SECONDS = 120;
 const DOCUMENTED_DEFAULT_MS = DOCUMENTED_DEFAULT_SECONDS * 1_000;
+
+/** A real child starts and stops on its own schedule; this bound covers a loaded machine. */
+const PI_CHILD_TIMEOUT_MS = 30_000;
 
 const UNUSED_SCRIPT: Script = [
   {
@@ -105,11 +108,13 @@ test("the idle window --help documents is the one the pool evicts on", async () 
     const abandoned = await generateSession(harness.home, "transcript", { transcriptEntries: 20 });
 
     const watchedViewer = await open(harness.server, harness.home.workspace, watched.id);
-    await expect.poll(() => piChildPids().length).toBe(1);
+    await vi.waitFor(() => expect(piChildPids()).toHaveLength(1), { timeout: PI_CHILD_TIMEOUT_MS });
     const watchedChild = piChildPids()[0];
 
     const abandonedViewer = await open(harness.server, harness.home.workspace, abandoned.id);
-    await expect.poll(() => piChildPids().length).toBe(2);
+    await vi.waitFor(() => expect(piChildPids()).toHaveLength(2), {
+      timeout: PI_CHILD_TIMEOUT_MS,
+    });
     const abandonedChild = piChildPids().find((pid) => pid !== watchedChild);
     expect(abandonedChild).toBeDefined();
 
@@ -122,7 +127,9 @@ test("the idle window --help documents is the one the pool evicts on", async () 
     expect(piChildPids()).toContain(abandonedChild);
 
     harness.clock.advance(1);
-    await expect.poll(() => piChildPids()).toEqual([watchedChild]);
+    await vi.waitFor(() => expect(piChildPids()).toEqual([watchedChild]), {
+      timeout: PI_CHILD_TIMEOUT_MS,
+    });
     // The watched Session is untouched: a window only ever applies to a Session nobody watches.
     await watchedViewer.close();
 
@@ -145,7 +152,9 @@ test("switching Session before the first Snapshot is built leaves neither Sessio
     const viewer = await connectWsSession(harness.server.url);
     viewer.send({ type: "subscribe", session: { project: harness.home.workspace, id: first.id } });
     viewer.send({ type: "subscribe", session: { project: harness.home.workspace, id: second.id } });
-    await expect.poll(() => piChildPids().length).toBe(2);
+    await vi.waitFor(() => expect(piChildPids()).toHaveLength(2), {
+      timeout: PI_CHILD_TIMEOUT_MS,
+    });
     await viewer.close();
 
     // The subscriptions finish on their own after the socket is gone. A bounded wait lets that
@@ -154,7 +163,9 @@ test("switching Session before the first Snapshot is built leaves neither Sessio
     // as the server runs.
     await settle(2_000);
     harness.clock.advance(DOCUMENTED_DEFAULT_MS);
-    await expect.poll(() => piChildPids()).toEqual([]);
+    await vi.waitFor(() => expect(piChildPids()).toEqual([]), {
+      timeout: PI_CHILD_TIMEOUT_MS,
+    });
   } finally {
     await dispose(harness);
   }

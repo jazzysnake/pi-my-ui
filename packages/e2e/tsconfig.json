@@ -9,9 +9,11 @@
   },
   "include": [
     "src/**/*.ts",
-    "test/**/*.ts",
+    "browser/**/*.ts",
+    "backend/**/*.ts",
     "measure/**/*.ts",
     "capture/**/*.ts",
+    "vitest.config.ts",
     "playwright.config.ts",
     "playwright.smoke.config.ts",
     "playwright.measure.config.ts",

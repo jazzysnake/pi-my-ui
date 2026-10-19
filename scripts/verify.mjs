@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// Root `npm run verify` orchestrator. The fast gate stops after the build; `--full` adds the
-// end-to-end suite as one process. A runner rather than an `&&` chain exists for the banner: every
-// step prints its label before it starts, so a log says which step failed instead of burying the
-// npm script name.
+// Root `npm run verify` orchestrator. The fast gate stops after the backend test step; `--full` adds
+// the end-to-end suite as one process. Build runs before tests because the backend half imports the
+// built server, Bridge extension, scripted provider and launcher CLI. A runner rather than an `&&`
+// chain exists for the banner: every step prints its label before it starts, so a log says which
+// step failed instead of burying the npm script name.
 
 import { spawnSync } from "node:child_process";
 
@@ -10,8 +11,8 @@ import { spawnSync } from "node:child_process";
 const STEPS = [
   { label: "typecheck (all packages, tests included)", scripts: ["typecheck"] },
   { label: "lint and format", scripts: ["lint", "format:check"] },
-  { label: "store and component tests", scripts: ["test"] },
   { label: "build", scripts: ["build"] },
+  { label: "store, component and backend tests", scripts: ["test"] },
   { label: "end-to-end tests within the 45 s budget", scripts: ["test:e2e"], fullOnly: true },
 ];
 

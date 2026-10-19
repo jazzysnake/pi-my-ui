@@ -1,7 +1,7 @@
 import { mkdir, realpath } from "node:fs/promises";
 import { join } from "node:path";
 
-import { expect, test } from "@playwright/test";
+import { expect, test } from "vitest";
 
 import { startServer, type RunningServer } from "@pi-my-ui/server";
 import { EntryKind, type ProjectedEntry } from "@pi-my-ui/protocol";

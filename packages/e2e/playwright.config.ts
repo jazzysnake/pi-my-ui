@@ -19,6 +19,11 @@ const config: PlaywrightTestConfig = {
   reporter: [["list"]],
   outputDir: "../../test-results",
   use: { ...phone, viewport: phone.viewport },
+  // Pinned so two runs of one suite are comparable and the budget has a fixed denominator. Eight
+  // is the knee on the machine measured (AMD Ryzen 7 7840HS, 16 CPUs): 109 s at four workers,
+  // 67 s at eight, 56.4 s at twelve, and that last 10.6 s is bought by filling the box, which
+  // starves the host and the timing-sensitive streaming specs; a smaller box oversubscribes.
+  workers: 8,
   projects: [
     {
       name: "phone-chromium",

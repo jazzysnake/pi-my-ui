@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Root `npm run verify` orchestrator. The fast gate stops after the build; `--full` adds the
-// sharded end-to-end suite. A runner rather than an `&&` chain exists for the banner: every step
-// prints its label before it starts, so a log says which step failed instead of burying the npm
-// script name.
+// end-to-end suite as one process. A runner rather than an `&&` chain exists for the banner: every
+// step prints its label before it starts, so a log says which step failed instead of burying the
+// npm script name.
 
 import { spawnSync } from "node:child_process";
 
@@ -12,7 +12,7 @@ const STEPS = [
   { label: "lint and format", scripts: ["lint", "format:check"] },
   { label: "store and component tests", scripts: ["test"] },
   { label: "build", scripts: ["build"] },
-  { label: "sharded end-to-end tests", scripts: ["test:e2e:sharded"], fullOnly: true },
+  { label: "end-to-end tests", scripts: ["test:e2e"], fullOnly: true },
 ];
 
 /** npm is a shell script on POSIX and `npm.cmd` on Windows. */

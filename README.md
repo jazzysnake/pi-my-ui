@@ -113,15 +113,14 @@ pass `--allowed-origin`, add the exact dev origin you open (for example
 | Command                      | What it does                                                                                                                                                             |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `npm run verify`             | **The fast gate.** Typecheck (tests included) → lint, hygiene, e2e style and fixture checks → format check → store and component tests → build. Stops before end-to-end. |
-| `npm run verify:full`        | The fast gate plus the sharded end-to-end suite.                                                                                                                         |
+| `npm run verify:full`        | The fast gate plus the end-to-end suite (one process, eight workers).                                                                                                    |
 | `npm run typecheck`          | Build the protocol package, then typecheck every workspace including tests                                                                                               |
 | `npm run lint`               | ESLint, the comment hygiene, e2e style and fixture checks                                                                                                                |
 | `npm run format`             | Prettier write                                                                                                                                                           |
 | `npm run format:check`       | Prettier check (non-mutating)                                                                                                                                            |
 | `npm run test`               | Store and component tests                                                                                                                                                |
 | `npm run build`              | Build every workspace                                                                                                                                                    |
-| `npm run test:e2e`           | The whole Playwright suite in one process                                                                                                                                |
-| `npm run test:e2e:sharded`   | The same suite as concurrent shards; fails if a shard fails or a test is unaccounted for                                                                                 |
+| `npm run test:e2e`           | The whole Playwright suite in one process, pinned to eight workers                                                                                                       |
 | `npm run test:smoke`         | Opt-in: record one real-provider run and replay it through the scripted provider                                                                                         |
 | `npm run measure:pool`       | Measure the pool's resident memory and eviction behaviour                                                                                                                |
 | `npm run rerecord -- <name>` | Re-record one scripted-provider script from a real provider run                                                                                                          |

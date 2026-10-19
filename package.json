@@ -27,7 +27,6 @@
     "test": "npm run build:protocol && npm run test --workspaces --if-present",
     "build": "npm run build:protocol && npm run build --workspaces --if-present",
     "test:e2e": "playwright test --config packages/e2e/playwright.config.ts",
-    "test:e2e:sharded": "node scripts/test-e2e-sharded.mjs",
     "test:smoke": "npm run build --workspace @pi-my-ui/scripted-provider && playwright test --config packages/e2e/playwright.smoke.config.ts",
     "measure:pool": "npm run build && playwright test --config packages/e2e/playwright.measure.config.ts",
     "rerecord": "npm run build --workspace @pi-my-ui/scripted-provider && node scripts/rerecord.mjs",

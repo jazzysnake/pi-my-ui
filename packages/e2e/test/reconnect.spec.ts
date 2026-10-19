@@ -9,10 +9,6 @@ import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/
 import { connectWsSession } from "../src/ws-session-client";
 import { readUntilText } from "../src/ws-transcript";
 
-const PI_TEST_TIMEOUT_MS = 120_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
-
 /** The transport's first reconnect delay, restated so changing the constant fails this spec. */
 const FIRST_RECONNECT_DELAY_MS = 500;
 

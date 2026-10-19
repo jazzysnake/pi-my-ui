@@ -7,10 +7,6 @@ import { startHarness, type Harness } from "../src/test-harness";
 import { connectWsSession } from "../src/ws-session-client";
 import { projectionText } from "../src/ws-transcript";
 
-const PI_TEST_TIMEOUT_MS = 120_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
-
 /** What the focused agent says before it starts a command that outlives the browser's check. */
 const AGENT_TEXT = "watching the build now";
 

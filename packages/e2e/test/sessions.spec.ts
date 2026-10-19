@@ -7,10 +7,7 @@ import { startClientPageServer, type ClientPageServer } from "../src/client-page
 import { seedSession, type FixtureSession } from "../src/fixture-builder";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 
-const PI_TEST_TIMEOUT_MS = 120_000;
 const PI_START_TIMEOUT_MS = 30_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
 
 // Neither seeded Session asks the model anything, but pi still has to be launched with a model it
 // can resolve, and the scripted provider is the only model substitute the suite has.

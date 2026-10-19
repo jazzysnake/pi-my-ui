@@ -9,10 +9,7 @@ import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/
 import { piChildPids } from "../src/pi-processes";
 import { expectEveryControlMeetsTouchTarget } from "../src/touch-targets";
 
-const PI_TEST_TIMEOUT_MS = 120_000;
 const PI_START_TIMEOUT_MS = 30_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
 
 const UNUSED_SCRIPT: Script = [
   {

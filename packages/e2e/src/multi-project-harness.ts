@@ -23,10 +23,10 @@ export const FIRST_MARKER = "Seed text block 54.";
 export const SECOND_MARKER = "Seed text block 32.";
 
 /**
- * A multi-Project case starts pi and a browser, so it is slower than a default case. Both specs
- * read the budget from here rather than carrying a copy that could drift from the other's.
+ * A multi-Project case starts pi and a browser, so its first rendered state is slower than a
+ * default case's. Both specs read the start bound from here rather than carrying a copy that could
+ * drift from the other's.
  */
-export const MULTI_PROJECT_TEST_TIMEOUT_MS = 120_000;
 export const MULTI_PROJECT_START_TIMEOUT_MS = 30_000;
 
 export const UNUSED_SCRIPT: Script = [

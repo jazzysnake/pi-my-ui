@@ -9,12 +9,21 @@ const config: PlaywrightTestConfig = {
   fullyParallel: true,
   forbidOnly: process.env["CI"] !== undefined,
   retries: 0,
+  // One budget for every spec, so no spec can negotiate its own and a hang costs 45 seconds instead
+  // of two minutes. Forty-five is roughly four times the slowest real path in the suite, which is
+  // why it absorbs a loaded machine without flaking.
+  timeout: 45_000,
   // A `*.smoke.ts` file needs real provider credentials, so it is opt-in on its own config and
   // must never be discovered here: `npm run verify:full` runs this configuration.
   testIgnore: ["**/*.smoke.ts"],
   reporter: [["list"]],
   outputDir: "../../test-results",
   use: { ...phone, viewport: phone.viewport },
+  // Pinned so two runs of one suite are comparable and the budget has a fixed denominator. Eight
+  // is the knee on the machine measured (AMD Ryzen 7 7840HS, 16 CPUs): 109 s at four workers,
+  // 67 s at eight, 56.4 s at twelve, and that last 10.6 s is bought by filling the box, which
+  // starves the host and the timing-sensitive streaming specs; a smaller box oversubscribes.
+  workers: 8,
   projects: [
     {
       name: "phone-chromium",

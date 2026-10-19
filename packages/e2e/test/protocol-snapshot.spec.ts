@@ -12,10 +12,6 @@ import { piChildPids } from "../src/pi-processes";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 import { connectWsSession } from "../src/ws-session-client";
 
-const PI_TEST_TIMEOUT_MS = 90_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
-
 // The seeded Session never asks the model anything, but pi still has to be launched with a model
 // it can resolve, and the scripted provider is the only model substitute the suite has.
 const UNUSED_SCRIPT: Script = [

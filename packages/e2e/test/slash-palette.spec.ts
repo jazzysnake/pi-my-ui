@@ -10,10 +10,7 @@ import { startClientPageServer, type ClientPageServer } from "../src/client-page
 import { seedSession, type FixtureSession } from "../src/fixture-builder";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 
-const PI_TEST_TIMEOUT_MS = 120_000;
 const DOWNLOAD_TIMEOUT_MS = 10_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
 
 /** One prompt template in the hermetic workspace, so the palette has a pi command to list. */
 const PROMPT_TEMPLATE = "---\ndescription: Review the working tree\n---\nReview the diff: $@\n";

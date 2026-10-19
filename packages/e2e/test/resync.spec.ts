@@ -8,10 +8,6 @@ import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/
 import { connectWsSession } from "../src/ws-session-client";
 import { nextDelta, projectionText, readAttachSurfaces, readUntilText } from "../src/ws-transcript";
 
-const PI_TEST_TIMEOUT_MS = 90_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
-
 const PROMPT = "produce output while away";
 const REPLY = "output produced while away";
 

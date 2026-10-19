@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 import type { Script } from "@pi-my-ui/scripted-provider";
 
+import type { Gate } from "../src/gate";
 import {
   disposeHarness,
   FIRST_MARKER,
@@ -22,33 +23,39 @@ import {
 import { connectWsSession } from "../src/ws-session-client";
 
 /**
- * How long a returning reader waits for the background run's outcome. It bounds the wait on the
- * script's own ten-second hold, not the whole test, so it is shorter than the per-test budget.
+ * How long a returning reader waits for the background run's outcome. The gate frees the command as
+ * soon as the test has seen the run is live, so this bound covers rendering the reply rather than
+ * the run's own hold, and it stays inside the suite's forty-five second test budget.
  */
 const BACKGROUND_RUN_OUTCOME_TIMEOUT_MS = 20_000;
 
-/** A run that stays live on a bash tool, so leaving its Project happens while it works. */
-const BACKGROUND_SCRIPT: Script = [
-  {
-    expect: { role: "user", text: "run the slow background command" },
-    reply: {
-      content: [
-        { type: "text", text: "starting the background run" },
-        {
-          type: "toolCall",
-          id: "call_background_1",
-          name: "bash",
-          arguments: { command: "sleep 10", timeout: 30 },
-        },
-      ],
-      stopReason: "toolUse",
+/**
+ * A run that stays live on a bash tool until the test opens its gate, so leaving its Project
+ * happens while it genuinely works, however long the reader takes to come back.
+ */
+function backgroundScript(gate: (name: string) => Gate): Script {
+  return [
+    {
+      expect: { role: "user", text: "run the slow background command" },
+      reply: {
+        content: [
+          { type: "text", text: "starting the background run" },
+          {
+            type: "toolCall",
+            id: "call_background_1",
+            name: "bash",
+            arguments: { ...gate("build").command("echo built") },
+          },
+        ],
+        stopReason: "toolUse",
+      },
     },
-  },
-  {
-    expect: { role: "toolResult", toolName: "bash" },
-    reply: { content: [{ type: "text", text: "background run finished" }], stopReason: "stop" },
-  },
-];
+    {
+      expect: { role: "toolResult", toolName: "bash" },
+      reply: { content: [{ type: "text", text: "background run finished" }], stopReason: "stop" },
+    },
+  ];
+}
 
 /**
  * Start a run in the first Project, leave for the other, and come back to the run still finishing.
@@ -58,6 +65,7 @@ const BACKGROUND_SCRIPT: Script = [
 async function runSurvivesLeaving(
   page: Page,
   harness: Harness,
+  build: Gate,
   leave: () => Promise<void>,
   returnToFirst: () => Promise<void>,
 ): Promise<void> {
@@ -76,6 +84,17 @@ async function runSurvivesLeaving(
     harness.secondSession.id,
   );
   await expect(page.getByTestId("transcript")).not.toContainText("starting the background run");
+
+  // The first run is blocked on this gate, so its outcome cannot arrive while the reader is away.
+  // Observing the other Project's list and the missing outcome before opening the gate is what
+  // makes the return a continuation rather than a re-read of a run that happened to still be there.
+  await build.releaseAfter(async () => {
+    await expect(page.getByTestId("session-row")).toHaveAttribute(
+      "data-session-id",
+      harness.secondSession.id,
+    );
+    await expect(page.getByTestId("transcript")).not.toContainText("background run finished");
+  });
 
   await returnToFirst();
   await expect(page.getByTestId("transcript")).toContainText("background run finished", {
@@ -197,11 +216,13 @@ test("creating a Session starts it in the chosen Project", async ({ page }) => {
 });
 
 test("a run keeps working while another Project is viewed", async ({ page }) => {
-  const harness = await startHarness(BACKGROUND_SCRIPT);
+  const harness = await startHarness(backgroundScript);
+  const build = harness.gates.gate("build");
   try {
     await runSurvivesLeaving(
       page,
       harness,
+      build,
       async () => {
         // The other Project is a different page load, which is the strongest form of leaving: the
         // socket the run first reached is gone, and the child must still finish on the server.
@@ -419,11 +440,13 @@ test("the drawer's Sessions and the file panel change together on one switch", a
 });
 
 test("a run keeps working while another Project is viewed without reloading", async ({ page }) => {
-  const harness = await startHarness(BACKGROUND_SCRIPT);
+  const harness = await startHarness(backgroundScript);
+  const build = harness.gates.gate("build");
   try {
     await runSurvivesLeaving(
       page,
       harness,
+      build,
       async () => {
         await switchProject(page, harness.second);
       },

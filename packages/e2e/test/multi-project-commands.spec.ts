@@ -7,6 +7,7 @@ import type { TreeNode } from "@pi-my-ui/protocol";
 import type { Script } from "@pi-my-ui/scripted-provider";
 
 import { seedSession } from "../src/fixture-builder";
+import type { Gate } from "../src/gate";
 import {
   disposeHarness,
   FIRST_MARKER,
@@ -25,51 +26,56 @@ const AGENT_TEXT = "watching the build now";
 const STEER_TEXT = "tighten the loop";
 const STEERED_REPLY = "the agent tightened the loop";
 
-/** A delegated run that stays live long enough for the steer to arrive while it works. */
-const STEERING_SCRIPT: Script = [
-  {
-    expect: { role: "user", text: "delegate the build" },
-    reply: {
-      content: [
-        {
-          type: "toolCall",
-          id: "call_agent_1",
-          name: "Agent",
-          arguments: {
-            subagent_type: "general-purpose",
-            prompt: "watch the build",
-            description: "Watch the build",
-            run_in_background: false,
+/**
+ * A delegated run that stays live on a bash tool until the test opens its gate, so the steer is
+ * typed while the agent genuinely works rather than while a fixed sleep drains.
+ */
+function steeringScript(gate: (name: string) => Gate): Script {
+  return [
+    {
+      expect: { role: "user", text: "delegate the build" },
+      reply: {
+        content: [
+          {
+            type: "toolCall",
+            id: "call_agent_1",
+            name: "Agent",
+            arguments: {
+              subagent_type: "general-purpose",
+              prompt: "watch the build",
+              description: "Watch the build",
+              run_in_background: false,
+            },
           },
-        },
-      ],
-      stopReason: "toolUse",
+        ],
+        stopReason: "toolUse",
+      },
     },
-  },
-  {
-    expect: { role: "user", text: "watch the build" },
-    reply: {
-      content: [
-        { type: "text", text: AGENT_TEXT },
-        {
-          type: "toolCall",
-          id: "call_subagent_bash_1",
-          name: "bash",
-          arguments: { command: "sleep 12 && echo built", timeout: 60 },
-        },
-      ],
-      stopReason: "toolUse",
+    {
+      expect: { role: "user", text: "watch the build" },
+      reply: {
+        content: [
+          { type: "text", text: AGENT_TEXT },
+          {
+            type: "toolCall",
+            id: "call_subagent_bash_1",
+            name: "bash",
+            arguments: { ...gate("build").command("echo built") },
+          },
+        ],
+        stopReason: "toolUse",
+      },
     },
-  },
-  {
-    expect: { role: "user", text: STEER_TEXT },
-    reply: { content: [{ type: "text", text: STEERED_REPLY }], stopReason: "stop" },
-  },
-  {
-    expect: { role: "toolResult", toolName: "Agent" },
-    reply: { content: [{ type: "text", text: "the parent finished" }], stopReason: "stop" },
-  },
-];
+    {
+      expect: { role: "user", text: STEER_TEXT },
+      reply: { content: [{ type: "text", text: STEERED_REPLY }], stopReason: "stop" },
+    },
+    {
+      expect: { role: "toolResult", toolName: "Agent" },
+      reply: { content: [{ type: "text", text: "the parent finished" }], stopReason: "stop" },
+    },
+  ];
+}
 
 /** Every node of a message tree, depth first. */
 function flattenTree(nodes: readonly TreeNode[]): TreeNode[] {
@@ -305,7 +311,8 @@ test("a settled subagent's transcript is read through its Project's pair", async
 });
 
 test("a steer reaches a running agent in another Project", async ({ page }) => {
-  const harness = await startHarness(STEERING_SCRIPT);
+  const harness = await startHarness(steeringScript);
+  const build = harness.gates.gate("build");
   // The branching seed already holds a settled agent; a plain Session keeps the focus on the one
   // this run starts.
   const steeringSession = await seedSession(harness.home, "plain", {
@@ -328,7 +335,19 @@ test("a steer reaches a running agent in another Project", async ({ page }) => {
 
     await page.getByTestId("composer-input").fill(STEER_TEXT);
     await page.getByTestId("composer-send-while-running").click();
-    await expect(transcript).toContainText(STEERED_REPLY, { timeout: 60_000 });
+
+    // The agent is held inside its command, so the steer is still on its way when this gate opens.
+    // Observing the pending line first is what makes the reply below evidence that pi delivered the
+    // text at the turn boundary rather than that the message simply arrived before anything ran.
+    await build.releaseAfter(async () => {
+      await expect(transcript).toContainText(AGENT_TEXT);
+      const pending = page.getByTestId("steer-pending");
+      await expect(pending).toBeVisible();
+      await expect(pending).toContainText("@");
+      await expect(transcript).not.toContainText(STEER_TEXT);
+    });
+
+    await expect(transcript).toContainText(STEERED_REPLY, { timeout: PI_START_TIMEOUT_MS });
   } finally {
     await disposeHarness(harness);
   }

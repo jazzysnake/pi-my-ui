@@ -9,9 +9,6 @@ import { createManualClock, type ManualClock } from "../src/manual-clock";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 import { piChildPids } from "../src/pi-processes";
 
-const PI_TEST_TIMEOUT_MS = 120_000;
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
-
 /**
  * The mounted-row bounds are literals, not the client's exported constants: reading them would let a
  * change pass this spec by construction, and the bounds are the claim under test.
@@ -22,6 +19,11 @@ const WINDOW_MAX = 240;
 const FIRST_RECONNECT_DELAY_MS = 500;
 /** The client's own load of an already-seeded Session, in ms; see the measurement the spec prints. */
 const LOAD_BUDGET_MS = 3_000;
+/**
+ * How long a fresh page may take to render the first mounted row. A long Session's Snapshot is one
+ * large message, so this bounds the start rather than standing in for the per-test budget.
+ */
+const FIRST_ROW_TIMEOUT_MS = 30_000;
 const MIN_ENTRIES = 500;
 /** Raw generated turns; the projected transcript drops folded tool results, so a margin over 500. */
 const LARGE_ENTRIES = 600;
@@ -102,7 +104,7 @@ async function openHarness(page: Page, harness: Harness): Promise<void> {
   // The Snapshot is one message, so the first mounted row means the whole window rendered; an early
   // turn's text is hidden by the window on a long Session.
   await expect(page.getByTestId("transcript-entry").first()).toBeVisible({
-    timeout: PI_TEST_TIMEOUT_MS,
+    timeout: FIRST_ROW_TIMEOUT_MS,
   });
 }
 

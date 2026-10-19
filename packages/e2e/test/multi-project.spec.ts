@@ -7,7 +7,6 @@ import {
   FIRST_MARKER,
   type Harness,
   MULTI_PROJECT_START_TIMEOUT_MS as PI_START_TIMEOUT_MS,
-  MULTI_PROJECT_TEST_TIMEOUT_MS as PI_TEST_TIMEOUT_MS,
   nextOf,
   openDrawer,
   openProject,
@@ -22,7 +21,11 @@ import {
 } from "../src/multi-project-harness";
 import { connectWsSession } from "../src/ws-session-client";
 
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
+/**
+ * How long a returning reader waits for the background run's outcome. It bounds the wait on the
+ * script's own ten-second hold, not the whole test, so it is shorter than the per-test budget.
+ */
+const BACKGROUND_RUN_OUTCOME_TIMEOUT_MS = 20_000;
 
 /** A run that stays live on a bash tool, so leaving its Project happens while it works. */
 const BACKGROUND_SCRIPT: Script = [
@@ -76,7 +79,7 @@ async function runSurvivesLeaving(
 
   await returnToFirst();
   await expect(page.getByTestId("transcript")).toContainText("background run finished", {
-    timeout: PI_TEST_TIMEOUT_MS,
+    timeout: BACKGROUND_RUN_OUTCOME_TIMEOUT_MS,
   });
 }
 

@@ -18,9 +18,6 @@ import {
 } from "../src/multi-project-harness";
 
 const PI_START_TIMEOUT_MS = 30_000;
-const PI_TEST_TIMEOUT_MS = 120_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
 
 test("the first load shows the Project picker and one tap lists that Project's Sessions", async ({
   page,

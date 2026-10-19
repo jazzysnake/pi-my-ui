@@ -16,10 +16,7 @@ import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/
 import { connectWsSession } from "../src/ws-session-client";
 import { readAttachSurfaces } from "../src/ws-transcript";
 
-const PI_TEST_TIMEOUT_MS = 120_000;
 const PI_START_TIMEOUT_MS = 30_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
 
 /** Never invoked: these tests browse one Session's tree and move its Leaf, they run no turn. */
 const UNUSED_SCRIPT: Script = [

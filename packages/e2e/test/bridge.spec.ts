@@ -11,9 +11,6 @@ import { seedSession, type FixtureSession } from "../src/fixture-builder";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 import { connectWsSession } from "../src/ws-session-client";
 
-const PI_TEST_TIMEOUT_MS = 90_000;
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
-
 const UNUSED_SCRIPT: Script = [
   {
     expect: { role: "user", text: "a prompt this recording never saw" },

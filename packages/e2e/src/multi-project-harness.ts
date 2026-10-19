@@ -15,6 +15,7 @@ import type { Script } from "@pi-my-ui/scripted-provider";
 
 import { startClientPageServer, type ClientPageServer } from "./client-page-server";
 import { seedSession, type FixtureSession } from "./fixture-builder";
+import { createGates, type Gate, type Gates } from "./gate";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "./pi-harness";
 import type { WsSessionClient } from "./ws-session-client";
 
@@ -46,9 +47,16 @@ export const REPLY_SCRIPT: Script = [
   },
 ];
 
+/**
+ * A script, or a builder for one. A script whose command must outlive the browser's check names a
+ * gate in the builder, so the test decides when the command returns rather than a fixed sleep.
+ */
+export type ScriptSource = Script | ((gate: (name: string) => Gate) => Script);
+
 /** What every harness owns, whatever Projects it serves. */
 export interface ServedHarness {
   readonly home: HermeticHome;
+  readonly gates: Gates;
   readonly server: RunningServer;
   readonly client: ClientPageServer;
 }
@@ -79,9 +87,11 @@ export interface SharedNameHarness extends ServedHarness {
 async function serve(
   home: HermeticHome,
   projects: readonly string[],
-  script: Script,
+  gates: Gates,
+  script: ScriptSource,
 ): Promise<{ server: RunningServer; client: ClientPageServer }> {
-  const launch = await scriptedPiLaunch(home, script);
+  const resolved = typeof script === "function" ? script(gates.gate) : script;
+  const launch = await scriptedPiLaunch(home, resolved);
   const server = await startServer({
     projects,
     sessionDir: home.sessionsDir,
@@ -97,8 +107,9 @@ async function serve(
   return { server, client };
 }
 
-async function startHarness(script: Script = UNUSED_SCRIPT): Promise<Harness> {
+async function startHarness(script: ScriptSource = UNUSED_SCRIPT): Promise<Harness> {
   const home = await createHermeticHome();
+  const gates = createGates(home);
   const secondDirectory = join(home.root, "second-project");
   const emptyDirectory = join(home.root, "empty-project");
   await mkdir(secondDirectory, { recursive: true });
@@ -111,28 +122,30 @@ async function startHarness(script: Script = UNUSED_SCRIPT): Promise<Harness> {
   await writeFile(join(second, "second-only.txt"), "second project file\n", "utf8");
   const firstSession = await seedSession(home, "plain");
   const secondSession = await seedSession(home, "branching", { project: second });
-  const { server, client } = await serve(home, [first, second, empty], script);
-  return { home, first, second, empty, firstSession, secondSession, server, client };
+  const { server, client } = await serve(home, [first, second, empty], gates, script);
+  return { home, gates, first, second, empty, firstSession, secondSession, server, client };
 }
 
 async function startSingleProjectHarness(): Promise<SingleHarness> {
   const home = await createHermeticHome();
+  const gates = createGates(home);
   const project = await realpath(home.workspace);
   const session = await seedSession(home, "plain");
-  const { server, client } = await serve(home, [project], UNUSED_SCRIPT);
-  return { home, project, session, server, client };
+  const { server, client } = await serve(home, [project], gates, UNUSED_SCRIPT);
+  return { home, gates, project, session, server, client };
 }
 
 async function startSharedNameHarness(): Promise<SharedNameHarness> {
   const home = await createHermeticHome();
+  const gates = createGates(home);
   const workDirectory = join(home.root, "work", "api");
   const ossDirectory = join(home.root, "oss", "api");
   await mkdir(workDirectory, { recursive: true });
   await mkdir(ossDirectory, { recursive: true });
   const first = await realpath(workDirectory);
   const second = await realpath(ossDirectory);
-  const { server, client } = await serve(home, [first, second], UNUSED_SCRIPT);
-  return { home, first, second, server, client };
+  const { server, client } = await serve(home, [first, second], gates, UNUSED_SCRIPT);
+  return { home, gates, first, second, server, client };
 }
 
 /** The next frame of one type; the server also pushes lists and attach surfaces on its own. */
@@ -149,6 +162,9 @@ async function nextOf<T extends ServerMessage["type"]>(
 }
 
 async function disposeHarness(harness: ServedHarness): Promise<void> {
+  // Gates first: an unreleased gate holds a Pi child until the command's own bound, so teardown
+  // after a failed assertion must not wait on a run the test stopped caring about.
+  await harness.gates.releaseAll();
   await harness.client.close();
   await harness.server.close();
   await harness.home.dispose();

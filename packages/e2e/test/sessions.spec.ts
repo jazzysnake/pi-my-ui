@@ -1,13 +1,17 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { startServer, type RunningServer } from "@pi-my-ui/server";
 import type { Script } from "@pi-my-ui/scripted-provider";
 
-import { startClientPageServer, type ClientPageServer } from "../src/client-page-server";
-import { seedSession, type FixtureSession } from "../src/fixture-builder";
-import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
+import type { Gate } from "../src/gate";
+import { startHarness, type Harness } from "../src/test-harness";
 
 const PI_START_TIMEOUT_MS = 30_000;
+
+/**
+ * The plain seed is the Session the page opens; the branching one is the row the drawer offers.
+ * The drawer titles the named seed by its name and the unnamed one by its first message.
+ */
+const SEEDS = [{ fixture: "plain" }, { fixture: "branching" }] as const;
 
 // Neither seeded Session asks the model anything, but pi still has to be launched with a model it
 // can resolve, and the scripted provider is the only model substitute the suite has.
@@ -18,28 +22,33 @@ const UNUSED_SCRIPT: Script = [
   },
 ];
 
-/** A run that stays live on a bash tool, so a switch away happens while the first Session works. */
-const BACKGROUND_SCRIPT: Script = [
-  {
-    expect: { role: "user", text: "run the slow background command" },
-    reply: {
-      content: [
-        { type: "text", text: "starting the background run" },
-        {
-          type: "toolCall",
-          id: "call_background_1",
-          name: "bash",
-          arguments: { command: "sleep 10", timeout: 30 },
-        },
-      ],
-      stopReason: "toolUse",
+/**
+ * A run that stays live on a bash tool until the test opens its gate, so the reader leaves the
+ * Session while it genuinely works and returns on the test's observation rather than a sleep.
+ */
+function backgroundScript(gate: (name: string) => Gate): Script {
+  return [
+    {
+      expect: { role: "user", text: "run the slow background command" },
+      reply: {
+        content: [
+          { type: "text", text: "starting the background run" },
+          {
+            type: "toolCall",
+            id: "call_background_1",
+            name: "bash",
+            arguments: { ...gate("build").command("echo built") },
+          },
+        ],
+        stopReason: "toolUse",
+      },
     },
-  },
-  {
-    expect: { role: "toolResult", toolName: "bash" },
-    reply: { content: [{ type: "text", text: "background run finished" }], stopReason: "stop" },
-  },
-];
+    {
+      expect: { role: "toolResult", toolName: "bash" },
+      reply: { content: [{ type: "text", text: "background run finished" }], stopReason: "stop" },
+    },
+  ];
+}
 
 /**
  * Two turns of the same prompt with different replies. A second Session that shares the first's Pi
@@ -63,42 +72,18 @@ const UNNAMED_TITLE = "Seed text block 2.";
 const NAMED_MARKER = "Seed text block 54.";
 const UNNAMED_MARKER = "Seed text block 32.";
 
-interface Harness {
-  readonly home: HermeticHome;
-  readonly named: FixtureSession;
-  readonly unnamed: FixtureSession;
-  readonly server: RunningServer;
-  readonly client: ClientPageServer;
-}
-
-async function startHarness(script: Script = UNUSED_SCRIPT): Promise<Harness> {
-  const home = await createHermeticHome();
-  const named = await seedSession(home, "plain");
-  const unnamed = await seedSession(home, "branching");
-  const launch = await scriptedPiLaunch(home, script);
-  const server = await startServer({
-    projects: [launch.cwd],
-    sessionDir: home.sessionsDir,
-    port: home.ports.allocate(),
-    pi: {
-      args: launch.args,
-      env: launch.env,
-      provider: launch.provider,
-      model: launch.model,
-    },
-  });
-  const client = await startClientPageServer();
-  return { home, named, unnamed, server, client };
-}
-
-async function disposeHarness(harness: Harness): Promise<void> {
-  await harness.client.close();
-  await harness.server.close();
-  await harness.home.dispose();
+/**
+ * The shared factory, given this spec's two seeds: the page opens the `plain` Session and the drawer
+ * offers the `branching` one as the Session to switch to.
+ */
+function startSessionsHarness(
+  script: (gate: (name: string) => Gate) => Script = () => UNUSED_SCRIPT,
+): Promise<Harness> {
+  return startHarness({ script, seeds: SEEDS });
 }
 
 async function openHarness(page: Page, harness: Harness): Promise<void> {
-  const url = `${harness.client.url}?session=${encodeURIComponent(harness.named.id)}&ws=${encodeURIComponent(harness.server.url)}`;
+  const url = `${harness.client.url}?session=${encodeURIComponent(harness.session.id)}&ws=${encodeURIComponent(harness.server.url)}`;
   await page.goto(url);
   await expect(page.getByTestId("connection-status")).toHaveAttribute("data-status", "connected");
   await expect(page.getByTestId("transcript")).toContainText(NAMED_MARKER, {
@@ -114,7 +99,7 @@ async function sendMessage(page: Page, text: string): Promise<void> {
 test("the drawer lists this project's Sessions with name, first message and recency", async ({
   page,
 }) => {
-  const harness = await startHarness();
+  const harness = await startSessionsHarness();
   try {
     await openHarness(page, harness);
 
@@ -144,12 +129,12 @@ test("the drawer lists this project's Sessions with name, first message and rece
     const drawer = page.getByTestId("session-drawer");
     await expect(drawer.getByRole("button", { name: /rename|delete/i })).toHaveCount(0);
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("tapping a row switches the transcript and starts that Session lazily", async ({ page }) => {
-  const harness = await startHarness();
+  const harness = await startSessionsHarness();
   try {
     await openHarness(page, harness);
 
@@ -176,12 +161,12 @@ test("tapping a row switches the transcript and starts that Session lazily", asy
     await expect(page.getByTestId("transcript")).not.toContainText(UNNAMED_MARKER);
     await expect(namedRow).toHaveAttribute("aria-current", "true");
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("the plus control opens a new Session with a server-generated id", async ({ page }) => {
-  const harness = await startHarness();
+  const harness = await startSessionsHarness();
   try {
     await openHarness(page, harness);
     await page.getByRole("button", { name: "Toggle sessions sidebar" }).click();
@@ -189,18 +174,19 @@ test("the plus control opens a new Session with a server-generated id", async ({
 
     // The client never named an id, so the id the shell opens is the server's own.
     const shell = page.getByTestId("app-shell");
-    await expect(shell).not.toHaveAttribute("data-session-id", harness.named.id);
+    await expect(shell).not.toHaveAttribute("data-session-id", harness.session.id);
     const created = await shell.getAttribute("data-session-id");
     expect(created).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
     // The fresh Session is empty, so the Session it replaced left nothing behind.
     await expect(page.getByTestId("transcript")).not.toContainText(NAMED_MARKER);
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("a background Session keeps running and its output is there on return", async ({ page }) => {
-  const harness = await startHarness(BACKGROUND_SCRIPT);
+  const harness = await startSessionsHarness(backgroundScript);
+  const build = harness.gates.gate("build");
   try {
     await openHarness(page, harness);
     await sendMessage(page, "run the slow background command");
@@ -214,9 +200,13 @@ test("a background Session keeps running and its output is there on return", asy
       timeout: PI_START_TIMEOUT_MS,
     });
 
-    // The Session we left is still working, and its row says so.
-    await expect(namedRow).toHaveAttribute("data-activity", "working");
-    await expect(namedRow.getByTestId("activity-dot")).toBeVisible();
+    // The Session we left is still working, and its row says so. Its command is blocked on this
+    // gate, so the row is reporting a live run rather than a state that happened to survive a
+    // sleep; the gate opens only once the row has been read.
+    await build.releaseAfter(async () => {
+      await expect(namedRow).toHaveAttribute("data-activity", "working");
+      await expect(namedRow.getByTestId("activity-dot")).toBeVisible();
+    });
 
     // Returning shows the output produced while we were away, and reading it clears the dot.
     await namedRow.click();
@@ -225,12 +215,12 @@ test("a background Session keeps running and its output is there on return", asy
     });
     await expect(namedRow.getByTestId("activity-dot")).toHaveCount(0);
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });
 
 test("two Sessions run in separate Pi children and never share a transcript", async ({ page }) => {
-  const harness = await startHarness(PER_CHILD_SCRIPT);
+  const harness = await startSessionsHarness(() => PER_CHILD_SCRIPT);
   try {
     await openHarness(page, harness);
     await sendMessage(page, "hello there");
@@ -251,6 +241,6 @@ test("two Sessions run in separate Pi children and never share a transcript", as
     await expect(page.getByTestId("transcript")).toContainText("first reply");
     await expect(page.getByTestId("transcript")).not.toContainText("second reply");
   } finally {
-    await disposeHarness(harness);
+    await harness.dispose();
   }
 });

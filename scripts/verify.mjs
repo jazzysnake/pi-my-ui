@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Root `npm run verify` orchestrator. The fast gate stops after the backend test step; `--full` adds
-// the end-to-end suite as one process. Build runs before tests because the backend half imports the
+// the browser suite as one process. Build runs before tests because the backend half imports the
 // built server, Bridge extension, scripted provider and launcher CLI. A runner rather than an `&&`
 // chain exists for the banner: every step prints its label before it starts, so a log says which
 // step failed instead of burying the npm script name.
@@ -13,7 +13,7 @@ const STEPS = [
   { label: "lint and format", scripts: ["lint", "format:check"] },
   { label: "build", scripts: ["build"] },
   { label: "store, component and backend tests", scripts: ["test"] },
-  { label: "end-to-end tests within the 45 s budget", scripts: ["test:e2e"], fullOnly: true },
+  { label: "browser suite within the 45 s budget", scripts: ["test:e2e"], fullOnly: true },
 ];
 
 /** npm is a shell script on POSIX and `npm.cmd` on Windows. */
@@ -46,8 +46,8 @@ function main() {
 
   console.log(
     full
-      ? "[verify] full gate (end-to-end included)"
-      : "[verify] fast gate (pass --full for end-to-end)",
+      ? "[verify] full gate (browser suite included)"
+      : "[verify] fast gate (pass --full for the browser suite)",
   );
 
   for (let index = 0; index < total; index += 1) {

@@ -1,11 +1,12 @@
 /**
  * A gate is a file whose absence holds a scripted Bash command until the test says the state it
- * wants to assert is on screen. It replaces a fixed sleep with a decision the test makes.
+ * wants to assert is on screen.
  *
- * The contract is observe-then-release: a test may open a gate only after it has asserted the state
- * the gate protects. Releasing first turns the gate into a race that always passes, so the only
+ * The contract is observe-then-release: a test opens a gate only after it has observed the state the
+ * gate protects. Releasing first turns the gate into a race that always passes, so the only
  * test-facing release is {@link Gate.releaseAfter}, which takes the observations. The plain release
- * belongs to the harness teardown, which must free a run even when an assertion failed first.
+ * is not on the test-facing surface at all: it belongs to the harness teardown, which must free a run
+ * even when an assertion failed first.
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
@@ -41,8 +42,6 @@ export interface GatedBashCommand {
 }
 
 export interface Gate {
-  /** Absolute, derived from the per-test hermetic root, so a command in any cwd finds the same file. */
-  readonly path: string;
   /** The Bash tool arguments that wait for this gate and then run `after`. */
   command(after: string): GatedBashCommand;
   /**
@@ -52,13 +51,16 @@ export interface Gate {
   releaseAfter<T>(observe: () => Promise<T>): Promise<T>;
 }
 
-/** The gates one test owns, and the teardown release that frees all of them. */
+/** The only gate surface a test has: it names a gate, it cannot open one without observing. */
 export interface Gates {
   /** The directory the gate files live in; outside every Project the harness serves. */
   readonly root: string;
   /** The same name always yields the same gate, so two call sites cannot write two files. */
   gate(name: string): Gate;
-  /** Teardown only: open every gate this test holds, whether or not a test opened it. */
+}
+
+/** Harness teardown's surface: it opens every gate a test holds, observed or not. */
+export interface OwnedGates extends Gates {
   releaseAll(): Promise<void>;
 }
 
@@ -71,6 +73,7 @@ function shellQuote(value: string): string {
 }
 
 function createGate(root: string, name: string, index: number): OwnedGate {
+  // Absolute, derived from the per-test hermetic root, so a command in any cwd finds the same file.
   const path = resolve(root, `${String(index)}-${name}`);
   const quoted = shellQuote(path);
   let opening: Promise<void> | undefined;
@@ -84,7 +87,6 @@ function createGate(root: string, name: string, index: number): OwnedGate {
   };
 
   return {
-    path,
     command(after) {
       const gaveUp = `gate ${name} was never opened; waited ${String(WAIT_SECONDS)}s`;
       return {
@@ -108,7 +110,7 @@ function createGate(root: string, name: string, index: number): OwnedGate {
   };
 }
 
-export function createGates(home: HermeticHome): Gates {
+export function createGates(home: HermeticHome): OwnedGates {
   const root = resolve(home.root, GATES_DIRECTORY);
   const owned = new Map<string, OwnedGate>();
 

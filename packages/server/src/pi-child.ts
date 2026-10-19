@@ -253,7 +253,7 @@ async function runBash(
  * so a server would learn about a crash from an unrelated command, or never if the browser goes
  * quiet. The process pi spawned is the only live source of the exit facts a crash row shows, so the
  * child the client holds is read here. Worth knowing: if pi stops exposing it, a crash stops being
- * reported, which the end-to-end crash spec fails on.
+ * reported, which the browser crash spec fails on.
  */
 function watchExit(client: RpcClient): {
   subscribe(listener: (exit: PiChildExit) => void): () => void;

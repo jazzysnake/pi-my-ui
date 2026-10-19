@@ -11,7 +11,7 @@ const PI_START_TIMEOUT_MS = 30_000;
  * The plain seed is the Session the page opens; the branching one is the row the drawer offers.
  * The drawer titles the named seed by its name and the unnamed one by its first message.
  */
-const SEEDS = [{ fixture: "plain" }, { fixture: "branching" }] as const;
+const SEEDS = ["plain", "branching"] as const;
 
 // Neither seeded Session asks the model anything, but pi still has to be launched with a model it
 // can resolve, and the scripted provider is the only model substitute the suite has.
@@ -190,7 +190,7 @@ test("the plus control opens a new Session with a server-generated id", async ({
 // Wiring claim: a background Session's run continues while another is read and its output survives the return.
 test("a background Session keeps running and its output is there on return", async ({ page }) => {
   const harness = await startSessionsHarness(backgroundScript);
-  const build = harness.gates.gate("build");
+  const build = harness.gate("build");
   try {
     await openHarness(page, harness);
     await sendMessage(page, "run the slow background command");

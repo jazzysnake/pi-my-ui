@@ -47,14 +47,14 @@ Retained Deltas have code bounds rather than measured ones, so they are not clai
 
 ## The suite before the split — 2026-10-17
 
-**Command:** `npm run test:e2e`, which then ran the whole suite as one Playwright process, with the
-worker count pinned in `packages/e2e/playwright.config.ts`. Before the runner split, both halves ran
-under Playwright; today that command runs the browser suite only.
+**Command:** a full `playwright test` run of the suite as it then stood, once per worker count: 4, 8
+and 12. The worker count was a variable of the measurement rather than a pinned setting, so the
+runs below are what the same suite cost at three concurrency levels, not what `npm run test:e2e`
+runs today. Today that command runs the browser suite only, at the pinned eight workers.
 
-**Instrument:** The gate itself: one `playwright test` run, wall-clock from spawn to exit, over the
-suite as it stood before the shrink (169 tests, 361.6 s of test bodies). The figures below are that
-before-state, measured on the same machine with the same suite so the worker count is the only
-variable.
+**Instrument:** Playwright's own wall clock from spawn to exit, over the suite as it stood before the
+shrink (169 tests, 361.6 s of test bodies). The figures below are that before-state, measured on the
+same machine with the same suite so the worker count is the only variable.
 
 **Machine:** AMD Ryzen 7 7840HS, 16 CPUs, 27.7 GB RAM, Linux 6.18.52-1-lts, Node v26.9.0,
 pi 0.99.2.
@@ -110,14 +110,18 @@ the same built tree the browser half exercises.
 | Run | Tests | Test bodies | Wall-clock |
 | --- | --- | --- | --- |
 | Browser half, before the split (Playwright) | 125 | not re-measured | 37.1 s (last integration run); 39.8 s locally just before the move |
-| Browser suite, after the split (Playwright) | 85 | 202.1 s | 29.6–30.2 s at 8 workers across runs (29.9 s from a JSON run) |
-| Backend suite, after the split (vitest, node) | 40 | not measured | 14.3 s (15.7 s on a second run) |
+| Browser suite, after the split (Playwright) | 85 | about 202 s | 29.6–34.4 s at 8 workers across runs; 29.5 s in the final full gate, 29.9 s through the budget wrapper |
+| Backend suite, after the split (vitest, node) | 40 | not measured | 14.3 s (15.7 s on a second run); about 13.2 s inside the final full gate |
 
 The browser suite itself is unchanged by the move: the same surviving specs, the same import depth,
 and the same runner settings. Its wall clock falls because the 40 page-less tests left for the
 backend suite, not because the browser tests got faster. The budget stays at 45 s, which the
 browser suite now meets with about 15 s to spare, while the fast gate pays the backend suite's
 parallel run in exchange for coverage that no longer needs a browser.
+
+The browser wall clock spans 29.5 s to 34.4 s over identical work, so the spread is the machine
+rather than the suite: the slowest of those runs overlapped other work and the fastest ran on an
+idle box. That is why the budget sits above the slowest of them rather than on the fastest.
 
 ## What these numbers set
 

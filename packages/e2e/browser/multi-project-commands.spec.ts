@@ -8,7 +8,7 @@ import {
   disposeHarness,
   FIRST_MARKER,
   MULTI_PROJECT_START_TIMEOUT_MS as PI_START_TIMEOUT_MS,
-  nextOf,
+  nextFrameOfType,
   openDrawer,
   projectUrl,
   SECOND_MARKER,
@@ -130,14 +130,14 @@ test("fork and clone open their new Session in the source Project", async ({ pag
     expect(forkedId).not.toBe(harness.secondSession.id);
 
     otherClient.send({ type: "listSessions", project: harness.second });
-    const secondList = await nextOf(otherClient, "sessions");
+    const secondList = await nextFrameOfType(otherClient, "sessions");
     expect(secondList.project).toBe(harness.second);
     expect(secondList.sessions.map((session) => session.id)).toEqual(
       expect.arrayContaining([harness.secondSession.id, clonedId, forkedId]),
     );
 
     otherClient.send({ type: "listSessions", project: harness.first });
-    const firstList = await nextOf(otherClient, "sessions");
+    const firstList = await nextFrameOfType(otherClient, "sessions");
     expect(firstList.project).toBe(harness.first);
     const firstIds = firstList.sessions.map((session) => session.id);
     expect(firstIds).not.toContain(clonedId);
@@ -151,7 +151,7 @@ test("fork and clone open their new Session in the source Project", async ({ pag
 // Wiring claim: a steer reaches a running agent that lives in a Project other than the one on screen.
 test("a steer reaches a running agent in another Project", async ({ page }) => {
   const harness = await startHarness(steeringScript);
-  const build = harness.gates.gate("build");
+  const build = harness.gate("build");
   // The branching seed already holds a settled agent; a plain Session keeps the focus on the one
   // this run starts.
   const steeringSession = await seedSession(harness.home, "plain", {

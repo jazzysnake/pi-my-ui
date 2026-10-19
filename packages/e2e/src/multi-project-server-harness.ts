@@ -12,20 +12,14 @@ import type { ServerMessage } from "@pi-my-ui/protocol";
 import type { Script } from "@pi-my-ui/scripted-provider";
 
 import { seedSession, type FixtureSession } from "./fixture-builder";
-import { createGates, type Gate, type Gates } from "./gate";
+import { createGates, type Gate, type OwnedGates } from "./gate";
+import { disposeHarnessInOrder } from "./harness-teardown";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "./pi-harness";
 import type { WsSessionClient } from "./ws-session-client";
 
 /** The marker each seeded Session carries on its own active path. */
 export const FIRST_MARKER = "Seed text block 54.";
 export const SECOND_MARKER = "Seed text block 32.";
-
-/**
- * A multi-Project case starts pi and a browser, so its first rendered state is slower than a
- * default case's. Both specs read the start bound from here rather than carrying a copy that could
- * drift from the other's.
- */
-export const MULTI_PROJECT_START_TIMEOUT_MS = 30_000;
 
 export const UNUSED_SCRIPT: Script = [
   {
@@ -53,8 +47,10 @@ export type ScriptSource = Script | ((gate: (name: string) => Gate) => Script);
 /** What every server harness owns, whatever Projects it serves. */
 export interface ServedHarness {
   readonly home: HermeticHome;
-  readonly gates: Gates;
   readonly server: RunningServer;
+  gate(name: string): Gate;
+  /** Gates, then the server, then the home. A harness holding more closes it around this. */
+  dispose(): Promise<void>;
 }
 
 export interface Harness extends ServedHarness {
@@ -65,25 +61,11 @@ export interface Harness extends ServedHarness {
   readonly secondSession: FixtureSession;
 }
 
-export interface SingleHarness extends ServedHarness {
-  readonly project: string;
-  readonly session: FixtureSession;
-}
-
-/**
- * Two Projects that share a last path segment, reachable only as `work/api` and `oss/api`. Nothing
- * is seeded: a label is the served list's fact, so this harness exists to show the choice.
- */
-export interface SharedNameHarness extends ServedHarness {
-  readonly first: string;
-  readonly second: string;
-}
-
 /** Start one server over `projects`, resolving a script builder against the harness's gates. */
 async function serve(
   home: HermeticHome,
   projects: readonly string[],
-  gates: Gates,
+  gates: OwnedGates,
   script: ScriptSource,
 ): Promise<RunningServer> {
   const resolved = typeof script === "function" ? script(gates.gate) : script;
@@ -99,6 +81,19 @@ async function serve(
       model: launch.model,
     },
   });
+}
+
+/** The teardown every harness here shares, so the order is written once. */
+function ownedTeardown(
+  home: HermeticHome,
+  gates: OwnedGates,
+  server: RunningServer,
+): () => Promise<void> {
+  let disposal: Promise<void> | undefined;
+  return () => {
+    disposal ??= disposeHarnessInOrder(gates, [() => server.close(), () => home.dispose()]);
+    return disposal;
+  };
 }
 
 export async function startHarness(script: ScriptSource = UNUSED_SCRIPT): Promise<Harness> {
@@ -117,33 +112,21 @@ export async function startHarness(script: ScriptSource = UNUSED_SCRIPT): Promis
   const firstSession = await seedSession(home, "plain");
   const secondSession = await seedSession(home, "branching", { project: second });
   const server = await serve(home, [first, second, empty], gates, script);
-  return { home, gates, first, second, empty, firstSession, secondSession, server };
-}
-
-export async function startSingleProjectHarness(): Promise<SingleHarness> {
-  const home = await createHermeticHome();
-  const gates = createGates(home);
-  const project = await realpath(home.workspace);
-  const session = await seedSession(home, "plain");
-  const server = await serve(home, [project], gates, UNUSED_SCRIPT);
-  return { home, gates, project, session, server };
-}
-
-export async function startSharedNameHarness(): Promise<SharedNameHarness> {
-  const home = await createHermeticHome();
-  const gates = createGates(home);
-  const workDirectory = join(home.root, "work", "api");
-  const ossDirectory = join(home.root, "oss", "api");
-  await mkdir(workDirectory, { recursive: true });
-  await mkdir(ossDirectory, { recursive: true });
-  const first = await realpath(workDirectory);
-  const second = await realpath(ossDirectory);
-  const server = await serve(home, [first, second], gates, UNUSED_SCRIPT);
-  return { home, gates, first, second, server };
+  return {
+    home,
+    server,
+    first,
+    second,
+    empty,
+    firstSession,
+    secondSession,
+    gate: gates.gate,
+    dispose: ownedTeardown(home, gates, server),
+  };
 }
 
 /** The next frame of one type; the server also pushes lists and attach surfaces on its own. */
-export async function nextOf<T extends ServerMessage["type"]>(
+export async function nextFrameOfType<T extends ServerMessage["type"]>(
   client: WsSessionClient,
   type: T,
 ): Promise<Extract<ServerMessage, { type: T }>> {
@@ -156,9 +139,5 @@ export async function nextOf<T extends ServerMessage["type"]>(
 }
 
 export async function disposeHarness(harness: ServedHarness): Promise<void> {
-  // Gates first: an unreleased gate holds a Pi child until the command's own bound, so teardown
-  // after a failed assertion must not wait on a run the test stopped caring about.
-  await harness.gates.releaseAll();
-  await harness.server.close();
-  await harness.home.dispose();
+  await harness.dispose();
 }

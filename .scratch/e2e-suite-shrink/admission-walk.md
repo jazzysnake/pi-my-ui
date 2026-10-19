@@ -1,6 +1,8 @@
 # 09: The admission walk
 
-Status: proposed keep/cut list, nothing deleted. Review this before anything is removed.
+Status: applied. The keep/cut list below was reviewed before any deletion and is what the browser
+suite now is; the measured after state is at the end, under "Measured after the walk". The review
+decisions are kept as written rather than rewritten to match the outcome.
 
 The rule applied: a browser test survives only if it carries a **wiring claim** — a claim whose
 truth needs a real Pi child, a real socket, a real browser or a real layout engine — and no store or

@@ -2,7 +2,7 @@
   "name": "@pi-my-ui/e2e",
   "version": "0.0.0",
   "private": true,
-  "description": "Hermetic end-to-end harness, fixture builder, Playwright browser specs and vitest backend specs.",
+  "description": "Hermetic harness, fixture builder, the browser suite under Playwright and the backend suite under vitest.",
   "type": "module",
   "scripts": {
     "test": "vitest run",

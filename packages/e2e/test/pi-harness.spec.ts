@@ -9,10 +9,6 @@ import type { Script } from "@pi-my-ui/scripted-provider";
 
 import { createHermeticHome, startScriptedPi, type PiTurn } from "../src/pi-harness";
 
-const PI_TEST_TIMEOUT_MS = 90_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
-
 /** Every reply pi recorded during a turn, as its text content. */
 function replyTexts(turn: PiTurn): string[] {
   return turn.replies.map((reply) =>

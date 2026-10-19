@@ -13,10 +13,6 @@ import {
 } from "../src/pi-harness";
 import { themeColor } from "../src/theme-colors";
 
-const PI_TEST_TIMEOUT_MS = 120_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
-
 // The message card's own copy control needs the browser clipboard, as the markdown spec does.
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 

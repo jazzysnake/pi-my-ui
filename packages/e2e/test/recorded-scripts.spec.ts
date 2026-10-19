@@ -10,10 +10,6 @@ import { scriptFromSession } from "@pi-my-ui/scripted-provider/record";
 import { createHermeticHome, startScriptedPi, type PiTurn } from "../src/pi-harness";
 import { firstUserPrompt, loadRecordedScript, recordedScriptNames } from "../src/recorded-scripts";
 
-const PI_TEST_TIMEOUT_MS = 90_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
-
 /** The model calls of one recorded run, with provider-only fields removed. */
 const RECORDED_RUN: Script = [
   {

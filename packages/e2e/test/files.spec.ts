@@ -13,10 +13,7 @@ import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/
 import { connectWsSession } from "../src/ws-session-client";
 import { readAttachSurfaces } from "../src/ws-transcript";
 
-const PI_TEST_TIMEOUT_MS = 90_000;
 const DOWNLOAD_EVENT_TIMEOUT_MS = 10_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
 
 const UNUSED_SCRIPT: Script = [
   {

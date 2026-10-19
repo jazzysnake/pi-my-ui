@@ -11,10 +11,6 @@ import { startClientPageServer, type ClientPageServer } from "../src/client-page
 import { seedSession, type FixtureSession } from "../src/fixture-builder";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 
-const PI_TEST_TIMEOUT_MS = 150_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
-
 /** What the delegated agent says while it works, and what its own session file records. */
 const AGENT_TEXT = "the build check ran";
 

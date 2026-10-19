@@ -8,10 +8,6 @@ import { seedSession, type FixtureSession, type SeedName } from "../src/fixture-
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 import { themeColor } from "../src/theme-colors";
 
-const PI_TEST_TIMEOUT_MS = 120_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
-
 // The browser clipboard is a permission, not something the page controls.
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 

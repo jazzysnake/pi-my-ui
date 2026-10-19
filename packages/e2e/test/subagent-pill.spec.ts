@@ -7,10 +7,6 @@ import { startClientPageServer, type ClientPageServer } from "../src/client-page
 import { seedSession, type FixtureSession } from "../src/fixture-builder";
 import { createHermeticHome, scriptedPiLaunch, type HermeticHome } from "../src/pi-harness";
 
-const PI_TEST_TIMEOUT_MS = 120_000;
-
-test.describe.configure({ timeout: PI_TEST_TIMEOUT_MS });
-
 /**
  * The parent asks the real `Agent` tool for a subagent, and the subagent spends long enough on a
  * shell command for the browser to observe it working. Both model calls are the scripted provider's,

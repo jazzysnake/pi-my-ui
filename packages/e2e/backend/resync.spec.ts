@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "vitest";
 
 import { startServer, type RunningServer } from "@pi-my-ui/server";
 import type { Script } from "@pi-my-ui/scripted-provider";

@@ -5,7 +5,7 @@ import { devices, type PlaywrightTestConfig } from "@playwright/test";
 const phone = devices["Pixel 5"];
 
 const config: PlaywrightTestConfig = {
-  testDir: "./test",
+  testDir: "./browser",
   fullyParallel: true,
   forbidOnly: process.env["CI"] !== undefined,
   retries: 0,

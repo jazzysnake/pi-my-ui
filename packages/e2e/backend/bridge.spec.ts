@@ -3,7 +3,7 @@ import { createServer as createNetServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
-import { expect, test } from "@playwright/test";
+import { expect, test } from "vitest";
 import { startServer, type RunningServer } from "@pi-my-ui/server";
 import type { Script } from "@pi-my-ui/scripted-provider";
 

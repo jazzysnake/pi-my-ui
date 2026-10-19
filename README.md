@@ -42,7 +42,7 @@ Six packages in one npm workspace:
 | `@pi-my-ui/client`            | Svelte 5 phone UI, fed by one stream of `ServerMessage` values                              |
 | `@pi-my-ui/bridge-extension`  | pi extension loaded into every Pi child; reaches past pi's RPC for subagents and Leaf moves |
 | `@pi-my-ui/scripted-provider` | A pi model-provider extension that replays recorded replies (test-only)                     |
-| `@pi-my-ui/e2e`               | Hermetic harness, fixture builder and the Playwright end-to-end suite                       |
+| `@pi-my-ui/e2e`               | Hermetic harness, fixture builder, Playwright browser specs and vitest backend specs        |
 
 The bridge is required. It ships with this repository and is loaded into every Pi child
 automatically; if it cannot load or connect, the Session or the server start reports the failure
@@ -110,21 +110,21 @@ pass `--allowed-origin`, add the exact dev origin you open (for example
 
 ## Commands
 
-| Command                      | What it does                                                                                                                                                             |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `npm run verify`             | **The fast gate.** Typecheck (tests included) → lint, hygiene, e2e style and fixture checks → format check → store and component tests → build. Stops before end-to-end. |
-| `npm run verify:full`        | The fast gate plus the end-to-end suite (one process, eight workers).                                                                                                    |
-| `npm run typecheck`          | Build the protocol package, then typecheck every workspace including tests                                                                                               |
-| `npm run lint`               | ESLint, the comment hygiene, e2e style and fixture checks                                                                                                                |
-| `npm run format`             | Prettier write                                                                                                                                                           |
-| `npm run format:check`       | Prettier check (non-mutating)                                                                                                                                            |
-| `npm run test`               | Store and component tests                                                                                                                                                |
-| `npm run build`              | Build every workspace                                                                                                                                                    |
-| `npm run test:e2e`           | The whole Playwright suite in one process, pinned to eight workers and failing over a 45 s budget                                                                        |
-| `npm run test:e2e:raw`       | The same suite without the stopwatch, for when a run is expected to be slow                                                                                              |
-| `npm run test:smoke`         | Opt-in: record one real-provider run and replay it through the scripted provider                                                                                         |
-| `npm run measure:pool`       | Measure the pool's resident memory and eviction behaviour                                                                                                                |
-| `npm run rerecord -- <name>` | Re-record one scripted-provider script from a real provider run                                                                                                          |
+| Command                      | What it does                                                                                                                                                                                        |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run verify`             | **The fast gate.** Typecheck (tests included) → lint, hygiene, e2e style and fixture checks → format check → build → store, component and backend tests. Stops before the browser end-to-end suite. |
+| `npm run verify:full`        | The fast gate plus the browser end-to-end suite (one Playwright process, eight workers).                                                                                                            |
+| `npm run typecheck`          | Build the protocol package, then typecheck every workspace including tests                                                                                                                          |
+| `npm run lint`               | ESLint, the comment hygiene, e2e style and fixture checks                                                                                                                                           |
+| `npm run format`             | Prettier write                                                                                                                                                                                      |
+| `npm run format:check`       | Prettier check (non-mutating)                                                                                                                                                                       |
+| `npm run test`               | Store, component and backend tests                                                                                                                                                                  |
+| `npm run build`              | Build every workspace                                                                                                                                                                               |
+| `npm run test:e2e`           | The Playwright browser suite in one process, pinned to eight workers and failing over a 45 s budget                                                                                                 |
+| `npm run test:e2e:raw`       | The same browser suite without the stopwatch, for when a run is expected to be slow                                                                                                                 |
+| `npm run test:smoke`         | Opt-in: record one real-provider run and replay it through the scripted provider                                                                                                                    |
+| `npm run measure:pool`       | Measure the pool's resident memory and eviction behaviour                                                                                                                                           |
+| `npm run rerecord -- <name>` | Re-record one scripted-provider script from a real provider run                                                                                                                                     |
 
 The browser commands need a build first (`npm run build`) and a one-time
 `npx playwright install chromium`.

@@ -37,7 +37,7 @@ kept and for how long, not by what those children are doing.
 nothing is running in. With a 120 s window, the retention cost is (Sessions left unwatched in the last
 two minutes) × 183 MB; the observed ceiling at 8 concurrently opened Sessions is 1.47 GB, all of which
 the idle window returns. An unwatched child that a connected viewer's disconnect failed to detach is
-the one state that never comes back — `packages/e2e/test/pool-defaults.spec.ts` covers it.
+the one state that never comes back — `packages/e2e/backend/pool-defaults.spec.ts` covers it.
 
 **Per Session, not per child.** Inside the server the only state that grows with a Session is what the
 Session itself contains: the projected transcript (one entry per entry pi wrote). Bash executions are
@@ -91,6 +91,31 @@ estimated.
 The spread between the two checkpoint runs is about four seconds at eight workers, which is why the
 budget sits above the slower of them rather than on it: a gate that fails on load teaches nothing
 about the suite.
+
+## The runner split — 2026-10-19
+
+**Command:** `npm run test:e2e` for the browser half, which is `scripts/e2e-budget.mjs`; and
+`npm run test --workspace @pi-my-ui/e2e` for the backend half, which is one `vitest run`.
+
+**Instrument:** the budget script's own stopwatch for the browser wall clock and Playwright's JSON
+`stats.duration` for the same run, with the body total summed from every test's
+`results[].duration`. The backend figure is vitest's own duration for one run. The backend specs
+import `@pi-my-ui/server` through its `import` export, so they run against `packages/server/dist`,
+the same built tree the browser half exercises.
+
+**Machine:** AMD Ryzen 7 7840HS, 16 CPUs, Node v26.9.0, one-minute load 2.95 before the JSON run.
+
+| Run | Tests | Test bodies | Wall-clock |
+| --- | --- | --- | --- |
+| Browser half, before the split (Playwright) | 125 | not re-measured | 37.1 s (last integration run); 39.8 s locally just before the move |
+| Browser half, after the split (Playwright) | 85 | 202.1 s | 29.6–30.2 s at 8 workers across runs (29.9 s from a JSON run) |
+| Backend half, after the split (vitest, node) | 40 | not measured | 14.3 s (15.7 s on a second run) |
+
+The browser half itself is unchanged by the move: the same surviving specs, the same import depth,
+and the same runner settings. Its wall clock falls because the 40 page-less tests left for the
+backend runner, not because the browser tests got faster. The budget stays at 45 s, which the
+browser half now meets with about 15 s to spare, while the fast gate pays the backend half's
+parallel run in exchange for coverage that no longer needs a browser.
 
 ## What these numbers set
 

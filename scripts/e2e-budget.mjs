@@ -10,11 +10,13 @@ import { createRequire } from "node:module";
 import { performance } from "node:perf_hooks";
 
 // Measured on an AMD Ryzen 7 7840HS (16 CPUs, Node v26.9.0) at the configuration's pinned eight
-// workers, over 153 tests: 42.6 s from spawn to exit, against 281.6 s of test bodies and a one-minute
-// load of 2.9 at the start. Forty-five is the owner's affordability line rather than a multiple of
-// the slowest test, so the suite holds it with little to spare until the admission walk and the
-// runner split shrink the run itself. A smaller machine oversubscribes at eight workers and will not
-// reproduce the figure, which is why the worker count is pinned rather than inherited.
+// workers, over the browser half after the runner split (85 tests, 202.1 s of test bodies): 29.6 s
+// from spawn to exit, 30.2 s on another run, and 29.9 s in an adjacent JSON run under a one-minute
+// load of 2.95.
+// Forty-five is the owner's affordability line rather than a multiple of the slowest test, so the
+// browser half sits well inside it while the backend half runs under its own vitest process. A
+// smaller machine oversubscribes at eight workers and will not reproduce the figure, which is why
+// the worker count is pinned rather than inherited.
 const BUDGET_MS = 45_000;
 
 const CONFIG = "packages/e2e/playwright.config.ts";

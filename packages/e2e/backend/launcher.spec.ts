@@ -4,7 +4,7 @@ import { createServer } from "node:net";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { expect, test } from "@playwright/test";
+import { expect, test, vi } from "vitest";
 import {
   LOG_PREFIX,
   runLauncher,
@@ -32,6 +32,9 @@ const DOCUMENTED_FLAGS = [
   "--allowed-origin",
   "--help",
 ] as const;
+
+/** The launcher spawns real processes; waits are bounded for a loaded machine, not a fixed sleep. */
+const LAUNCHER_WAIT_TIMEOUT_MS = 30_000;
 
 const UNUSED_SCRIPT: Script = [
   {
@@ -183,7 +186,9 @@ test("health answers and the server serves no pages", async () => {
     await waitForHealth(`http://127.0.0.1:${String(port)}/healthz`, child, () => stderr);
 
     const listening = `http://127.0.0.1:${String(port)}`;
-    await expect.poll(() => stdout.includes(listening)).toBe(true);
+    await vi.waitFor(() => expect(stdout).toContain(listening), {
+      timeout: LAUNCHER_WAIT_TIMEOUT_MS,
+    });
     expect(stdout).toContain(`project ${realpathSync(home.workspace)}`);
 
     const health = await fetch(`${listening}/healthz`);
@@ -230,7 +235,9 @@ test("--project is repeatable and the banner names every Project in order", asyn
   });
   try {
     await waitForHealth(`http://127.0.0.1:${String(port)}/healthz`, child, () => stderr);
-    await expect.poll(() => projectBannerLines(stdout)).toHaveLength(2);
+    await vi.waitFor(() => expect(projectBannerLines(stdout)).toHaveLength(2), {
+      timeout: LAUNCHER_WAIT_TIMEOUT_MS,
+    });
     expect(projectBannerLines(stdout)).toEqual([
       realpathSync(home.workspace),
       realpathSync(second),
@@ -377,7 +384,9 @@ test("SIGINT shuts down cleanly and stops the Pi children across every Project",
       },
     });
 
-    await expect.poll(() => running?.port ?? 0).toBeGreaterThan(0);
+    await vi.waitFor(() => expect(running?.port ?? 0).toBeGreaterThan(0), {
+      timeout: LAUNCHER_WAIT_TIMEOUT_MS,
+    });
     const server = running;
     if (server === undefined) {
       throw new Error("the launcher never started a server");
@@ -394,11 +403,15 @@ test("SIGINT shuts down cleanly and stops the Pi children across every Project",
     await secondClient.close();
 
     // One process seated a child in each Project, and one signal has to reclaim both.
-    await expect.poll(() => ownPiChildPids().length).toBe(2);
+    await vi.waitFor(() => expect(ownPiChildPids()).toHaveLength(2), {
+      timeout: LAUNCHER_WAIT_TIMEOUT_MS,
+    });
 
     signals.emit("SIGINT");
     expect(await run).toBe(0);
-    await expect.poll(() => ownPiChildPids().length).toBe(0);
+    await vi.waitFor(() => expect(ownPiChildPids()).toHaveLength(0), {
+      timeout: LAUNCHER_WAIT_TIMEOUT_MS,
+    });
   } finally {
     await running?.close().catch(() => undefined);
     await home.dispose();

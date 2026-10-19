@@ -8,7 +8,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const DEFAULT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const TEST_ROOT = join("packages", "e2e", "test");
+const TEST_ROOT = join("packages", "e2e", "browser");
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts", ".js", ".mjs"]);
 const COLOR_LITERAL = /(["'`])(rgba?\([^"'`]*\)|#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?)\1/g;
 

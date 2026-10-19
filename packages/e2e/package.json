@@ -2,9 +2,10 @@
   "name": "@pi-my-ui/e2e",
   "version": "0.0.0",
   "private": true,
-  "description": "Hermetic end-to-end harness, fixture builder and Playwright specs.",
+  "description": "Hermetic end-to-end harness, fixture builder, Playwright browser specs and vitest backend specs.",
   "type": "module",
   "scripts": {
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
@@ -17,6 +18,7 @@
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",
+    "vitest": "5.0.3",
     "ws": "8.22.0"
   }
 }

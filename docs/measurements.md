@@ -71,6 +71,27 @@ under load rather than on behaviour. Eight is the knee, and pinning the count ra
 inheriting a share of whatever host the run lands on is what makes the budget a fixed number. A
 smaller machine oversubscribes at eight and will not reproduce these figures.
 
+## Full end-to-end suite, after the gates and the worker pin — 2026-10-19
+
+**Command:** `npm run test:e2e`, which is `scripts/e2e-budget.mjs`: one Playwright process at the
+worker count pinned in `packages/e2e/playwright.config.ts`, timed from spawn to exit and failing
+above the 45-second budget declared in that script.
+
+**Instrument:** the budget script's own stopwatch for wall clock, and the sum of every test's
+`results[].duration` from a `--reporter=list,json` run for the body total. Nothing here is
+estimated.
+
+**Machine:** AMD Ryzen 7 7840HS, 16 CPUs, Node v26.9.0.
+
+| Run | Tests | Test bodies | Wall-clock at 8 workers |
+| --- | --- | --- | --- |
+| Full suite, before the shrink | 169 | 361.6 s | 67 s |
+| After the gates, the rig deletion and the worker pin | 153 | 281.6 s | 42.6 s (41.5 s Playwright-reported; 38.6 s on a second run) |
+
+The spread between the two checkpoint runs is about four seconds at eight workers, which is why the
+budget sits above the slower of them rather than on it: a gate that fails on load teaches nothing
+about the suite.
+
 ## What these numbers set
 
 - **Eight workers** (`packages/e2e/playwright.config.ts`). The knee of the wall-clock curve above:

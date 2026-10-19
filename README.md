@@ -120,7 +120,8 @@ pass `--allowed-origin`, add the exact dev origin you open (for example
 | `npm run format:check`       | Prettier check (non-mutating)                                                                                                                                            |
 | `npm run test`               | Store and component tests                                                                                                                                                |
 | `npm run build`              | Build every workspace                                                                                                                                                    |
-| `npm run test:e2e`           | The whole Playwright suite in one process, pinned to eight workers                                                                                                       |
+| `npm run test:e2e`           | The whole Playwright suite in one process, pinned to eight workers and failing over a 45 s budget                                                                        |
+| `npm run test:e2e:raw`       | The same suite without the stopwatch, for when a run is expected to be slow                                                                                              |
 | `npm run test:smoke`         | Opt-in: record one real-provider run and replay it through the scripted provider                                                                                         |
 | `npm run measure:pool`       | Measure the pool's resident memory and eviction behaviour                                                                                                                |
 | `npm run rerecord -- <name>` | Re-record one scripted-provider script from a real provider run                                                                                                          |

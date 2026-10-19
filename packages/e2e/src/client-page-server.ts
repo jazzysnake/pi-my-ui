@@ -1,6 +1,6 @@
 /**
  * Serves the built client the way Caddy does in production: static files from one origin. The
- * end-to-end specs open this page and let its real transport reach the test server over its own
+ * browser specs open this page and let its real transport reach the test server over its own
  * ephemeral port, so the browser exercises the real bundle, not a component harness.
  */
 

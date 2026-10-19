@@ -165,7 +165,7 @@ test("a Session that is still starting meets the minimum", async ({ page }) => {
 // Wiring claim: the agent list, notification controls and a focused subagent's composer are full touch targets.
 test("the agent list and the transcript's own controls meet the minimum", async ({ page }) => {
   const harness = await startHarness({
-    seeds: [{ fixture: "subagents" }],
+    seeds: ["subagents"],
     script: () => [
       {
         expect: { role: "user", text: "a prompt this recording never saw" },

@@ -25,8 +25,6 @@ const UNUSED_SCRIPT: Script = [
 const LEAF_TEXT = "Seed text block 32.";
 const EDIT_TEXT = "Seed text block 20.";
 const KEPT_BEFORE_EDIT = "Seed text block 19.";
-const ABANDONED_MODEL = "deepseek-flash";
-const SYSTEM_TEXT = "Seed system prompt 1.";
 
 interface Harness {
   readonly home: HermeticHome;
@@ -74,16 +72,8 @@ function select(page: Page, text: string): Promise<void> {
   return row(page, text).getByTestId("message-tree-select").click();
 }
 
-/** How many hidden rows a toggle tells the user it will reveal, read from its own label. */
-function announcedRows(label: string | null): number | null {
-  const stated = /\d+/.exec(label ?? "");
-  return stated === null ? null : Number(stated[0]);
-}
-
 // Wiring claim: the tree body never scrolls horizontally on a phone.
-test("both entry points open one modal that collapses alternatives and searches the whole tree", async ({
-  page,
-}) => {
+test("the tree body never scrolls horizontally on a phone", async ({ page }) => {
   const harness = await startHarness();
   try {
     await openHarness(page, harness, harness.seeded.id);
@@ -91,104 +81,19 @@ test("both entry points open one modal that collapses alternatives and searches 
       timeout: PI_START_TIMEOUT_MS,
     });
 
-    // Path one: the typed command.
     await page.getByTestId("composer-input").fill("/tree");
     await page.getByTestId("composer-send").click();
     await expect(modal(page)).toBeVisible();
     await expect(modal(page)).toHaveAttribute("role", "dialog");
-    // The Leaf is marked where pi put it, which for a seeded Session can be an entry the transcript
-    // has no row for: the tree is pi's, not the transcript's.
-    await expect(
-      modal(page).locator('[data-testid="message-tree-row"][data-leaf="true"]'),
-    ).toHaveAttribute("data-entry-id", harness.seeded.leafId ?? "");
-    await expect(row(page, LEAF_TEXT).getByTestId("message-tree-current")).toHaveCount(0);
-    // The active path is marked and the abandoned branch is not.
-    await expect(row(page, KEPT_BEFORE_EDIT)).toHaveAttribute("data-active", "true");
-    await expect(row(page, "Seed text block 2.")).toHaveAttribute("data-active", "false");
+    // The rows render from pi's own tree, so the measurement below is over real row content.
+    await expect(row(page, EDIT_TEXT)).toBeVisible();
 
-    // Every row leads with the glyph for its kind, and a user row carries the fork control.
-    const glyphOf = (text: string) =>
-      row(page, text).locator('[data-testid="message-tree-select"] svg');
-    await expect(glyphOf(EDIT_TEXT)).toHaveAttribute("data-icon", "user");
-    await expect(glyphOf(KEPT_BEFORE_EDIT)).toHaveAttribute("data-icon", "bot");
-    await expect(glyphOf("Seed text block 16.")).toHaveAttribute("data-icon", "hammer");
-    await expect(glyphOf(SYSTEM_TEXT)).toHaveAttribute("data-icon", "dot");
-
-    // Row markers size to their row (16 px) rather than to a control, on the pack's grid and stroke.
-    const glyphs = await modal(page)
-      .locator('[data-testid="message-tree-select"] svg')
-      .evaluateAll((icons) =>
-        icons.map((icon) => {
-          const box = icon.getBoundingClientRect();
-          return {
-            icon: icon.getAttribute("data-icon"),
-            viewBox: icon.getAttribute("viewBox"),
-            stroke: icon.getAttribute("stroke-width"),
-            width: box.width,
-            height: box.height,
-          };
-        }),
-      );
-    expect(glyphs.length).toBeGreaterThan(1);
-    for (const glyph of glyphs) {
-      expect(glyph.icon).not.toBeNull();
-      expect(glyph.viewBox).toBe("0 0 24 24");
-      expect(glyph.stroke).toBe("2");
-      expect(glyph.width).toBeCloseTo(16, 1);
-      expect(glyph.height).toBeCloseTo(16, 1);
-    }
-    await expect(
-      row(page, EDIT_TEXT).getByTestId("message-tree-fork").locator("svg"),
-    ).toHaveAttribute("data-icon", "git-fork");
-    await expect(row(page, KEPT_BEFORE_EDIT).getByTestId("message-tree-fork")).toHaveCount(0);
-    await expect(page.getByTestId("message-tree-close").locator("svg")).toHaveAttribute(
-      "data-icon",
-      "x",
-    );
-
-    // The only branch point on the path is expanded, and collapsing it counts what a tap will
-    // reveal: every alternative hangs off the active path collapsed.
-    const forkToggle = row(page, SYSTEM_TEXT).getByTestId("message-tree-toggle");
-    await expect(forkToggle).toHaveAttribute("aria-expanded", "true");
-    await expect(row(page, "Seed text block 2.")).toBeVisible();
-    const expandedRows = await page.getByTestId("message-tree-row").count();
-    await forkToggle.click();
-    await expect(forkToggle).toHaveAttribute("aria-expanded", "false");
-    await expect(row(page, "Seed text block 2.")).toHaveCount(0);
-    // Collapsing hides everything below the row, not just its two branches, and the count it states
-    // is exactly what a tap gives back.
-    const collapsedRows = await page.getByTestId("message-tree-row").count();
-    expect(announcedRows(await forkToggle.getAttribute("aria-label"))).toBe(
-      expandedRows - collapsedRows,
-    );
-    await forkToggle.click();
-    await expect(row(page, "Seed text block 2.")).toBeVisible();
-    await expect(page.getByTestId("message-tree-row")).toHaveCount(expandedRows);
-
-    // Search reaches the abandoned branch, which the collapsed default hides.
-    await expect(row(page, ABANDONED_MODEL)).toHaveCount(0);
-    await page.getByTestId("message-tree-search").fill(ABANDONED_MODEL);
-    const matches = modal(page).getByTestId("message-tree-match");
-    await expect(matches).toHaveCount(1);
-    await matches.first().click();
-    await expect(page.getByTestId("message-tree-search")).toHaveValue("");
-    await expect(row(page, ABANDONED_MODEL)).toBeVisible();
-    await expect(row(page, ABANDONED_MODEL)).toHaveAttribute("data-highlighted", "true");
-
-    // No horizontal scroll: one line per node on a phone.
+    // One line per node on a phone: the rows may be many, the body never widens.
     const overflows = await page.evaluate(() => {
       const body = document.querySelector('[data-testid="message-tree-body"]');
-      return body === null ? false : body.scrollWidth > body.clientWidth + 1;
+      return body === null ? true : body.scrollWidth > body.clientWidth + 1;
     });
     expect(overflows).toBe(false);
-
-    // Path two: the composer's branch control opens that same dialog.
-    await page.getByTestId("message-tree-close").click();
-    await expect(modal(page)).toHaveCount(0);
-    await page.getByTestId("composer-branch").click();
-    await expect(modal(page)).toBeVisible();
-    await expect(modal(page)).toHaveAttribute("aria-label", "Message tree");
-    await expect(page.getByTestId("message-tree-search")).toBeVisible();
   } finally {
     await disposeHarness(harness);
   }

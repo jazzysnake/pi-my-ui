@@ -3,7 +3,7 @@ import { expect, test } from "vitest";
 import { connectWsSession } from "../src/ws-session-client";
 import {
   disposeHarness,
-  nextOf,
+  nextFrameOfType,
   REPLY_SCRIPT,
   startHarness,
 } from "../src/multi-project-server-harness";
@@ -92,11 +92,11 @@ test("a refused pair leaves the Session the connection was watching attached", a
   try {
     const session = { project: harness.first, id: harness.firstSession.id };
     watcher.send({ type: "subscribe", session });
-    expect((await nextOf(watcher, "snapshot")).session).toEqual(session);
+    expect((await nextFrameOfType(watcher, "snapshot")).session).toEqual(session);
 
     // The pair names an id the second Project does not hold, so the server refuses it.
     watcher.send({ type: "subscribe", session: { project: harness.second, id: session.id } });
-    expect(await nextOf(watcher, "error")).toMatchObject({
+    expect(await nextFrameOfType(watcher, "error")).toMatchObject({
       type: "error",
       error: { code: "unknownSession" },
       session: { project: harness.second, id: session.id },
@@ -105,7 +105,7 @@ test("a refused pair leaves the Session the connection was watching attached", a
     // The run reaches the Session the connection was legitimately watching, so the refusal did not
     // detach the attach that refused pair never replaced.
     runner.send({ type: "prompt", session, text: "hello there" });
-    expect((await nextOf(watcher, "delta")).session).toEqual(session);
+    expect((await nextFrameOfType(watcher, "delta")).session).toEqual(session);
   } finally {
     await watcher.close();
     await runner.close();
@@ -119,9 +119,9 @@ test("renaming in one Project refreshes only that Project's list", async () => {
   const secondViewer = await connectWsSession(harness.server.url);
   try {
     firstViewer.send({ type: "listSessions", project: harness.first });
-    expect((await nextOf(firstViewer, "sessions")).project).toBe(harness.first);
+    expect((await nextFrameOfType(firstViewer, "sessions")).project).toBe(harness.first);
     secondViewer.send({ type: "listSessions", project: harness.second });
-    expect((await nextOf(secondViewer, "sessions")).project).toBe(harness.second);
+    expect((await nextFrameOfType(secondViewer, "sessions")).project).toBe(harness.second);
 
     const renamed = "Renamed inside the second Project";
     secondViewer.send({
@@ -129,11 +129,11 @@ test("renaming in one Project refreshes only that Project's list", async () => {
       session: { project: harness.second, id: harness.secondSession.id },
       name: renamed,
     });
-    expect((await nextOf(secondViewer, "sessionRenamed")).session).toEqual({
+    expect((await nextFrameOfType(secondViewer, "sessionRenamed")).session).toEqual({
       project: harness.second,
       id: harness.secondSession.id,
     });
-    const pushed = await nextOf(secondViewer, "sessions");
+    const pushed = await nextFrameOfType(secondViewer, "sessions");
     expect(pushed.project).toBe(harness.second);
     expect(pushed.sessions.find((session) => session.id === harness.secondSession.id)?.name).toBe(
       renamed,
@@ -142,7 +142,7 @@ test("renaming in one Project refreshes only that Project's list", async () => {
     // A list push for the second Project would arrive before this answer if it had been sent to the
     // connection watching the first Project.
     firstViewer.send({ type: "listSessions", project: harness.first });
-    const firstList = await nextOf(firstViewer, "sessions");
+    const firstList = await nextFrameOfType(firstViewer, "sessions");
     expect(firstList.project).toBe(harness.first);
     expect(firstList.sessions.map((session) => session.id)).toEqual([harness.firstSession.id]);
     expect(firstList.sessions.some((session) => session.name === renamed)).toBe(false);

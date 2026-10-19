@@ -6,7 +6,7 @@ import { expect, test } from "vitest";
 import type { TreeNode } from "@pi-my-ui/protocol";
 
 import { seedSession } from "../src/fixture-builder";
-import { disposeHarness, nextOf, startHarness } from "../src/multi-project-server-harness";
+import { disposeHarness, nextFrameOfType, startHarness } from "../src/multi-project-server-harness";
 import { connectWsSession } from "../src/ws-session-client";
 
 /** Every node of a message tree, depth first. */
@@ -62,7 +62,7 @@ test("exporting a Session writes inside its own Project", async () => {
       type: "subscribe",
       session: { project: harness.second, id: harness.secondSession.id },
     });
-    expect((await nextOf(client, "snapshot")).session).toEqual({
+    expect((await nextFrameOfType(client, "snapshot")).session).toEqual({
       project: harness.second,
       id: harness.secondSession.id,
     });
@@ -71,7 +71,7 @@ test("exporting a Session writes inside its own Project", async () => {
       type: "exportSession",
       session: { project: harness.second, id: harness.secondSession.id },
     });
-    const exported = await nextOf(client, "sessionExported");
+    const exported = await nextFrameOfType(client, "sessionExported");
     expect(exported.session).toEqual({
       project: harness.second,
       id: harness.secondSession.id,
@@ -97,10 +97,10 @@ test("the tree and a Leaf move run through a Project's own pair", async () => {
   try {
     const session = { project: harness.second, id: harness.secondSession.id };
     client.send({ type: "subscribe", session });
-    expect((await nextOf(client, "snapshot")).session).toEqual(session);
+    expect((await nextFrameOfType(client, "snapshot")).session).toEqual(session);
 
     client.send({ type: "getTree", session });
-    const tree = await nextOf(client, "sessionTree");
+    const tree = await nextFrameOfType(client, "sessionTree");
     expect(tree.session).toEqual(session);
     expect(tree.tree.leafId).toBe(harness.secondSession.leafId);
 
@@ -111,7 +111,7 @@ test("the tree and a Leaf move run through a Project's own pair", async () => {
     }
 
     client.send({ type: "moveLeaf", session, entryId: userNode.entry.id });
-    const moved = await nextOf(client, "leafMoved");
+    const moved = await nextFrameOfType(client, "leafMoved");
     expect(moved.session).toEqual(session);
     expect(moved.entryId).toBe(userNode.entry.id);
     expect(moved.leafId).toBe(userNode.entry.parentId);
@@ -127,10 +127,10 @@ test("reconnect respawns a Session through its Project's pair", async () => {
   try {
     const session = { project: harness.second, id: harness.secondSession.id };
     client.send({ type: "subscribe", session });
-    expect((await nextOf(client, "snapshot")).session).toEqual(session);
+    expect((await nextFrameOfType(client, "snapshot")).session).toEqual(session);
 
     client.send({ type: "reconnect", session });
-    const respawned = await nextOf(client, "snapshot");
+    const respawned = await nextFrameOfType(client, "snapshot");
     expect(respawned.session).toEqual(session);
     expect(respawned.projection.leafId).toBe(harness.secondSession.leafId);
   } finally {
@@ -150,7 +150,7 @@ test("a settled subagent's transcript is read through its Project's pair", async
   try {
     const session = { project: harness.second, id: agentSession.id };
     client.send({ type: "subscribe", session });
-    const snapshot = await nextOf(client, "snapshot");
+    const snapshot = await nextFrameOfType(client, "snapshot");
     expect(snapshot.session).toEqual(session);
     const agent = snapshot.projection.subagents[0];
     expect(agent).toBeDefined();
@@ -159,7 +159,7 @@ test("a settled subagent's transcript is read through its Project's pair", async
     }
 
     client.send({ type: "getSubagentTranscript", session, agentId: agent.id });
-    const transcript = await nextOf(client, "subagentTranscript");
+    const transcript = await nextFrameOfType(client, "subagentTranscript");
     expect(transcript.session).toEqual(session);
     expect(transcript.agentId).toBe(agent.id);
   } finally {

@@ -185,7 +185,7 @@ test("creating a Session starts it in the chosen Project", async ({ page }) => {
 // Wiring claim: a run in one Project survives a full reload into another Project.
 test("a run keeps working while another Project is viewed", async ({ page }) => {
   const harness = await startHarness(backgroundScript);
-  const build = harness.gates.gate("build");
+  const build = harness.gate("build");
   try {
     await runSurvivesLeaving(
       page,
@@ -209,7 +209,7 @@ test("a run keeps working while another Project is viewed", async ({ page }) => 
 // Wiring claim: a run in one Project survives an in-app switch to another Project and back.
 test("a run keeps working while another Project is viewed without reloading", async ({ page }) => {
   const harness = await startHarness(backgroundScript);
-  const build = harness.gates.gate("build");
+  const build = harness.gate("build");
   try {
     await runSurvivesLeaving(
       page,

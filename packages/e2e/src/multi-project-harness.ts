@@ -13,22 +13,25 @@ import { startClientPageServer, type ClientPageServer } from "./client-page-serv
 import {
   disposeHarness as disposeServerHarness,
   FIRST_MARKER,
-  MULTI_PROJECT_START_TIMEOUT_MS,
-  nextOf,
+  nextFrameOfType,
   REPLY_SCRIPT,
   SECOND_MARKER,
   type Harness as ServerHarness,
-  type SharedNameHarness as ServerSharedNameHarness,
-  type SingleHarness as ServerSingleHarness,
   type ScriptSource,
   startHarness as startServerHarness,
-  startSharedNameHarness as startSharedNameServerHarness,
-  startSingleProjectHarness as startSingleProjectServerHarness,
   type ServedHarness as ServerServedHarness,
   UNUSED_SCRIPT,
 } from "./multi-project-server-harness";
 
-export { FIRST_MARKER, MULTI_PROJECT_START_TIMEOUT_MS, nextOf, REPLY_SCRIPT, SECOND_MARKER };
+/**
+ * A multi-Project case starts pi and a browser, so its first rendered state is slower than a
+ * default case's. Both specs read the start bound from here rather than carrying a copy that could
+ * drift from the other's.
+ */
+export const MULTI_PROJECT_START_TIMEOUT_MS = 30_000;
+
+export { FIRST_MARKER, REPLY_SCRIPT, SECOND_MARKER };
+export { nextFrameOfType };
 export type { ScriptSource };
 
 export interface ServedHarness extends ServerServedHarness {
@@ -39,33 +42,14 @@ export interface Harness extends ServerHarness {
   readonly client: ClientPageServer;
 }
 
-export interface SingleHarness extends ServerSingleHarness {
-  readonly client: ClientPageServer;
-}
-
-export interface SharedNameHarness extends ServerSharedNameHarness {
-  readonly client: ClientPageServer;
-}
-
 async function startHarness(script: ScriptSource = UNUSED_SCRIPT): Promise<Harness> {
   const serverHarness = await startServerHarness(script);
   const client = await startClientPageServer();
   return { ...serverHarness, client };
 }
 
-async function startSingleProjectHarness(): Promise<SingleHarness> {
-  const serverHarness = await startSingleProjectServerHarness();
-  const client = await startClientPageServer();
-  return { ...serverHarness, client };
-}
-
-async function startSharedNameHarness(): Promise<SharedNameHarness> {
-  const serverHarness = await startSharedNameServerHarness();
-  const client = await startClientPageServer();
-  return { ...serverHarness, client };
-}
-
 async function disposeHarness(harness: ServedHarness): Promise<void> {
+  // The page server holds no run, so it can close before the gates without holding a Pi child.
   await harness.client.close();
   await disposeServerHarness(harness);
 }
@@ -87,13 +71,6 @@ async function openProject(page: Page, harness: ServedHarness, project: string):
 async function openBarePage(page: Page, harness: ServedHarness): Promise<void> {
   await page.goto(`${harness.client.url}?ws=${encodeURIComponent(harness.server.url)}`);
   await expect(page.getByTestId("connection-status")).toHaveAttribute("data-status", "connected");
-}
-
-/** Seed the device's remembered Project before the page's own scripts run. */
-async function rememberProject(page: Page, project: string): Promise<void> {
-  await page.addInitScript((value: string) => {
-    window.localStorage.setItem("pi-my-ui.project", value);
-  }, project);
 }
 
 function projectRow(page: Page, project: string) {
@@ -134,10 +111,7 @@ export {
   openSession,
   projectRow,
   projectUrl,
-  rememberProject,
   sendMessage,
   startHarness,
-  startSharedNameHarness,
-  startSingleProjectHarness,
   switchProject,
 };

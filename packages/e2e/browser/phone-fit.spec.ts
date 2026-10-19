@@ -52,7 +52,7 @@ test("the shell is drawn in the console theme: palette, monospace type and compo
   // The subagents seed carries the session bar's widest content — the agent pill and the context
   // readout on one row — which is the widest the top of the screen ever gets.
   const harness = await startHarness({
-    seeds: [{ fixture: "subagents" }],
+    seeds: ["subagents"],
     script: () => [
       {
         expect: { role: "user", text: "a prompt this recording never saw" },

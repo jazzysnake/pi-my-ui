@@ -386,9 +386,15 @@
         void handleFilesChosen(event);
       }}
     />
+    <!--
+      A textarea lays its first line at the top of the content box, so the 44 px floor alone leaves
+      the draft and its placeholder high in the field. The line is 18.75 px and the borders leave
+      42 px of box, so half the 23.25 px they do not fill — 11.625 px — is the padding that centres
+      it.
+    -->
     <textarea
       bind:this={textarea}
-      class="min-h-11 min-w-0 flex-1 resize-none rounded border border-hairline-strong bg-panel px-2 py-1 text-body text-ink"
+      class="min-h-11 min-w-0 flex-1 resize-none rounded border border-hairline-strong bg-panel px-2 py-[11.625px] text-body text-ink"
       rows="1"
       placeholder="Message pi"
       aria-label="Message"

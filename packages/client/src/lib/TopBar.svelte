@@ -33,10 +33,12 @@
   } = $props();
 </script>
 
-<header
-  class="flex min-h-11 items-center gap-1 border-b border-hairline px-2"
-  data-testid="top-bar"
->
+<header class="flex min-h-11 items-center border-b border-hairline p-2" data-testid="top-bar">
+  <!--
+    The controls reach the 44 px tap floor, so each bar pads around them: unpadded, a control's
+    border sits on the bar's hairline and reads as part of the bar. That padding is 16 px of vertical
+    chrome per row, which the phone pays back out of the transcript.
+  -->
   <button
     type="button"
     class="grid size-11 shrink-0 place-items-center rounded border border-hairline-strong text-dim"
@@ -46,7 +48,17 @@
   >
     <Icon name="menu" />
   </button>
-  <span class="min-w-0 truncate text-body font-semibold tracking-wide uppercase">pi-my-ui</span>
+  <!--
+    The wordmark is all caps, and a line box reserves descender room those caps never use, so the ink
+    does not sit on the line box's centre even though the box is centred on the row. Trimming the
+    line box to cap-height and the alphabetic baseline makes the span's box the ink's box, so the
+    row's centring centres what is drawn. Fonts whose ascent and descent differ still line up, which
+    a fixed pixel nudge would not; a browser without `text-box` keeps the untrimmed box.
+  -->
+  <span
+    class="ml-3 min-w-0 truncate text-body font-semibold tracking-wide text-dim uppercase [text-box-edge:cap_alphabetic] [text-box-trim:trim-both]"
+    data-testid="wordmark">pi-my-ui</span
+  >
   <div class="ml-auto flex min-w-0 shrink-0 items-center gap-1">
     <!--
       Files closes the row because it is the control the header's trailing padding has to keep clear
@@ -68,11 +80,15 @@
 </header>
 
 <div
-  class="flex min-h-11 items-center gap-2 border-b border-hairline px-3 text-meta"
+  class="flex min-h-11 items-center gap-2 border-b border-hairline px-3 py-2 text-meta"
   data-testid="session-bar"
 >
   <AgentPill {store} onOpen={onOpenAgents} />
-  <div class="ml-auto flex min-w-0 shrink-0 items-center">
+  <!--
+    The readout's group keeps the row a control tall on its own: the pill is conditional, so without
+    this a subagent starting or finishing would resize the chrome above the transcript.
+  -->
+  <div class="ml-auto flex min-h-11 min-w-0 shrink-0 items-center">
     {#if store.context.usage !== undefined}
       <ContextUsageMeter usage={store.context.usage} />
     {/if}

@@ -90,3 +90,21 @@ describe("the header's end group", () => {
     expect(target.querySelector('[data-testid="run-activity"]')).toBeNull();
   });
 });
+
+/**
+ * The wordmark is a label on the bar, not body text: it takes the same dim rank as the header's
+ * icons, and it is bedded 12 px from the navigation control rather than at the row's gap.
+ * jsdom has no cascade, so both are asserted where they live — on the element's classes.
+ */
+describe("the wordmark", () => {
+  it("takes the dim rank the header's controls use", () => {
+    const { target } = mountShell(new ClientStore());
+    const wordmark = target.querySelector<HTMLElement>('[data-testid="wordmark"]');
+    if (wordmark === null) {
+      throw new Error("the header has no wordmark");
+    }
+
+    expect(wordmark.classList.contains("text-dim")).toBe(true);
+    expect(wordmark.classList.contains("ml-3")).toBe(true);
+  });
+});

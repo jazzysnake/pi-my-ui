@@ -259,6 +259,32 @@ interface HeaderControl {
   readonly testId: string | null;
   readonly left: number;
   readonly right: number;
+  readonly top: number;
+  readonly bottom: number;
+}
+
+/** How far a control sits inside the bar that holds it, in CSS px. */
+function controlInsets(
+  bar: { readonly top: number; readonly bottom: number },
+  control: { readonly top: number; readonly bottom: number },
+): { readonly top: number; readonly bottom: number } {
+  return { top: control.top - bar.top, bottom: bar.bottom - control.bottom };
+}
+
+/**
+ * A control boxed to the bar's full height reads as a border of the bar rather than a control on it,
+ * so every boxed control keeps the row's inset above and below.
+ */
+function expectRowInset(
+  bar: { readonly top: number; readonly bottom: number },
+  control: { readonly top: number; readonly bottom: number },
+  label: string,
+): void {
+  const insets = controlInsets(bar, control);
+  expect(
+    Math.min(insets.top, insets.bottom),
+    `${label} is flush with its row`,
+  ).toBeGreaterThanOrEqual(8);
 }
 
 function headerControl(controls: readonly HeaderControl[], testId: string): HeaderControl {
@@ -295,6 +321,10 @@ test("the top bar holds its controls inside the narrowest phone", async ({ page 
       return {
         scrollWidth: document.documentElement.scrollWidth,
         clientWidth: document.documentElement.clientWidth,
+        bar:
+          bar === null
+            ? null
+            : { top: bar.getBoundingClientRect().top, bottom: bar.getBoundingClientRect().bottom },
         offscreen: controls
           .map((control) => control.getBoundingClientRect())
           .filter((rect) => rect.left < 0 || rect.right > window.innerWidth)
@@ -305,12 +335,23 @@ test("the top bar holds its controls inside the narrowest phone", async ({ page 
             testId: control.getAttribute("data-testid") ?? control.getAttribute("aria-label"),
             left: rect.left,
             right: rect.right,
+            top: rect.top,
+            bottom: rect.bottom,
           };
         }),
       };
     });
     expect(header.scrollWidth).toBeLessThanOrEqual(header.clientWidth);
     expect(header.offscreen, "header controls outside the viewport").toEqual([]);
+
+    // A control boxed to the bar's full height reads as a border of the bar rather than a control on
+    // it, so each one keeps the row's inset above and below.
+    if (header.bar === null) {
+      throw new Error("the top bar measured no box of its own");
+    }
+    for (const control of header.controls) {
+      expectRowInset(header.bar, control, `control ${String(control.testId)}`);
+    }
 
     // Files is the control the header's trailing padding has to keep clear of the right safe area,
     // so it closes the row and the connection status sits to its left.
@@ -366,6 +407,8 @@ test("the session bar leads with the agent pill inside the narrowest phone", asy
         meterLeft: meterBox.left,
         meterRight: meterBox.right,
         barRight: barBox.right,
+        bar: { top: barBox.top, bottom: barBox.bottom },
+        pill: { top: pillBox.top, bottom: pillBox.bottom },
         scrollWidth: document.documentElement.scrollWidth,
         clientWidth: document.documentElement.clientWidth,
       };
@@ -385,6 +428,29 @@ test("the session bar leads with the agent pill inside the narrowest phone", asy
     expect(bar.pillRight).toBeLessThanOrEqual(bar.meterLeft);
     expect(bar.meterRight).toBeLessThanOrEqual(bar.barRight);
     expect(bar.scrollWidth).toBeLessThanOrEqual(bar.clientWidth);
+
+    // The pill is rounded to half its height, so at the row's full height its curves would close on
+    // the bar's hairlines. It keeps the row's inset above and below.
+    expectRowInset(bar.bar, bar.pill, "the agent pill");
+
+    // The pill is conditional, so the row's height cannot come from it: a subagent starting or
+    // finishing must not resize the chrome above the transcript.
+    const withoutPill = await page.evaluate(() => {
+      const pill = document.querySelector('[data-testid="agent-pill"]');
+      const sessionBar = document.querySelector('[data-testid="session-bar"]');
+      if (pill === null || sessionBar === null) {
+        return null;
+      }
+      const withPill = sessionBar.getBoundingClientRect().height;
+      pill.remove();
+      return { withPill, withoutPill: sessionBar.getBoundingClientRect().height };
+    });
+    if (withoutPill === null) {
+      throw new Error("the session bar is missing its agent pill");
+    }
+    expect(withoutPill.withoutPill, "the session bar must not resize without a pill").toBe(
+      withoutPill.withPill,
+    );
   } finally {
     await disposeHarness(harness);
   }

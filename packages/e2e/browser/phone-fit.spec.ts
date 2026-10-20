@@ -96,7 +96,10 @@ test("the shell is drawn in the console theme: palette, monospace type and compo
           width: element.getBoundingClientRect().width,
         };
       };
-      return { send: read("composer-send"), branch: read("composer-branch") };
+      return {
+        send: read("composer-send"),
+        branch: read("composer-branch"),
+      };
     });
 
     // The composer's round send control in the palette's green, and its square branch control.
@@ -108,6 +111,55 @@ test("the shell is drawn in the console theme: palette, monospace type and compo
 
     // The context readout lives in the session bar, apart from the composer's choosers.
     await expect(page.getByTestId("session-bar").getByTestId("context-usage")).toBeVisible();
+
+    // A draft is one line until it is not, and a textarea lays that line at the top of its content
+    // box; the field is only centred when the space above and below the line box match.
+    const draft = await page.evaluate(() => {
+      const input = document.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]');
+      if (input === null) {
+        return null;
+      }
+      const style = getComputedStyle(input);
+      const above = Number.parseFloat(style.paddingTop);
+      const lineHeight = Number.parseFloat(style.lineHeight);
+      return { above, below: input.clientHeight - above - lineHeight };
+    });
+    if (draft === null) {
+      throw new Error("the composer has no input to measure");
+    }
+    expect(
+      Math.abs(draft.above - draft.below),
+      `the draft's line sits ${String(draft.above)} px from the top and ${String(draft.below)} px from the bottom`,
+    ).toBeLessThanOrEqual(0.5);
+
+    // All caps fill the top of an untrimmed line box, so centring that box leaves the ink high. The
+    // claim is the consequence of the trim: a box shorter than its line, sitting on the row's centre.
+    const wordmark = await page.evaluate(() => {
+      const span = document.querySelector('[data-testid="wordmark"]');
+      const bar = document.querySelector('[data-testid="top-bar"]');
+      if (span === null || bar === null) {
+        return null;
+      }
+      const box = span.getBoundingClientRect();
+      const row = bar.getBoundingClientRect();
+      return {
+        height: box.height,
+        lineHeight: Number.parseFloat(getComputedStyle(span).lineHeight),
+        centre: box.top + box.height / 2,
+        // The bar's bottom hairline is outside its content box.
+        rowCentre: row.top + (row.height - 1) / 2,
+      };
+    });
+    if (wordmark === null) {
+      throw new Error("the header has no wordmark to measure");
+    }
+    expect(wordmark.height, "the wordmark's box must be trimmed to its caps").toBeLessThan(
+      wordmark.lineHeight,
+    );
+    expect(
+      Math.abs(wordmark.centre - wordmark.rowCentre),
+      "the wordmark's ink must sit on the top bar's centre line",
+    ).toBeLessThanOrEqual(0.5);
   } finally {
     await harness.dispose();
   }

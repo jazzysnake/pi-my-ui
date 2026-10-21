@@ -136,14 +136,19 @@ async function readSurfaces(client: WsSessionClient): Promise<ServerMessage[]> {
   return surfaces;
 }
 
+interface Attachment {
+  readonly snapshot: SnapshotMessage;
+  readonly surfaces: readonly ServerMessage[];
+}
+
 /** Open a Session the way the client does: subscribe, read the Snapshot, then its surfaces. */
-async function attach(client: WsSessionClient, session: SessionRef): Promise<void> {
+async function attach(client: WsSessionClient, session: SessionRef): Promise<Attachment> {
   client.send({ type: "subscribe", session });
   const snapshot = await client.next();
   if (snapshot.type !== "snapshot") {
     throw new Error(`the subscribe answered with ${snapshot.type}`);
   }
-  await readSurfaces(client);
+  return { snapshot, surfaces: await readSurfaces(client) };
 }
 
 /**
@@ -196,13 +201,8 @@ test("a reload starts a new child on the same Session file and re-reads pi's con
   const client = await connectWsSession(harness.server.url);
   try {
     const session = { project: harness.first, id: harness.firstSession.id };
-    client.send({ type: "subscribe", session });
-    const before = await client.next();
-    if (before.type !== "snapshot") {
-      throw new Error(`the subscribe answered with ${before.type}`);
-    }
-    const attached = await readSurfaces(client);
-    const commands = attached.find((message) => message.type === "commands");
+    const { snapshot: before, surfaces } = await attach(client, session);
+    const commands = surfaces.find((message) => message.type === "commands");
     if (commands?.type !== "commands") {
       throw new Error("the attach sent no Commands");
     }

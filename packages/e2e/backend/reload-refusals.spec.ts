@@ -382,7 +382,7 @@ test("a reload is refused while a subagent runs, and the subagent still finishes
         type: "error",
         session,
         // A count, so one agent is told apart from several.
-        error: { code: "commandFailed", message: "1 subagent is still queued or running" },
+        error: { code: "commandFailed", message: "subagents are still queued or running: 1" },
       });
     });
 

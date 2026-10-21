@@ -94,9 +94,13 @@ export interface Mounted {
   readonly clone: ReturnType<typeof vi.fn>;
   readonly getTree: ReturnType<typeof vi.fn>;
   readonly moveLeaf: ReturnType<typeof vi.fn>;
+  readonly reload: ReturnType<typeof vi.fn>;
 }
 
-export function mountShell(store: ClientStore, status = ConnectionStatus.Connected): Mounted {
+export function mountShell(
+  store: ClientStore,
+  status: ConnectionStatus = ConnectionStatus.Connected,
+): Mounted {
   const prompt = vi.fn();
   const bash = vi.fn();
   const abort = vi.fn();
@@ -114,6 +118,7 @@ export function mountShell(store: ClientStore, status = ConnectionStatus.Connect
   const clone = vi.fn();
   const getTree = vi.fn();
   const moveLeaf = vi.fn();
+  const reload = vi.fn();
   const target = document.createElement("div");
   document.body.append(target);
   flushSync(() => {
@@ -139,6 +144,7 @@ export function mountShell(store: ClientStore, status = ConnectionStatus.Connect
         onClone: clone,
         onGetTree: getTree,
         onMoveLeaf: moveLeaf,
+        onReload: reload,
         onListDirectory: () => undefined,
         onPreviewFile: () => undefined,
         onDownloadFile: downloadFile,
@@ -164,6 +170,7 @@ export function mountShell(store: ClientStore, status = ConnectionStatus.Connect
     clone,
     getTree,
     moveLeaf,
+    reload,
   };
 }
 

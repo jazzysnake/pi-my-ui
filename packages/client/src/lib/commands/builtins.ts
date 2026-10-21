@@ -18,6 +18,7 @@ export const BuiltinCommand = {
   Name: "name",
   Session: "session",
   Export: "export",
+  Reload: "reload",
 } as const;
 
 export type BuiltinCommand = (typeof BuiltinCommand)[keyof typeof BuiltinCommand];
@@ -43,6 +44,10 @@ export const BUILTIN_COMMANDS: readonly BuiltinSpec[] = [
   { command: BuiltinCommand.Name, description: "Set this session's display name" },
   { command: BuiltinCommand.Session, description: "Show this session's statistics" },
   { command: BuiltinCommand.Export, description: "Export this session as HTML" },
+  {
+    command: BuiltinCommand.Reload,
+    description: "Reload settings, extensions, skills, prompts and context files",
+  },
 ];
 
 /**

@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   CommandSource,
+  ProtocolErrorCode,
   ServerMessageType,
   SessionActivity,
   type CommandsMessage,
   type CommandInfo,
+  type ErrorMessage,
+  type ReloadedMessage,
   type SessionExportedMessage,
   type SessionStats,
   type SessionStatsMessage,
@@ -14,6 +17,7 @@ import {
 } from "@pi-my-ui/protocol";
 
 import { ClientStore } from "../src/lib/store/client-store.svelte.js";
+import { ConnectionStatus } from "../src/lib/transport.js";
 import {
   SESSION_ID,
   input,
@@ -28,6 +32,13 @@ const REVIEW: CommandInfo = {
   name: "review",
   description: "Review the working tree",
   source: CommandSource.Prompt,
+};
+
+/** A skill that only exists after the reload re-read the agent directory. */
+const RELOADED_SKILL: CommandInfo = {
+  name: "reloaded-skill",
+  description: "A skill the reload discovered",
+  source: CommandSource.Skill,
 };
 
 function commandsOf(commands: readonly CommandInfo[]): CommandsMessage {
@@ -75,6 +86,21 @@ function exportedOf(path: string): SessionExportedMessage {
     type: ServerMessageType.SessionExported,
     session: { project: "/workspace", id: SESSION_ID },
     path,
+  };
+}
+
+function reloadedOf(): ReloadedMessage {
+  return {
+    type: ServerMessageType.Reloaded,
+    session: { project: "/workspace", id: SESSION_ID },
+  };
+}
+
+function refusedReloadOf(message: string): ErrorMessage {
+  return {
+    type: ServerMessageType.Error,
+    session: { project: "/workspace", id: SESSION_ID },
+    error: { code: ProtocolErrorCode.CommandFailed, message },
   };
 }
 
@@ -414,5 +440,181 @@ describe("session commands", () => {
       "pi-session-session-1.html",
     );
     expect(target.querySelector('[data-testid="session-export-download"]')).toBeNull();
+  });
+});
+
+describe("the reload built-in", () => {
+  it("lists /reload in the palette beside the other built-ins", () => {
+    const store = new ClientStore();
+    const { target } = mountShell(store);
+    flushSync(() => {
+      store.receive(snapshotOf([]));
+    });
+
+    flushSync(() => {
+      type(target, "/");
+    });
+
+    expect(paletteKeys(target)).toContain("builtin:reload");
+    expect(paletteRow(target, "builtin:reload").textContent).toContain("built-in");
+  });
+
+  it("runs /reload as a built-in and never sends it to the model", () => {
+    const store = new ClientStore();
+    const { target, prompt, reload } = mountShell(store);
+    flushSync(() => {
+      store.receive(snapshotOf([]));
+    });
+
+    flushSync(() => {
+      type(target, "/reload");
+    });
+    flushSync(() => {
+      send(target);
+    });
+
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(prompt).not.toHaveBeenCalled();
+    expect(target.querySelector('[data-testid="composer-error"]')).toBeNull();
+  });
+
+  it("reloads on /reload with trailing text rather than prompting it", () => {
+    const store = new ClientStore();
+    const { target, prompt, reload } = mountShell(store);
+    flushSync(() => {
+      store.receive(snapshotOf([]));
+    });
+
+    flushSync(() => {
+      type(target, "/reload now");
+    });
+    flushSync(() => {
+      send(target);
+    });
+
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(prompt).not.toHaveBeenCalled();
+    expect(input(target).value).toBe("");
+  });
+
+  it("reads Reloading… after sending and the confirmation once the reply arrives", () => {
+    const store = new ClientStore();
+    const { target } = mountShell(store);
+    flushSync(() => {
+      store.receive(snapshotOf([]));
+    });
+
+    flushSync(() => {
+      type(target, "/reload");
+    });
+    flushSync(() => {
+      send(target);
+    });
+
+    expect(target.querySelector('[data-testid="command-pending"]')?.textContent).toBe("Reloading…");
+    expect(target.querySelector('[data-testid="command-notice"]')).toBeNull();
+
+    flushSync(() => {
+      store.receive(reloadedOf());
+    });
+
+    expect(target.querySelector('[data-testid="command-pending"]')).toBeNull();
+    expect(target.querySelector('[data-testid="command-notice"]')?.textContent).toBe(
+      "Reloaded settings, extensions, skills, prompts and context files.",
+    );
+  });
+
+  it("leaves no Reloading… behind when the reload is refused, and states the refusal", () => {
+    const store = new ClientStore();
+    const { target } = mountShell(store);
+    flushSync(() => {
+      store.receive(snapshotOf([]));
+    });
+
+    flushSync(() => {
+      type(target, "/reload");
+    });
+    flushSync(() => {
+      send(target);
+    });
+    expect(target.querySelector('[data-testid="command-pending"]')).not.toBeNull();
+
+    flushSync(() => {
+      store.receive(refusedReloadOf("Wait for the current response to finish before reloading."));
+    });
+
+    expect(target.querySelector('[data-testid="command-pending"]')).toBeNull();
+    expect(target.querySelector('[data-testid="command-notice"]')).toBeNull();
+    expect(target.querySelector('[data-testid="composer-error"]')?.textContent).toBe(
+      "Wait for the current response to finish before reloading.",
+    );
+  });
+
+  it("stops reading Reloading… when the connection is not connected", () => {
+    const store = new ClientStore();
+    const connected = mountShell(store);
+    flushSync(() => {
+      store.receive(snapshotOf([]));
+    });
+
+    flushSync(() => {
+      type(connected.target, "/reload");
+    });
+    flushSync(() => {
+      send(connected.target);
+    });
+    expect(connected.target.querySelector('[data-testid="command-pending"]')).not.toBeNull();
+
+    // A dropped link cannot deliver the reply, so the strip stops claiming the reload is running
+    // while the store still remembers that one was sent.
+    const dropped = mountShell(store, ConnectionStatus.Reconnecting);
+    expect(store.commands.reloadPending).toBe(true);
+    expect(dropped.target.querySelector('[data-testid="command-pending"]')).toBeNull();
+    expect(dropped.target.querySelector('[data-testid="command-result"]')).toBeNull();
+  });
+
+  it("lists the commands the reload re-sent, so a new skill appears without reconnecting", () => {
+    const store = new ClientStore();
+    const { target } = mountShell(store);
+    flushSync(() => {
+      store.receive(snapshotOf([]));
+      store.receive(commandsOf([REVIEW]));
+    });
+
+    flushSync(() => {
+      type(target, "/");
+    });
+    expect(paletteKeys(target)).toContain("prompt:review");
+    expect(paletteKeys(target)).not.toContain("skill:reloaded-skill");
+
+    // The reload's own Commands message replaces the palette instead of being ignored as a repeat.
+    flushSync(() => {
+      store.receive(commandsOf([REVIEW, RELOADED_SKILL]));
+    });
+
+    expect(paletteKeys(target)).toContain("skill:reloaded-skill");
+  });
+
+  it("does not carry a pending reload into another Session", () => {
+    const store = new ClientStore();
+    const { target } = mountShell(store);
+    flushSync(() => {
+      store.receive(snapshotOf([]));
+    });
+
+    flushSync(() => {
+      type(target, "/reload");
+    });
+    flushSync(() => {
+      send(target);
+    });
+    expect(target.querySelector('[data-testid="command-pending"]')).not.toBeNull();
+
+    flushSync(() => {
+      store.selectSession({ project: "/workspace", id: "session-2" });
+    });
+
+    expect(target.querySelector('[data-testid="command-pending"]')).toBeNull();
+    expect(target.querySelector('[data-testid="command-result"]')).toBeNull();
   });
 });

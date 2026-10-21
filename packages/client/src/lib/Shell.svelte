@@ -18,7 +18,7 @@
   import type { ClientStore } from "./store/client-store.svelte.js";
   import { sessionDisplayName } from "./store/sessions.svelte.js";
   import { isSteerable, steerTargetOf } from "./subagents/steering.js";
-  import type { ConnectionStatus } from "./transport.js";
+  import { ConnectionStatus } from "./transport.js";
 
   let {
     store,
@@ -45,6 +45,7 @@
     onDownloadFile,
     onCreateSession = () => undefined,
     onReconnect = () => undefined,
+    onReload = () => undefined,
     onSteerSubagent = () => undefined,
     onGetSubagentTranscript = () => undefined,
     startWithSessionsOpen = false,
@@ -77,6 +78,7 @@
     onDownloadFile: (project: string, path: string) => void;
     onCreateSession?: () => void;
     onReconnect?: () => void;
+    onReload?: () => void;
     /** Steer one running subagent; a typed message while its conversation is shown. */
     onSteerSubagent?: (agentId: string, message: string) => void;
     /** Read one settled run's own conversation from the session file pi-subagents wrote. */
@@ -170,6 +172,14 @@
   const steerTarget = $derived(
     steerTargetOf(store.subagents.agents, store.subagents.focusedAgentId),
   );
+
+  /**
+   * `Reloading…` while a reload is pending and the link can still deliver its reply. Reading the
+   * Shell's connection status instead of clearing on a transport callback keeps the strip honest
+   * after a drop: no reply can arrive on a link that is not connected, so the pending line ends
+   * with the connection rather than waiting for a message that will never come.
+   */
+  const reloading = $derived(store.commands.reloadPending && status === ConnectionStatus.Connected);
 
   // A confirmed Leaf move on one of the user's own messages returns its text here, which is what
   // makes it editable and resubmittable instead of merely read.
@@ -291,6 +301,12 @@
       case BuiltinCommand.Tree:
         openTree();
         return;
+      case BuiltinCommand.Reload:
+        // The name is already the command, so text after it is not an argument: sending it as a
+        // prompt would turn `/reload now` into a question for the model.
+        store.commands.noteReload();
+        onReload();
+        return;
       default:
         return;
     }
@@ -334,7 +350,7 @@
     starting={store.transcript.starting}
     onReconnect={handleReconnect}
   />
-  {#if store.commands.notice !== null || store.commands.stats !== null || store.commands.exportedPath !== null}
+  {#if reloading || store.commands.notice !== null || store.commands.stats !== null || store.commands.exportedPath !== null}
     <section
       class="border-t border-hairline px-3 py-2 text-meta"
       aria-label="Command result"
@@ -342,6 +358,9 @@
     >
       <div class="flex items-start gap-2">
         <div class="min-w-0 flex-1">
+          {#if reloading}
+            <p class="text-dim" data-testid="command-pending">Reloading…</p>
+          {/if}
           {#if store.commands.notice !== null}
             <p class="text-dim" data-testid="command-notice">{store.commands.notice}</p>
           {/if}

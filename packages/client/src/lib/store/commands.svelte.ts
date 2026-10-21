@@ -28,14 +28,21 @@ export interface CommandsSlice {
   readonly forkMessages: readonly ForkMessage[] | null;
   /** The one notice line under the composer, or `null`. */
   readonly notice: string | null;
+  /** Whether a reload was sent and its reply has not arrived, so the strip reads `Reloading…`. */
+  readonly reloadPending: boolean;
   receive(message: ServerMessage): void;
   setNotice(text: string): void;
+  /** Record a reload before the transport is asked, so the strip reads `Reloading…` from the tap. */
+  noteReload(): void;
   /** Clear the last fork list, so the picker waits for this Session's own answer. */
   beginForkPicker(): void;
   /** Dismiss the stats panel and the export offer while keeping the discoverable commands. */
   dismissResults(): void;
   clear(): void;
 }
+
+/** What a reload read again, limited to the resources this UI can show. */
+const RELOADED_NOTICE = "Reloaded settings, extensions, skills, prompts and context files.";
 
 /** How a fork or clone ended, in one sentence; a veto is stated as nothing performed, not a failure. */
 function mutationNotice(mutation: SessionMutation, created: boolean): string {
@@ -52,6 +59,7 @@ export function createCommandsSlice(): CommandsSlice {
   let exportedPath = $state<string | null>(null);
   let forkMessages = $state<readonly ForkMessage[] | null>(null);
   let notice = $state<string | null>(null);
+  let reloadPending = $state(false);
 
   return {
     get discoverable() {
@@ -68,6 +76,9 @@ export function createCommandsSlice(): CommandsSlice {
     },
     get notice() {
       return notice;
+    },
+    get reloadPending() {
+      return reloadPending;
     },
     receive(message) {
       if (message.type === ServerMessageType.Snapshot) {
@@ -130,9 +141,33 @@ export function createCommandsSlice(): CommandsSlice {
         stats = null;
         exportedPath = null;
       }
+      if (message.type === ServerMessageType.Reloaded) {
+        if (!sessionMatches(active, message.session)) {
+          return;
+        }
+        reloadPending = false;
+        notice = RELOADED_NOTICE;
+        stats = null;
+        exportedPath = null;
+        return;
+      }
+      if (message.type === ServerMessageType.Error) {
+        // A refused reload names the Session and reports why; a failure that names no Session is
+        // not this reload's answer, so it leaves the pending text alone.
+        if (message.session === undefined || !sessionMatches(active, message.session)) {
+          return;
+        }
+        reloadPending = false;
+      }
     },
     setNotice(text) {
       notice = text;
+      stats = null;
+      exportedPath = null;
+    },
+    noteReload() {
+      reloadPending = true;
+      notice = null;
       stats = null;
       exportedPath = null;
     },
@@ -154,6 +189,7 @@ export function createCommandsSlice(): CommandsSlice {
       exportedPath = null;
       forkMessages = null;
       notice = null;
+      reloadPending = false;
     },
   };
 }

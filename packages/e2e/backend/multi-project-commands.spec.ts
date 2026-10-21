@@ -37,6 +37,7 @@ test("a bare sessionId is refused for every Session command", async () => {
       bare({ type: "getTree" }),
       bare({ type: "moveLeaf", entryId: harness.secondSession.leafId ?? "entry" }),
       bare({ type: "reconnect" }),
+      bare({ type: "reload" }),
       bare({ type: "steerSubagent", agentId: "agent-1", message: "go on" }),
       bare({ type: "getSubagentTranscript", agentId: "agent-1" }),
     ];

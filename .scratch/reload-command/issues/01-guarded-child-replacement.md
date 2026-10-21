@@ -10,15 +10,15 @@ A reload whose new child cannot start reports that start failure for that Sessio
 
 **Status:** ready-for-agent
 
-- [ ] A Reload request naming a Session is accepted, and a Reloaded reply names the same Session; both validate like the other session commands
-- [ ] Reloading an idle Session replaces its Pi child with a new process on the same Session file, proved by the Snapshot that follows naming the same Session id with the same entries and Leaf
-- [ ] A skill written into the hermetic agent directory after attach is absent from the Commands a viewer already has, and present in the Commands sent after the reload
-- [ ] Settings (with the available models) and context usage are re-sent on every reload, to every viewer of that Session and not only to the requester
-- [ ] On the requesting viewer's socket the order is Snapshot, then supplements, then the Reloaded reply
-- [ ] A reload is refused with the reason in the error for each of: a turn streaming or retrying; a compaction in progress; a direct shell command with no result yet; a subagent queued or running
-- [ ] A refused reload replaces nothing, and a streaming turn still delivers its reply afterwards
-- [ ] A reload in one Session leaves another Session's child and Snapshot untouched
-- [ ] Backend specs cover the mechanism (a skill's freshness across the reload), each of the four refusals, the supplements reaching a second viewer, and the isolation from another Session
+- [x] A Reload request naming a Session is accepted, and a Reloaded reply names the same Session; both validate like the other session commands
+- [x] Reloading an idle Session replaces its Pi child with a new process on the same Session file, proved by the Snapshot that follows naming the same Session id with the same entries and Leaf
+- [x] A skill written into the hermetic agent directory after attach is absent from the Commands a viewer already has, and present in the Commands sent after the reload
+- [x] Settings (with the available models) and context usage are re-sent on every reload, to every viewer of that Session and not only to the requester
+- [x] On the requesting viewer's socket the order is Snapshot, then supplements, then the Reloaded reply
+- [x] A reload is refused with the reason in the error for each of: a turn streaming or retrying; a compaction in progress; a direct shell command with no result yet; a subagent queued or running
+- [x] A refused reload replaces nothing, and a streaming turn still delivers its reply afterwards
+- [x] A reload in one Session leaves another Session's child and Snapshot untouched
+- [x] Backend specs cover the mechanism (a skill's freshness across the reload), each of the four refusals, the supplements reaching a second viewer, and the isolation from another Session
 
 ## Comments
 

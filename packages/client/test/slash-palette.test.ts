@@ -575,6 +575,27 @@ describe("the reload built-in", () => {
     expect(target.querySelector('[data-testid="command-result"]')).toBeNull();
   });
 
+  it("does not start a reload while the link is down, so no pending line survives the drop", () => {
+    const store = new ClientStore();
+    const { target, reload } = mountShell(store, ConnectionStatus.Reconnecting);
+    flushSync(() => {
+      store.receive(snapshotOf([]));
+    });
+
+    flushSync(() => {
+      type(target, "/reload");
+    });
+    flushSync(() => {
+      send(target);
+    });
+
+    // The transport would drop the request, so nothing is recorded and nothing is asked: a pending
+    // line here would claim a reload on a reconnect that never carried the command.
+    expect(reload).not.toHaveBeenCalled();
+    expect(target.querySelector('[data-testid="command-pending"]')).toBeNull();
+    expect(target.querySelector('[data-testid="command-result"]')).toBeNull();
+  });
+
   it("lists the commands the reload re-sent, so a new skill appears without reconnecting", () => {
     const store = new ClientStore();
     const { target } = mountShell(store);

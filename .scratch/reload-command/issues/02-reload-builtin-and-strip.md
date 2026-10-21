@@ -8,7 +8,7 @@ Because the server re-sends the discoverable commands after a reload, the palett
 
 **Blocked by:** 01: Reload replaces a Session's Pi child, guarded.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] `/reload` is listed in the palette as a built-in and routes as a built-in
 - [x] `/reload` is no longer refused as a TUI-only command, and a submission of it never produces a prompt for the model
@@ -22,3 +22,11 @@ Because the server re-sends the discoverable commands after a reload, the palett
 ## Comments
 
 Design: `../spec.md`. Only built-in at this height: no browser test, because nothing in this ticket needs a real browser or a layout engine (ADR 0009).
+
+Implemented. `BuiltinCommand.Reload` and its palette row are in `packages/client/src/lib/commands/builtins.ts`, and `reload` left `packages/client/src/lib/commands/tui-only.ts`; because routing is by name before any argument is read (`router.ts`), `/reload` and `/reload now` both land on the built-in and trailing text can never become a prompt. The one action is the `BuiltinCommand.Reload` case in `runBuiltin` in `packages/client/src/lib/Shell.svelte`, which records the tap and calls `onReload`; that prop is wired through `packages/client/src/App.svelte` to `transport.reload()` in `packages/client/src/lib/transport.ts`. Pending state is the `reloadPending` flag on the commands slice in `packages/client/src/lib/store/commands.svelte.ts`, cleared by `Reloaded`, by an error naming that Session, and by `clear()` on a Session switch; the strip reads `store.commands.reloadPending && status === ConnectionStatus.Connected`, so a dropped link ends the pending line without a transport callback reaching into the store. `packages/client/test/slash-palette.test.ts` carries the seven cases in `describe("the reload built-in")`, mounted through `packages/client/test/composer-harness.ts`.
+
+No deliberate omission. Nothing changed relative to the ticket after review; the eight checkboxes were ticked on the ticket branch.
+
+Gate (`npm run verify` and `npm run verify:full`): typecheck, lint and format, and build passed; the store, component and backend step failed on the four pre-existing `ps`-dependent specs — `backend/launcher.spec.ts > SIGINT shuts down cleanly and stops the Pi children across every Project`, both `backend/pool-defaults.spec.ts` cases, and `backend/protocol-snapshot.spec.ts > a Projects request answers with the served Projects in order and starts no Pi child`, all `spawnSync ps ENOENT` because `ps` is not installed in this container. The client suite passed 221/221 in 25 files, and the backend suite 44 of 48. The chain stops at that step, so the browser step never runs under `verify:full`; run alone the suite cannot launch in this container — the Playwright chromium headless shell is not installed, so all 85 browser tests fail at `browserType.launch` within a few milliseconds. Neither failure is caused by this work.
+
+Merged in `5153d29`.

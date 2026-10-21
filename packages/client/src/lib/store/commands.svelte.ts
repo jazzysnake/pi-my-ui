@@ -17,6 +17,8 @@ import {
   sessionMatches,
 } from "@pi-my-ui/protocol";
 
+import { RELOADED_RESOURCES } from "../commands/builtins.js";
+
 export interface CommandsSlice {
   /** The Session's discoverable commands, empty until the first answer. */
   readonly discoverable: readonly CommandInfo[];
@@ -34,6 +36,11 @@ export interface CommandsSlice {
   setNotice(text: string): void;
   /** Record a reload before the transport is asked, so the strip reads `Reloading…` from the tap. */
   noteReload(): void;
+  /**
+   * Stop waiting for a reload's reply. The link is the only thing that could carry one, so losing it
+   * ends the wait rather than leaving a pending line for a reply that can never arrive.
+   */
+  clearReloadPending(): void;
   /** Clear the last fork list, so the picker waits for this Session's own answer. */
   beginForkPicker(): void;
   /** Dismiss the stats panel and the export offer while keeping the discoverable commands. */
@@ -42,7 +49,7 @@ export interface CommandsSlice {
 }
 
 /** What a reload read again, limited to the resources this UI can show. */
-const RELOADED_NOTICE = "Reloaded settings, extensions, skills, prompts and context files.";
+const RELOADED_NOTICE = `Reloaded ${RELOADED_RESOURCES}.`;
 
 /** How a fork or clone ended, in one sentence; a veto is stated as nothing performed, not a failure. */
 function mutationNotice(mutation: SessionMutation, created: boolean): string {
@@ -60,6 +67,16 @@ export function createCommandsSlice(): CommandsSlice {
   let forkMessages = $state<readonly ForkMessage[] | null>(null);
   let notice = $state<string | null>(null);
   let reloadPending = $state(false);
+
+  /**
+   * One strip message at a time: a new result replaces the last rather than stacking under it, so a
+   * stale export path can never be read as the answer to the command just run.
+   */
+  function clearStrip(): void {
+    notice = null;
+    stats = null;
+    exportedPath = null;
+  }
 
   return {
     get discoverable() {
@@ -100,17 +117,16 @@ export function createCommandsSlice(): CommandsSlice {
         if (!sessionMatches(active, message.session)) {
           return;
         }
+        clearStrip();
         stats = message.stats;
-        exportedPath = null;
-        notice = null;
         return;
       }
       if (message.type === ServerMessageType.SessionExported) {
         if (!sessionMatches(active, message.session)) {
           return;
         }
+        clearStrip();
         exportedPath = message.path;
-        stats = null;
         notice = "Session exported as HTML.";
         return;
       }
@@ -118,9 +134,8 @@ export function createCommandsSlice(): CommandsSlice {
         if (!sessionMatches(active, message.session)) {
           return;
         }
+        clearStrip();
         notice = `Session renamed to "${message.name}".`;
-        stats = null;
-        exportedPath = null;
         return;
       }
       if (message.type === ServerMessageType.ForkMessages) {
@@ -136,19 +151,17 @@ export function createCommandsSlice(): CommandsSlice {
         if (active !== null && !sessionMatches(active, message.sourceSession)) {
           return;
         }
+        clearStrip();
         notice = mutationNotice(message.mutation, message.session !== undefined);
         forkMessages = null;
-        stats = null;
-        exportedPath = null;
       }
       if (message.type === ServerMessageType.Reloaded) {
         if (!sessionMatches(active, message.session)) {
           return;
         }
         reloadPending = false;
+        clearStrip();
         notice = RELOADED_NOTICE;
-        stats = null;
-        exportedPath = null;
         return;
       }
       if (message.type === ServerMessageType.Error) {
@@ -161,26 +174,22 @@ export function createCommandsSlice(): CommandsSlice {
       }
     },
     setNotice(text) {
+      clearStrip();
       notice = text;
-      stats = null;
-      exportedPath = null;
     },
     noteReload() {
+      clearStrip();
       reloadPending = true;
-      notice = null;
-      stats = null;
-      exportedPath = null;
+    },
+    clearReloadPending() {
+      reloadPending = false;
     },
     beginForkPicker() {
       forkMessages = null;
-      notice = null;
-      stats = null;
-      exportedPath = null;
+      clearStrip();
     },
     dismissResults() {
-      stats = null;
-      exportedPath = null;
-      notice = null;
+      clearStrip();
     },
     clear() {
       active = null;

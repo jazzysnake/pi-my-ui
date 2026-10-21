@@ -17,11 +17,15 @@ import {
 } from "@pi-my-ui/protocol";
 
 /** A refusal is never success, so it carries the code the protocol reserves for it. */
-function refusal(message: string): ProtocolError {
+function commandFailedError(message: string): ProtocolError {
   return new ProtocolError(ProtocolErrorCode.CommandFailed, message);
 }
 
-/** The command of a direct shell card that has no result yet, or `undefined` when none is running. */
+/**
+ * The command of a direct shell card that has no result yet, or `undefined` when none is running. The
+ * Projection is what is read: a card without a result is work whose output lives only in the live
+ * Projection, never in the Session file, so no read of pi could see it.
+ */
 function runningShellCommand(projection: SessionProjection): string | undefined {
   for (const entry of projection.entries) {
     if (entry.kind !== EntryKind.Message || entry.role !== MessageRole.Bash) {
@@ -47,20 +51,18 @@ function activeSubagentCount(projection: SessionProjection): number {
 export function refuseReload(projection: SessionProjection): ProtocolError | undefined {
   const { runState } = projection;
   if (runState.kind === RunStateKind.Streaming || runState.kind === RunStateKind.Retrying) {
-    return refusal("Wait for the current response to finish before reloading.");
+    return commandFailedError("Wait for the current response to finish before reloading.");
   }
   if (runState.kind === RunStateKind.Compacting) {
-    return refusal("Wait for compaction to finish before reloading.");
+    return commandFailedError("Wait for compaction to finish before reloading.");
   }
   const command = runningShellCommand(projection);
   if (command !== undefined) {
-    return refusal(`a shell command is still running: ${command}`);
+    return commandFailedError(`a shell command is still running: ${command}`);
   }
   const agents = activeSubagentCount(projection);
   if (agents > 0) {
-    return refusal(
-      `${String(agents)} ${agents === 1 ? "subagent is" : "subagents are"} still queued or running`,
-    );
+    return commandFailedError(`subagents are still queued or running: ${String(agents)}`);
   }
   return undefined;
 }

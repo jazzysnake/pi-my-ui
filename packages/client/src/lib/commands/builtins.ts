@@ -23,6 +23,12 @@ export const BuiltinCommand = {
 
 export type BuiltinCommand = (typeof BuiltinCommand)[keyof typeof BuiltinCommand];
 
+/**
+ * What a reload re-reads, limited to the resources this UI can show. The palette row and the strip's
+ * confirmation are the same promise, so they name it once.
+ */
+export const RELOADED_RESOURCES = "settings, extensions, skills, prompts and context files";
+
 export interface BuiltinSpec {
   readonly command: BuiltinCommand;
   readonly description: string;
@@ -46,7 +52,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinSpec[] = [
   { command: BuiltinCommand.Export, description: "Export this session as HTML" },
   {
     command: BuiltinCommand.Reload,
-    description: "Reload settings, extensions, skills, prompts and context files",
+    description: `Reload ${RELOADED_RESOURCES}`,
   },
 ];
 

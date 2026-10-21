@@ -18,6 +18,7 @@ import {
 import Shell from "../src/lib/Shell.svelte";
 import { ConnectionStatus } from "../src/lib/transport.js";
 import { ClientStore } from "../src/lib/store/client-store.svelte.js";
+import { liveProps } from "./live-props.svelte.js";
 
 export const SESSION_ID = "session-1";
 const IDLE: RunState = { kind: RunStateKind.Idle };
@@ -77,6 +78,8 @@ export function userEntry(id: string, text: string): ProjectedEntry {
 
 export interface Mounted {
   readonly target: HTMLElement;
+  /** Change the connection status the mounted Shell sees, the way a live link does. */
+  readonly setStatus: (next: ConnectionStatus) => void;
   readonly prompt: ReturnType<typeof vi.fn>;
   readonly bash: ReturnType<typeof vi.fn>;
   readonly abort: ReturnType<typeof vi.fn>;
@@ -121,38 +124,43 @@ export function mountShell(
   const reload = vi.fn();
   const target = document.createElement("div");
   document.body.append(target);
+  // A `$state` proxy as the props object is what lets `setStatus` reach a Shell already on screen:
+  // Svelte reads a mounted component's props through the object it was handed.
+  const props = liveProps({
+    status,
+    store,
+    onSelectSession: () => undefined,
+    onPrompt: prompt,
+    onBash: bash,
+    onAbort: abort,
+    onSetModel: setModel,
+    onSetThinkingLevel: setThinking,
+    onSetAutoCompaction: setAutoCompaction,
+    onCompact: compact,
+    onSetSessionName: setSessionName,
+    onGetSessionStats: getSessionStats,
+    onExportSession: exportSession,
+    onCreateSession: createSession,
+    onGetForkMessages: getForkMessages,
+    onFork: fork,
+    onClone: clone,
+    onGetTree: getTree,
+    onMoveLeaf: moveLeaf,
+    onReload: reload,
+    onListDirectory: () => undefined,
+    onPreviewFile: () => undefined,
+    onDownloadFile: downloadFile,
+  });
   flushSync(() => {
-    mount(Shell as Component<Record<string, unknown>>, {
-      target,
-      props: {
-        store,
-        status,
-        onSelectSession: () => undefined,
-        onPrompt: prompt,
-        onBash: bash,
-        onAbort: abort,
-        onSetModel: setModel,
-        onSetThinkingLevel: setThinking,
-        onSetAutoCompaction: setAutoCompaction,
-        onCompact: compact,
-        onSetSessionName: setSessionName,
-        onGetSessionStats: getSessionStats,
-        onExportSession: exportSession,
-        onCreateSession: createSession,
-        onGetForkMessages: getForkMessages,
-        onFork: fork,
-        onClone: clone,
-        onGetTree: getTree,
-        onMoveLeaf: moveLeaf,
-        onReload: reload,
-        onListDirectory: () => undefined,
-        onPreviewFile: () => undefined,
-        onDownloadFile: downloadFile,
-      },
-    });
+    mount(Shell as Component<Record<string, unknown>>, { target, props });
   });
   return {
     target,
+    setStatus: (next) => {
+      flushSync(() => {
+        props.status = next;
+      });
+    },
     prompt,
     bash,
     abort,

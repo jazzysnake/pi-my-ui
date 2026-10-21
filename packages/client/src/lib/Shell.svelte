@@ -174,12 +174,19 @@
   );
 
   /**
-   * `Reloading…` while a reload is pending and the link can still deliver its reply. Reading the
-   * Shell's connection status instead of clearing on a transport callback keeps the strip honest
-   * after a drop: no reply can arrive on a link that is not connected, so the pending line ends
-   * with the connection rather than waiting for a message that will never come.
+   * `Reloading…` while a reload is pending. The pending line is hidden the moment the link leaves
+   * `Connected`, because no reply can arrive on a link that is not connected.
    */
   const reloading = $derived(store.commands.reloadPending && status === ConnectionStatus.Connected);
+
+  // The wait ends with the connection rather than going quiet: a pending line hidden by the link
+  // would surface again on the reconnect for a reply that was lost with the socket. The status is a
+  // prop the Shell already owns, so the drop needs no transport callback reaching into the store.
+  $effect(() => {
+    if (status !== ConnectionStatus.Connected) {
+      store.commands.clearReloadPending();
+    }
+  });
 
   // A confirmed Leaf move on one of the user's own messages returns its text here, which is what
   // makes it editable and resubmittable instead of merely read.
@@ -304,6 +311,12 @@
       case BuiltinCommand.Reload:
         // The name is already the command, so text after it is not an argument: sending it as a
         // prompt would turn `/reload now` into a question for the model.
+        //
+        // Nothing is recorded while the link is down: the transport would drop the request, and a
+        // pending line armed for a request that never left would claim a reload on the reconnect.
+        if (status !== ConnectionStatus.Connected) {
+          return;
+        }
         store.commands.noteReload();
         onReload();
         return;

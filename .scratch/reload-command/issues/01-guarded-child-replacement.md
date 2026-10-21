@@ -8,7 +8,7 @@ A reload whose new child cannot start reports that start failure for that Sessio
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] A Reload request naming a Session is accepted, and a Reloaded reply names the same Session; both validate like the other session commands
 - [x] Reloading an idle Session replaces its Pi child with a new process on the same Session file, proved by the Snapshot that follows naming the same Session id with the same entries and Leaf
@@ -23,3 +23,11 @@ A reload whose new child cannot start reports that start failure for that Sessio
 ## Comments
 
 Design: `../spec.md`. Decision record: `docs/adr/0011-reload-replaces-the-child.md`.
+
+Implemented. The protocol pair is in `packages/protocol/src/{constants,messages,validate}.ts` and carries no text on the reply. The four refusals live in `packages/server/src/session-reload.ts`, read from the Projection before any child work and raised as `commandFailed`. `SessionHost.reload()` in `packages/server/src/session-host.ts` goes through the existing eviction/crash restart path, then `broadcastAttachSupplements` in `packages/server/src/session-attach.ts` re-sends settings, commands and context usage to every viewer through one reader; the handler in `packages/server/src/server.ts` answers only the requester, after the host resolves, which is what puts Reloaded third. `packages/e2e/backend/reload.spec.ts` covers the mechanism, all four refusals, the second viewer and the isolation from another Session; `multi-project-commands.spec.ts` gained `reload` in the bare-sessionId sweep.
+
+No deliberate omission. Nothing changed relative to the ticket after review.
+
+Gate (`npm run verify:full`): typecheck, lint and format, and build passed; the store, component and backend step failed on the four pre-existing `ps`-dependent specs — `backend/launcher.spec.ts > SIGINT shuts down cleanly and stops the Pi children across every Project`, both `backend/pool-defaults.spec.ts` cases, and `backend/protocol-snapshot.spec.ts > a Projects request answers with the served Projects in order and starts no Pi child`, all `spawnSync ps ENOENT` because `ps` is not installed in this container. `backend/reload.spec.ts` passes 8/8 run on its own. The chain stopped before the browser step; run alone it cannot launch at all in this container — the Playwright chromium headless shell is not installed, so all 85 tests fail at `browserType.launch` in a few milliseconds. Neither failure is caused by this work.
+
+Merged in `4e98ed3`.

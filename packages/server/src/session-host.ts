@@ -34,12 +34,18 @@ import type { BridgeGate } from "./bridge/gate.js";
 import { attachBridgeEvents } from "./bridge/events.js";
 import { createDeltaHistory } from "./delta-history.js";
 import { createPastTranscriptReader } from "./past-transcripts.js";
-import { contextUsageMessage, sendAttachSupplements, settingsMessage } from "./session-attach.js";
+import {
+  broadcastAttachSupplements,
+  contextUsageMessage,
+  sendAttachSupplements,
+  settingsMessage,
+} from "./session-attach.js";
 import type { PiChildLaunch, PiSessionTarget } from "./pi-child.js";
 import { createSessionChild, type SessionChild } from "./session-child.js";
 import { createSessionLeaf } from "./session-leaf.js";
 import { createSessionMutations, type SessionMutationOutcome } from "./session-mutation.js";
 import { createSessionProjectionMachine } from "./session-projection.js";
+import { refuseReload } from "./session-reload.js";
 import { createSessionSteering } from "./session-steering.js";
 
 /** A recipient of one Session's Snapshot and Deltas; the connection implements it over its socket. */
@@ -106,6 +112,11 @@ export interface SessionHost {
   evict(): Promise<void>;
   /** Start a new child for a Session whose child is gone, and hand every viewer its Projection. */
   reconnect(): Promise<void>;
+  /**
+   * Replace the child with a fresh process on the same Session file, reseed the Projection and
+   * re-send the attach surfaces to every viewer. A Session with work in flight is refused.
+   */
+  reload(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -526,6 +537,18 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       // Unconditional: the reader asked for a new child, so even one that is still running is
       // replaced. The Projection is rebuilt from the Session file either way.
       await restart();
+    },
+    async reload() {
+      // The guard reads the Projection before any child work, so a refusal costs the Session nothing.
+      const refusal = refuseReload(machine.projection);
+      if (refusal !== undefined) {
+        throw refusal;
+      }
+      await restart();
+      // Every viewer holds surfaces the old child answered, and they follow the Snapshot so a reader
+      // who acts on them is already looking at the reseeded Session.
+      await broadcastAttachSupplements([...viewers], session, () => child.ensure());
+      touch();
     },
     async close() {
       detachBridge();

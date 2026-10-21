@@ -168,6 +168,15 @@ export interface ReconnectMessage {
   readonly session: SessionRef;
 }
 
+/**
+ * Replace the Session's Pi child with a fresh process on the same Session file, so every file pi
+ * reads at startup is read again. A Session with work in flight is refused rather than destroyed.
+ */
+export interface ReloadMessage {
+  readonly type: typeof ClientMessageType.Reload;
+  readonly session: SessionRef;
+}
+
 /** Read the Session's user messages a fork can start from; a read, so it carries no Cursor. */
 export interface GetForkMessagesMessage {
   readonly type: typeof ClientMessageType.GetForkMessages;
@@ -253,7 +262,8 @@ export type ClientMessage =
   | MoveLeafMessage
   | SteerSubagentMessage
   | GetSubagentTranscriptMessage
-  | ReconnectMessage;
+  | ReconnectMessage
+  | ReloadMessage;
 
 /**
  * The Projects this server serves, as absolute paths in the order the launcher was given them. The
@@ -432,6 +442,16 @@ export type SubagentTranscriptMessage = SubagentTranscriptLookup & {
   readonly agentId: string;
 };
 
+/**
+ * The Session's child was replaced and its Projection reseeded. Every viewer received the new
+ * Snapshot and the attach surfaces before this arrived. It carries no text: the wording is the
+ * client's, like every other confirmation.
+ */
+export interface ReloadedMessage {
+  readonly type: typeof ServerMessageType.Reloaded;
+  readonly session: SessionRef;
+}
+
 export type ServerMessage =
   | ProjectsMessage
   | SessionsMessage
@@ -451,4 +471,5 @@ export type ServerMessage =
   | SessionForkedMessage
   | SessionTreeMessage
   | LeafMovedMessage
-  | SubagentTranscriptMessage;
+  | SubagentTranscriptMessage
+  | ReloadedMessage;

@@ -16,7 +16,6 @@ export const TUI_ONLY_COMMANDS = [
   "scoped-models",
   "theme",
   "trust",
-  "reload",
   "changelog",
   "quit",
   "share",

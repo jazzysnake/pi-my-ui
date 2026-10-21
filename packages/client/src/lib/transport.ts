@@ -101,6 +101,8 @@ export interface Transport {
   cloneSession(): void;
   /** Ask the server to respawn a Session's lost Pi child from its file. Ignored while down. */
   reconnect(): void;
+  /** Replace the Session's Pi child so pi reads its configuration again. Ignored while down. */
+  reload(): void;
   /** Ask the server for the Session's message tree. Ignored while the link is down. */
   getTree(): void;
   /** Move the Session's Leaf to an existing entry. Ignored while the link is down. */
@@ -426,6 +428,9 @@ export function createTransport(options: TransportOptions): Transport {
     },
     reconnect() {
       sendForSession((session) => ({ type: ClientMessageType.Reconnect, session }));
+    },
+    reload() {
+      sendForSession((session) => ({ type: ClientMessageType.Reload, session }));
     },
     getTree() {
       sendForSession((session) => ({ type: ClientMessageType.GetTree, session }));

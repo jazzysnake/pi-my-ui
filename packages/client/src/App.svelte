@@ -85,6 +85,7 @@
   onFork={(entryId) => transport?.forkSession(entryId)}
   onClone={() => transport?.cloneSession()}
   onReconnect={() => transport?.reconnect()}
+  onReload={() => transport?.reload()}
   onGetTree={() => transport?.getTree()}
   onMoveLeaf={(entryId) => transport?.moveLeaf(entryId)}
   onListDirectory={(project, path) => transport?.listDirectory(project, path)}

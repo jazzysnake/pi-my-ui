@@ -10,14 +10,14 @@ Because the server re-sends the discoverable commands after a reload, the palett
 
 **Status:** ready-for-agent
 
-- [ ] `/reload` is listed in the palette as a built-in and routes as a built-in
-- [ ] `/reload` is no longer refused as a TUI-only command, and a submission of it never produces a prompt for the model
-- [ ] `/reload now` reloads exactly as `/reload` does
-- [ ] The strip reads `Reloading…` after sending, and the confirmation sentence once the Reloaded reply arrives
-- [ ] An error for that Session leaves no `Reloading…` on the strip and shows the error in the composer
-- [ ] A connection that is not connected leaves no `Reloading…` on the strip, produced by deriving the pending text from the connection status the shell already receives
-- [ ] A Commands message arriving after attach replaces what the palette lists, so a skill the reload discovered appears without reconnecting
-- [ ] Store tests cover the palette row and the built-in routing, `/reload` with trailing text, `Reloading…` then the confirmation, an error clearing the pending text, a lost connection clearing it, and a late Commands message replacing the palette
+- [x] `/reload` is listed in the palette as a built-in and routes as a built-in
+- [x] `/reload` is no longer refused as a TUI-only command, and a submission of it never produces a prompt for the model
+- [x] `/reload now` reloads exactly as `/reload` does
+- [x] The strip reads `Reloading…` after sending, and the confirmation sentence once the Reloaded reply arrives
+- [x] An error for that Session leaves no `Reloading…` on the strip and shows the error in the composer
+- [x] A connection that is not connected leaves no `Reloading…` on the strip, produced by deriving the pending text from the connection status the shell already receives
+- [x] A Commands message arriving after attach replaces what the palette lists, so a skill the reload discovered appears without reconnecting
+- [x] Store tests cover the palette row and the built-in routing, `/reload` with trailing text, `Reloading…` then the confirmation, an error clearing the pending text, a lost connection clearing it, and a late Commands message replacing the palette
 
 ## Comments
 

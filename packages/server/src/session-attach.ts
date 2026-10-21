@@ -60,24 +60,3 @@ export async function sendAttachSupplements(
     // The readout says a figure is unavailable; the transcript is unaffected.
   }
 }
-
-/**
- * Hand every viewer of a Session those same surfaces, in the same order. A reload replaced the
- * process, so settings, the palette and the context figure are all stale in every viewer at once.
- */
-export async function broadcastAttachSupplements(
-  viewers: readonly SessionViewer[],
-  session: SessionRef,
-  child: () => Promise<PiChild>,
-): Promise<void> {
-  // One reader whose output is every viewer, so each surface is read once from the new child instead
-  // of once per viewer, and the three keep the order an attach sends them in.
-  const everyViewer: SessionViewer = {
-    onMessage(message) {
-      for (const viewer of viewers) {
-        viewer.onMessage(message);
-      }
-    },
-  };
-  await sendAttachSupplements(everyViewer, session, child);
-}

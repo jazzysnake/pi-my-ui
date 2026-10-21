@@ -34,12 +34,7 @@ import type { BridgeGate } from "./bridge/gate.js";
 import { attachBridgeEvents } from "./bridge/events.js";
 import { createDeltaHistory } from "./delta-history.js";
 import { createPastTranscriptReader } from "./past-transcripts.js";
-import {
-  broadcastAttachSupplements,
-  contextUsageMessage,
-  sendAttachSupplements,
-  settingsMessage,
-} from "./session-attach.js";
+import { contextUsageMessage, sendAttachSupplements, settingsMessage } from "./session-attach.js";
 import type { PiChildLaunch, PiSessionTarget } from "./pi-child.js";
 import { createSessionChild, type SessionChild } from "./session-child.js";
 import { createSessionLeaf } from "./session-leaf.js";
@@ -546,8 +541,9 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       }
       await restart();
       // Every viewer holds surfaces the old child answered, and they follow the Snapshot so a reader
-      // who acts on them is already looking at the reseeded Session.
-      await broadcastAttachSupplements([...viewers], session, () => child.ensure());
+      // who acts on them is already looking at the reseeded Session. The host's own broadcast is the
+      // sink, so the one fan-out in the server stays the one every other message uses.
+      await sendAttachSupplements({ onMessage: broadcast }, session, () => child.ensure());
       touch();
     },
     async close() {

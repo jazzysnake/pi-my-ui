@@ -25,6 +25,7 @@ export const ClientMessageType = {
   CloneSession: "cloneSession",
   Bash: "bash",
   Reconnect: "reconnect",
+  Reload: "reload",
   GetTree: "getTree",
   MoveLeaf: "moveLeaf",
   SteerSubagent: "steerSubagent",
@@ -54,6 +55,7 @@ export const ServerMessageType = {
   SessionTree: "sessionTree",
   LeafMoved: "leafMoved",
   SubagentTranscript: "subagentTranscript",
+  Reloaded: "reloaded",
 } as const;
 
 export type ServerMessageType = (typeof ServerMessageType)[keyof typeof ServerMessageType];

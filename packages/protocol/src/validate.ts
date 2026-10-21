@@ -401,6 +401,8 @@ export function validateClientMessage(value: unknown): ClientMessage {
       return validateGetSubagentTranscript(record);
     case ClientMessageType.Reconnect:
       return { type: ClientMessageType.Reconnect, session: requireSession(record) };
+    case ClientMessageType.Reload:
+      return { type: ClientMessageType.Reload, session: requireSession(record) };
     default:
       throw new ProtocolError(
         ProtocolErrorCode.UnknownType,

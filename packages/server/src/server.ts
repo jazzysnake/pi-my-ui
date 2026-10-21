@@ -439,6 +439,13 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
         await host.reconnect();
         return;
       }
+      if (message.type === ClientMessageType.Reload) {
+        // The host reseeds and re-sends every attach surface before this answer goes out, so a client
+        // that reads the reply is already holding the state the new child describes.
+        await host.reload();
+        send(socket, { type: ServerMessageType.Reloaded, session: message.session });
+        return;
+      }
     } catch (error) {
       // A bridge that is missing or silent is a server fault the owner must see, not just a browser
       // that happens to be watching.

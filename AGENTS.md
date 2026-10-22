@@ -16,3 +16,7 @@ Tests live at two heights, each free to choose its runner — see `docs/adr/0005
 ## Comments
 
 Comments explain **why**: a constraint, a trade-off, a surprise. Never write comments that narrate history (what changed, when, which ticket) or that restate what the code plainly does. No ticket IDs or dates in comments. If a comment only describes the code, delete it and improve the name.
+
+## Style
+
+Be extremely concise when addressing the user unless asked otherwise. Sacrifice grammar for the sake of brevity.

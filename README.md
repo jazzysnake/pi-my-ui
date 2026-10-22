@@ -14,8 +14,9 @@ until you deliberately bind beyond loopback and allow your browser's origin.
 - **pi credentials** under `~/.pi` for the user that runs the server. Run `pi` in a terminal once
   to log in (a global install is only needed for that); the server launches the workspace's pinned
   `@earendil-works/pi-coding-agent` package as a child and does not need `pi` on `PATH`.
-- **Caddy plus Tailscale** to reach the app from a phone. The exact setup is in the
-  [Caddy + Tailscale guide](docs/deploy/caddy.md).
+- **Docker and a private tailnet** to reach the app from a phone. Caddy runs in a container in
+  front of the server; the [Caddy guide](docs/deploy/caddy.md) covers the network and TLS, the
+  [compose guide](docs/deploy/compose.md) the containers and mounts.
 - **Chromium** for the browser suite: `npx playwright install chromium`.
 
 Both gates need no model credentials and never touch your real `~/.pi`: the test suite runs real pi
@@ -43,6 +44,10 @@ Six packages in one npm workspace:
 | `@pi-my-ui/bridge-extension`  | pi extension loaded into every Pi child; reaches past pi's RPC for subagents and Leaf moves              |
 | `@pi-my-ui/scripted-provider` | A pi model-provider extension that replays recorded replies (test-only)                                  |
 | `@pi-my-ui/e2e`               | Hermetic harness, fixture builder, the browser suite under Playwright and the backend suite under vitest |
+
+The deployment lives outside the packages, in `deploy/`: a `compose.yaml` running the server and
+Caddy, the server's runtime `Dockerfile`, the `Caddyfile`, and a `.env.example`. See the
+[compose guide](docs/deploy/compose.md).
 
 The bridge is required. It ships with this repository and is loaded into every Pi child
 automatically; if it cannot load or connect, the Session or the server start reports the failure
@@ -81,9 +86,11 @@ every Pi child it started before exiting.
 
 ## Run the client
 
-In production, Caddy serves `packages/client/dist` and reverse-proxies `/ws`, `/healthz` and
-`/files/download` to the server. The [Caddy + Tailscale guide](docs/deploy/caddy.md) has the
-Caddyfile. The page address names the Project to open, as `?project=<absolute path>`, and, within it,
+In production, `deploy/compose.yaml` runs the server and Caddy: Caddy serves
+`packages/client/dist`, terminates TLS on the tailnet with its own local CA, and reverse-proxies
+`/ws`, `/healthz` and `/files/download` to the loopback server. The [Caddy guide](docs/deploy/caddy.md)
+has the certificate story and the [compose guide](docs/deploy/compose.md) the containers. The page
+address names the Project to open, as `?project=<absolute path>`, and, within it,
 the Session, as `?session=<id>`. A Session link also needs its Project: either `?project=` in the
 same address, or a Project this device remembers, or a server that serves only one. The
 [user guide](docs/guide.md#5-opening-a-session) explains how to get an id.
@@ -97,6 +104,9 @@ node packages/server/dist/cli.js --project /path/to/project --port 8787
 # terminal 2: the client
 npm exec --workspace @pi-my-ui/client -- vite dev
 ```
+
+If the compose stack is running it already holds `8787`: run this backend on `--port 8788` and set
+`PI_MY_UI_BACKEND_ORIGIN=http://127.0.0.1:8788` for Vite.
 
 Open the URL Vite prints. With no `?project=` the link connects and shows the picker, or the only
 Project; choosing one opens its Sessions, and its `+` starts a new Session. Adding
@@ -158,8 +168,9 @@ set, and it never runs as part of either gate.
 
 - [User guide](docs/guide.md) — every screen and control, from the phone's point of view.
 - [Troubleshooting](docs/troubleshooting.md) — what you see, why, and what to do.
-- [Caddy + Tailscale](docs/deploy/caddy.md) — the phone address, TLS, the origin allowlist.
-- [Running as a service](docs/deploy/service.md) — systemd and launchd units, logs and restarts.
+- [Caddy on a private tailnet](docs/deploy/caddy.md) — the phone address, TLS with a local CA, the
+  origin allowlist.
+- [Docker Compose](docs/deploy/compose.md) — the two containers, mounts, logs and restarts.
 - [Architecture decisions](docs/adr/) — the choices and their costs.
 - [Measurements](docs/measurements.md) — the numbers the pool defaults come from.
 - [Glossary](GLOSSARY.md) — Session, Pi child, Projection, Snapshot, Delta, Cursor, Leaf, Bridge,

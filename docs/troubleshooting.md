@@ -55,8 +55,29 @@ proxy or process restart.
 
 **What to do:** check the server directly: `curl -sS http://127.0.0.1:<port>/healthz` must answer
 `{"status":"ok","service":"pi-my-ui-server"}`. Then make sure the Caddyfile's `reverse_proxy` target
-matches the server's `--port`. The [Caddy + Tailscale guide](deploy/caddy.md) has the route matcher
+matches the server's `--port`. The [Caddy guide](deploy/caddy.md) has the route matcher
 and the check commands.
+
+## The certificate is not trusted
+
+**You see:** Chrome or Safari warns that the connection is not private
+(`ERR_CERT_AUTHORITY_INVALID`) when you open `https://<MagicDNS name>`, or the page never loads.
+
+**Why:** the site's certificate comes from Caddy's local CA, and this device does not trust that CA —
+never installed it, or installed a previous one. A recreated `caddy-data` volume mints a new root, so
+a stack that was working can start warning after a `docker compose down -v` or a volume cleanup.
+
+**What to do:** extract the current root and compare it with what the device trusts:
+
+```bash
+cd deploy
+docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./caddy-root.crt
+openssl x509 -in ./caddy-root.crt -noout -subject -dates
+```
+
+Then install that file on the device as the [Caddy guide](deploy/caddy.md#5-trust-the-certificate-on-the-phone)
+describes. If the device already trusts an older root, remove it in Settings first. Never delete the
+volume to "reset" TLS.
 
 ## `could not bind … the port is already in use`
 
@@ -71,8 +92,8 @@ Project you pass as `--project`, so a second Project does not need a port of its
 
 **What to do:** start this server on a different `--port`, and update the Caddy `reverse_proxy`
 upstream to match. Find the holder on Linux with `ss -ltn`; on macOS with
-`lsof -nP -iTCP -sTCP:LISTEN`. The [service guide](deploy/service.md) covers the same failure under a
-service manager.
+`lsof -nP -iTCP -sTCP:LISTEN`. The [compose guide](deploy/compose.md) covers the same failure in the
+container stack.
 
 ## `refusing to bind to 0.0.0.0`
 
@@ -192,8 +213,8 @@ in its matcher; a path it does not match falls through to `file_server`, which d
 method. The Vite dev server does not proxy the download route at all.
 
 **What to do:** add `/files/download` to the Caddy matcher exactly as the
-[Caddy + Tailscale guide](deploy/caddy.md) shows, then reload Caddy. For development, use the Caddy
-setup when you need downloads.
+[Caddy guide](deploy/caddy.md) shows, then restart the caddy container. For development, use the
+Caddy setup when you need downloads.
 
 ## The composer shows an error and keeps my message
 

@@ -1,0 +1,80 @@
+# The phone path: one server for every Project, and Caddy in front of it for TLS, the client bundle
+# and the origin allowlist's counterpart. Machine values live in .env beside this file; nothing here
+# names a machine, a path or a Project.
+#
+# Both services use host networking so the server keeps binding 127.0.0.1 and Caddy keeps binding the
+# tailnet addresses, which is what makes "reachable from the tailnet only" true at the socket.
+
+name: pi-my-ui
+
+services:
+  server:
+    build:
+      context: .
+    image: pi-my-ui-server-runtime
+    network_mode: host
+    # Comes back after a reboot (with docker.service enabled) and after a crash, and stays stopped
+    # when you stop it by hand.
+    restart: unless-stopped
+    # Your user, not root: pi edits the mounted Projects and writes ~/.pi, so a container root would
+    # leave root-owned files in both.
+    user: "${PI_MY_UI_UID}:${PI_MY_UI_GID}"
+    working_dir: ${PI_MY_UI_REPO}
+    environment:
+      HOME: ${PI_MY_UI_HOME}
+      # One .env value carries the whole --project list; the shell below expands it.
+      PROJECTS: ${PI_MY_UI_PROJECTS}
+    volumes:
+      # The same absolute path on both sides. A Project is an absolute path and pi finds a Session
+      # file through it, so a different path inside the container would be a different Project.
+      - ${PI_MY_UI_REPO}:${PI_MY_UI_REPO}
+      - ${PI_MY_UI_WORKSPACE}:${PI_MY_UI_WORKSPACE}
+      - ${PI_MY_UI_HOME}/.pi:${PI_MY_UI_HOME}/.pi
+    # `exec` leaves node as PID 1, so `docker compose stop` reaches the server's bounded shutdown and
+    # its Pi children are stopped with it.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        exec node ${PI_MY_UI_REPO}/packages/server/dist/cli.js $$PROJECTS
+        --host 127.0.0.1 --port ${PI_MY_UI_PORT}
+        --allowed-origin https://${PI_MY_UI_TAILNET_NAME}
+    stop_grace_period: 30s
+    healthcheck:
+      # The server's own up-check. It proves the HTTP listener is up, not that a Pi child is healthy:
+      # children start lazily when a Session is opened.
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch("http://127.0.0.1:${PI_MY_UI_PORT}/healthz")
+          .then((response) => process.exit(response.ok ? 0 : 1))
+          .catch(() => process.exit(1))
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  caddy:
+    image: caddy:2
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      # The Caddyfile reads every machine value from here, so the file itself is the same everywhere.
+      PI_MY_UI_REPO: ${PI_MY_UI_REPO}
+      PI_MY_UI_PORT: ${PI_MY_UI_PORT}
+      PI_MY_UI_TAILNET_NAME: ${PI_MY_UI_TAILNET_NAME}
+      PI_MY_UI_TAILNET_IPV4: ${PI_MY_UI_TAILNET_IPV4}
+      PI_MY_UI_TAILNET_IPV6: ${PI_MY_UI_TAILNET_IPV6}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # The built client bundle, read-only: the host build stays the only thing that writes it.
+      - ${PI_MY_UI_REPO}:${PI_MY_UI_REPO}:ro
+      # Caddy's local CA and its certificates. Deleting this volume mints a new root CA that every
+      # device has to trust again, so it is durable state, not a cache.
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  caddy-data:
+  caddy-config:

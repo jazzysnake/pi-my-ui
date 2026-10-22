@@ -2,8 +2,8 @@
 
 `pi-my-ui` is a web app you run on your laptop that lets you drive
 [`pi`](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) (the AI coding agent) from your
-phone's browser. The laptop runs one small server next to pi; you open the page over Caddy plus
-Tailscale and talk to the agent.
+phone's browser. The laptop runs one small server next to pi; you open the page over Caddy on a
+private tailnet and talk to the agent.
 
 If you read only one thing: **start the server on the laptop, open the Session's address on the
 phone, and talk to the agent.** Everything else — Sessions, the drawer, `/tree`, files, subagents —
@@ -22,7 +22,7 @@ is the `pi` process the server runs for one Session. The [glossary](../GLOSSARY.
   The phone is a thin client over a WebSocket.
 - **Sessions keep running in the background.** Start a long task in one Session, switch to another,
   and the first keeps working. Closing the tab never stops a run.
-- **There is no login.** Reachability comes from Tailscale plus an origin allowlist, not a password.
+- **There is no login.** Reachability comes from the tailnet plus an origin allowlist, not a password.
 
 ## 2. What you need first
 
@@ -32,12 +32,14 @@ On the **laptop**:
 2. **pi credentials** for the user that runs the server. pi stores them under `~/.pi`; run `pi` in
    a terminal once to log in (a global install is only needed for that). The server itself uses the
    pinned pi package from this repository, so it does not need `pi` on `PATH`.
-3. **Caddy plus Tailscale**, set up as described in the [Caddy + Tailscale guide](deploy/caddy.md).
-   That guide also produces the `--allowed-origin` value you need below.
+3. **Docker and a private tailnet**, set up as described in the [Caddy guide](deploy/caddy.md) and
+   the [compose guide](deploy/compose.md). The compose file produces the `--allowed-origin` value you
+   need below.
 
 On the **phone**:
 
-4. The **Tailscale** app, signed in to the same tailnet as the laptop, showing Connected.
+4. The **Tailscale** app (or whichever client your tailnet uses), signed in to the same tailnet as
+   the laptop, showing Connected.
 
 ## 3. Install
 
@@ -53,11 +55,17 @@ This produces the server (`packages/server/dist/cli.js`), the phone client
 
 ## 4. Start the server
 
-Start one server for the Projects you want to work in:
+On the phone path you do not run this command: `deploy/compose.yaml` runs it for you, and the
+[Caddy guide](deploy/caddy.md#3-start-the-stack) and [compose guide](deploy/compose.md) are the
+setup. This is the same server run by hand, which is what a development session or a debugging
+session uses:
 
 ```bash
 node packages/server/dist/cli.js --project /path/to/project --port 8787
 ```
+
+With the compose stack running, `8787` is taken: use `--port 8788` and point the Vite proxy at it
+with `PI_MY_UI_BACKEND_ORIGIN=http://127.0.0.1:8788`.
 
 - `--project` names one Project the server serves: one absolute path, whose Sessions and files are
   the only ones served for that Project. Repeat the flag to serve several from one server. With no
@@ -321,10 +329,11 @@ The flag order is the order the Project list uses. The same path may not be serv
 served Project may not sit inside another; the server refuses startup and names the offending path.
 To switch on the phone, open the drawer and tap **Switch**, or open a link carrying `?project=`. One
 Caddy site and one `--allowed-origin` cover every Project, because the origin does not change with
-the Project. The [Caddy + Tailscale guide](deploy/caddy.md) has the one-site setup.
+the Project. The [Caddy guide](deploy/caddy.md) has the one-site setup.
 
-To keep a server running across logouts and reboots, run it as a service: the systemd and launchd
-units are in the [service guide](deploy/service.md).
+To keep the stack running across logouts and reboots, the compose services use
+`restart: unless-stopped`; the [compose guide](deploy/compose.md) covers logs, restarts and what a
+restart does to a running turn.
 
 ### Launcher flags
 
@@ -348,7 +357,7 @@ match is exact after URL normalisation, so scheme, host and a non-default port a
 
 So the missing features do not surprise you — these are deliberate:
 
-- **No login or accounts.** Access is controlled by Tailscale reachability and the origin allowlist.
+- **No login or accounts.** Access is controlled by tailnet reachability and the origin allowlist.
 - **No offline use and no install-to-home-screen.** It needs the laptop and the network.
 - **No desktop-first layout.** The UI targets the phone.
 - **No editing files in the browser.** The file tree is read-only.
@@ -359,9 +368,8 @@ So the missing features do not surprise you — these are deliberate:
 ## 16. Where to read more
 
 - [Troubleshooting](troubleshooting.md) — what you see, why, and what to do.
-- [Caddy + Tailscale](deploy/caddy.md) — the phone address, TLS, the origin allowlist and its failure
-  modes.
-- [Running as a service](deploy/service.md) — systemd and launchd units, logs, restarts, several
-  Projects.
+- [Caddy on a private tailnet](deploy/caddy.md) — the phone address, TLS with a local CA, the origin
+  allowlist and its failure modes.
+- [Docker Compose](deploy/compose.md) — the two containers, mounts, logs, restarts, several Projects.
 - [Architecture decisions](adr/) — the reasoning behind the design.
 - [Glossary](../GLOSSARY.md) — the project's vocabulary.

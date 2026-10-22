@@ -8,6 +8,9 @@ test-results/
 .worktrees/
 .env
 .env.*
+!deploy/.env.example
 *.log
 .DS_Store
 .pi/subagents.json
+deploy/caddy-root.crt
+/data/

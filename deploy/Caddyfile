@@ -1,0 +1,25 @@
+{
+	# The phone only ever uses https://, so nothing listens on :80. Without this Caddy also opens 80
+	# to redirect http to https, which is a second reachable surface for no gain.
+	auto_https disable_redirects
+}
+
+{$PI_MY_UI_TAILNET_NAME} {
+	# The tailnet interface only: no wildcard bind, so the LAN cannot reach this site. Both address
+	# families are listed because MagicDNS answers AAAA, and a v4-only bind drops a phone that
+	# prefers IPv6.
+	bind {$PI_MY_UI_TAILNET_IPV4} [{$PI_MY_UI_TAILNET_IPV6}]
+
+	# Caddy's local CA. There is no public certificate: this tailnet is coordinated by Headscale,
+	# which cannot issue one without a DNS-01 provider, so each device trusts Caddy's root once.
+	tls internal
+
+	# Only the paths the app owns go to the server. `path` matching is exact, and anything unmatched
+	# falls through to file_server, which serves the client bundle and accepts only GET/HEAD.
+	@pimyui path /ws /healthz /files/download
+	reverse_proxy @pimyui 127.0.0.1:{$PI_MY_UI_PORT}
+
+	# The client bundle. The server is a backend and serves no pages.
+	root * {$PI_MY_UI_REPO}/packages/client/dist
+	file_server
+}

@@ -2,6 +2,15 @@
 	# The phone only ever uses https://, so nothing listens on :80. Without this Caddy also opens 80
 	# to redirect http to https, which is a second reachable surface for no gain.
 	auto_https disable_redirects
+
+	# A leaf cannot outlive the intermediate that signed it, and Caddy's intermediates last 7 days by
+	# default, which would cap every leaf at that. Raising it keeps the existing root, so it costs no
+	# device its trust decision.
+	pki {
+		ca local {
+			intermediate_lifetime 720h
+		}
+	}
 }
 
 {$PI_MY_UI_TAILNET_NAME} {
@@ -12,7 +21,14 @@
 
 	# Caddy's local CA. There is no public certificate: this tailnet is coordinated by Headscale,
 	# which cannot issue one without a DNS-01 provider, so each device trusts Caddy's root once.
-	tls internal
+	# The 30-day leaf outlives any absence this laptop realistically has. Caddy renews on a
+	# maintenance tick, not the instant a suspended machine wakes, so its 12-hour default can be
+	# served expired until the next tick; a leaf measured in weeks cannot.
+	tls {
+		issuer internal {
+			lifetime 720h
+		}
+	}
 
 	# Only the paths the app owns go to the server. `path` matching is exact, and anything unmatched
 	# falls through to file_server, which serves the client bundle and accepts only GET/HEAD.

@@ -103,11 +103,21 @@ every deployment-specific string comes from the environment.
 ```caddyfile
 {
 	auto_https disable_redirects
+
+	pki {
+		ca local {
+			intermediate_lifetime 720h
+		}
+	}
 }
 
 {$PI_MY_UI_TAILNET_NAME} {
 	bind {$PI_MY_UI_TAILNET_IPV4} [{$PI_MY_UI_TAILNET_IPV6}]
-	tls internal
+	tls {
+		issuer internal {
+			lifetime 720h
+		}
+	}
 
 	@pimyui path /ws /healthz /files/download
 	reverse_proxy @pimyui 127.0.0.1:{$PI_MY_UI_PORT}
@@ -123,7 +133,12 @@ What each line buys:
 - **`bind`** — Caddy listens on the two tailnet addresses, not the wildcard interface, so the LAN
   cannot reach the site. Both address families are listed because MagicDNS answers AAAA and a
   v4-only bind silently drops a phone that prefers IPv6.
-- **`tls internal`** — Caddy mints certificates for the site address from its own CA.
+- **`tls` with the internal issuer** — Caddy mints certificates for the site address from its own CA.
+  The 720h lifetimes are a wake-up story, not a trust one: a leaf cannot outlive the intermediate
+  that signed it, and Caddy renews on a maintenance tick rather than the instant a suspended machine
+  wakes. Its 12-hour leaf and 7-day intermediate defaults mean a laptop that slept past either serves
+  an expired certificate until the next tick; lifetimes measured in weeks do not. The root — the one
+  certificate a device trusts — is unchanged by either setting.
 - **The `path` matcher** — `path` is exact, so only those three routes reach the server.
   Everything else falls through to `file_server`, which serves the client bundle and accepts only
   GET/HEAD; a missing `/files/download` would answer 404 or 405 instead of reaching the app.
@@ -153,8 +168,10 @@ About → Certificate Trust Settings → enable full trust.
 Chrome and Safari then accept `https://<name>` with no warning. Apps that bring their own trust store
 are unaffected, which is fine: this certificate is for the browser.
 
-The root is valid for ten years; Caddy renews its own intermediate automatically. Replacing the
-`caddy-data` volume mints a new root, and every device has to repeat this step.
+The root is valid for ten years and is the only certificate a device trusts. Caddy renews the leaf
+and the intermediate on its own: a leaf lasts up to 30 days and an intermediate 30 days, capped by
+what the intermediate has left, because a new intermediate cannot extend one already signed.
+Replacing the `caddy-data` volume mints a new root, and every device has to repeat this step.
 
 ## 6. Verify
 
@@ -180,9 +197,9 @@ curl -sS --cacert ./caddy-root.crt -o /dev/null -w '%{http_code}\n' -X POST \
   'https://laptop.tailnet-name.ts.net/files/download?project=nope&path=nope'
 # → 403
 
-# What the phone will see. Caddy's leaf names the host in a SAN, not in the subject, and is
-# short-lived on purpose: Caddy renews it from its own CA without you doing anything. The root you
-# installed on the phone is valid for ten years.
+# What the phone will see. Caddy's leaf names the host in a SAN, not in the subject, and stays well
+# under the intermediate's life, which is what actually caps it. The root you installed on the phone
+# is valid for ten years and does not change when either renews.
 openssl s_client -connect laptop.tailnet-name.ts.net:443 \
   -servername laptop.tailnet-name.ts.net </dev/null 2>/dev/null |
   openssl x509 -noout -issuer -ext subjectAltName

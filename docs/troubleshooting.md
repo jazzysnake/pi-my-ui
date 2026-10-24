@@ -79,6 +79,32 @@ Then install that file on the device as the [Caddy guide](deploy/caddy.md#5-trus
 describes. If the device already trusts an older root, remove it in Settings first. Never delete the
 volume to "reset" TLS.
 
+If the issuer is `TRAEFIK DEFAULT CERT` rather than Caddy, the address is not this laptop at all: a
+public record for the bare domain can point somewhere else that has no route for it. Check where the
+name goes before touching anything here:
+
+```bash
+getent hosts <the name you typed>     # 100.64.x.x is this tailnet; a public address is not
+```
+
+## The certificate has expired
+
+**You see:** `NET::ERR_CERT_DATE_INVALID`, most often the first time you open the app after the
+laptop has been asleep or off.
+
+**Why:** a leaf lasts 30 days, and Caddy renews on a maintenance tick rather than the instant a
+suspended machine wakes, so a machine that slept past the expiry serves the lapsed certificate for a
+few minutes. The root is not involved: the device's trust decision still holds.
+
+**What to do:** wait a moment, or force the renewal at startup:
+
+```bash
+cd deploy && docker compose restart caddy
+```
+
+The committed lifetimes are deliberately measured in weeks; a leaf that expires while the machine is
+asleep means it went unused for longer than that, not that the CA is broken.
+
 ## `could not bind … the port is already in use`
 
 **You see:** the launcher exits at once with:

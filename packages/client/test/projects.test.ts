@@ -23,7 +23,7 @@ const SESSION = { project: PROJECT_A, id: "session-1" };
 const GONE = "/workspace/retired";
 
 function projectsMessage(projects: readonly string[]): ServerMessage {
-  return { type: ServerMessageType.Projects, projects };
+  return { type: ServerMessageType.Projects, projects, workspace: null };
 }
 
 function sessionsMessage(

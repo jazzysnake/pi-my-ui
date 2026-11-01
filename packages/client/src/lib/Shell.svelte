@@ -489,16 +489,18 @@
       projects={store.projects.projects}
       warning={store.projects.warning}
       workspace={store.projects.workspace}
-      onCreate={openProjectName}
+      canCreate={store.projects.canCreate}
+      onOpenCreate={openProjectName}
       onChoose={onSelectProject}
     />
   {/if}
   {#if projectNameOpen}
     <ProjectNameSheet
       workspace={store.projects.workspace}
+      canCreate={store.projects.canCreate}
       error={store.projects.createError}
       busy={store.projects.creating}
-      onCreate={(name) => {
+      onSubmit={(name) => {
         store.projects.requestCreate();
         onCreateProject(name);
       }}
@@ -513,11 +515,12 @@
       rows={store.sessions.rows}
       projects={store.projects.projects}
       chosenProject={store.projects.chosen}
-      workspace={store.projects.workspace}
+      createdProject={store.projects.createdProject}
+      canCreate={store.projects.canCreate}
       activeSessionId={store.sessions.activeSessionId}
       onSelect={onSelectSession}
       {onSelectProject}
-      onCreateProject={openProjectName}
+      onOpenCreate={openProjectName}
       {onCreateSession}
       onClose={() => {
         sessionsOpen = false;

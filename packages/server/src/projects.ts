@@ -23,7 +23,7 @@ export interface ProjectRegistry {
   discover(projects: readonly string[]): void;
 }
 
-/** Ties in the derived order break by path, so two rows with one mtime still come out in one order. */
+/** Ties break by path rather than by encounter order, so one set of Projects lists alike everywhere. */
 function byPath(left: string, right: string): number {
   if (left === right) {
     return 0;
@@ -41,18 +41,20 @@ export function createProjectRegistry(projects: readonly string[]): ProjectRegis
   // Zero Projects is the normal first-run state of a fresh Workspace; only a named Project that is
   // not registered is refused.
   const flags = [...projects];
-  const created = new Set<string>();
-  const walked = new Set<string>();
+  const createdProjects = new Set<string>();
+  const discoveredProjects = new Set<string>();
 
   function served(project: string): boolean {
-    return flags.includes(project) || created.has(project) || walked.has(project);
+    return (
+      flags.includes(project) || createdProjects.has(project) || discoveredProjects.has(project)
+    );
   }
 
   /** The derived half, newest directory first: the two books a walk and a create keep. */
-  function derived(): { readonly path: string; readonly modifiedMs: number }[] {
+  function derivedProjects(): { readonly path: string; readonly modifiedMs: number }[] {
     const rows = new Map<string, number>();
-    for (const book of [created, walked]) {
-      for (const project of book) {
+    for (const source of [createdProjects, discoveredProjects]) {
+      for (const project of source) {
         if (flags.includes(project) || rows.has(project)) {
           continue;
         }
@@ -60,7 +62,7 @@ export function createProjectRegistry(projects: readonly string[]): ProjectRegis
         if (stats === undefined) {
           // The filesystem is the authority over what exists, so a path that is gone is forgotten
           // here rather than offered as a row no request can use.
-          book.delete(project);
+          source.delete(project);
           continue;
         }
         rows.set(project, Number(stats.mtimeMs));
@@ -73,11 +75,11 @@ export function createProjectRegistry(projects: readonly string[]): ProjectRegis
 
   return {
     list() {
-      // A flag names a directory the same way a walk result does, so one that is gone drops out too.
-      const existing = flags.filter((project) => directoryStats(project) !== undefined);
-      flags.length = 0;
-      flags.push(...existing);
-      return [...flags, ...derived().map((row) => row.path)];
+      // A flag names a directory the same way a walk result does, so one that is gone is left out of
+      // this answer. The flags themselves stay put: a temporarily unmounted volume is served again
+      // once it is back, without a restart.
+      const servedFlags = flags.filter((project) => directoryStats(project) !== undefined);
+      return [...servedFlags, ...derivedProjects().map((row) => row.path)];
     },
     has: served,
     require(project) {
@@ -91,12 +93,12 @@ export function createProjectRegistry(projects: readonly string[]): ProjectRegis
       return project;
     },
     register(project) {
-      created.add(project);
+      createdProjects.add(project);
     },
     discover(found) {
-      walked.clear();
+      discoveredProjects.clear();
       for (const project of found) {
-        walked.add(project);
+        discoveredProjects.add(project);
       }
     },
   };

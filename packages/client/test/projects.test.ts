@@ -226,6 +226,19 @@ describe("the Projects slice", () => {
     expect(store.projects.warning).toContain(GONE);
   });
 
+  it("shows the picker and names a Project that left while it was chosen", () => {
+    const store = new ClientStore(PROJECT_A);
+    store.receive(projectsMessage([PROJECT_A, PROJECT_B]));
+    expect(store.projects.chosen).toBe(PROJECT_A);
+
+    // The directory is gone from the served list while this browser was looking at it.
+    store.receive(projectsMessage([PROJECT_B]));
+    expect(store.projects.chosen).toBeNull();
+    expect(store.projects.warning).toBe(
+      `This server no longer serves ${PROJECT_A}. Choose a Project below.`,
+    );
+  });
+
   it("keeps the picker when the only served Project is not the remembered one", () => {
     const store = new ClientStore(null, memoryOf(GONE));
     store.receive(projectsMessage([PROJECT_A]));
@@ -285,7 +298,8 @@ describe("the Project picker", () => {
       projects: [PROJECT_A, PROJECT_B],
       warning: null,
       workspace: null,
-      onCreate: () => undefined,
+      canCreate: false,
+      onOpenCreate: () => undefined,
       onChoose: () => undefined,
     });
     const labels = [...target.querySelectorAll('[data-testid="project-label"]')].map((element) =>
@@ -299,7 +313,8 @@ describe("the Project picker", () => {
       projects: [PROJECT_A, PROJECT_B],
       warning: `This server no longer serves ${GONE}. Choose a Project below.`,
       workspace: null,
-      onCreate: () => undefined,
+      canCreate: false,
+      onOpenCreate: () => undefined,
       onChoose: () => undefined,
     });
     const notice = target.querySelector('[data-testid="project-warning"]');
@@ -395,6 +410,19 @@ describe("creating a Project", () => {
     }
   });
 
+  it("does not blame punctuation for a name that is already a file", () => {
+    const store = new ClientStore();
+    store.receive(projectsMessage([PROJECT_A], WORKSPACE));
+    store.projects.requestCreate();
+    store.receive(errorMessage(ProtocolErrorCode.InvalidProjectName));
+
+    const line = store.projects.createError;
+    // The same refusal answers a slashed name, a leading dot, and a path already taken by a file or a
+    // link, so the sentence has to leave room for the last two.
+    expect(line).toMatch(/file/);
+    expect(line).toMatch(/link/);
+  });
+
   it("leaves the sheet's line empty for a failure the create did not cause", () => {
     const store = new ClientStore(PROJECT_A);
     store.receive(projectsMessage([PROJECT_A], WORKSPACE));
@@ -421,7 +449,8 @@ describe("the create control", () => {
       projects: [PROJECT_A],
       warning: null,
       workspace: null,
-      onCreate: () => undefined,
+      canCreate: false,
+      onOpenCreate: () => undefined,
       onChoose: () => undefined,
     });
     expect(unanchored.querySelector('[data-testid="create-project"]')).toBeNull();
@@ -430,7 +459,8 @@ describe("the create control", () => {
       projects: [PROJECT_A],
       warning: null,
       workspace: WORKSPACE,
-      onCreate: () => undefined,
+      canCreate: true,
+      onOpenCreate: () => undefined,
       onChoose: () => undefined,
     });
     expect(anchored.querySelector('[data-testid="create-project"]')).not.toBeNull();
@@ -556,6 +586,24 @@ describe("the drawer's Project switcher", () => {
     ).toEqual(["session-b"]);
     expect(target.querySelector('[data-testid="current-project-label"]')?.textContent?.trim()).toBe(
       "oss/api",
+    );
+  });
+
+  it("stays on the Project level when a choice other than a create is made", () => {
+    const store = new ClientStore(PROJECT_A);
+    store.receive(projectsMessage([PROJECT_A, PROJECT_B]));
+    store.receive(sessionsMessage(PROJECT_A, [SESSION.id]));
+    const target = mountShell(store);
+
+    click(target, "sessions-toggle");
+    click(target, "project-switch");
+    flushSync(() => {
+      // The picker can choose while this level is still open behind it — the Project this browser was
+      // looking at left, and the picker replaced it — and that choice is not this level's own create.
+      store.selectProject(PROJECT_B);
+    });
+    expect(target.querySelector('[data-testid="session-drawer"]')?.getAttribute("data-level")).toBe(
+      "projects",
     );
   });
 });

@@ -430,7 +430,11 @@ describe("session commands", () => {
 
     // The exported file is written inside the chosen Project, so the download names it.
     flushSync(() => {
-      store.receive({ type: ServerMessageType.Projects, projects: ["/workspace"] });
+      store.receive({
+        type: ServerMessageType.Projects,
+        projects: ["/workspace"],
+        workspace: null,
+      });
     });
     flushSync(() => {
       store.receive(exportedOf("pi-session-session-1.html"));

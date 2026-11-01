@@ -29,11 +29,20 @@ import type { ProtocolErrorInfo } from "./errors.js";
 import type { SessionTree } from "./tree.js";
 
 /**
- * Ask which Projects this server serves. It reads the launch-time list, so it carries no path, no
- * Session and no Cursor.
+ * Ask which Projects this server serves. It carries no path, no Session and no Cursor: the answer
+ * comes from the server's own registry, never from the request.
  */
 export interface ListProjectsMessage {
   readonly type: typeof ClientMessageType.ListProjects;
+}
+
+/**
+ * Register one new Project, named by a single path segment rather than a path: the server joins it to
+ * the workspace root, so a client can never name a directory outside the workspace it was given.
+ */
+export interface CreateProjectMessage {
+  readonly type: typeof ClientMessageType.CreateProject;
+  readonly name: string;
 }
 
 /** List one Project's Sessions. The server answers only what that Project holds. */
@@ -240,6 +249,7 @@ export interface GetSubagentTranscriptMessage {
 
 export type ClientMessage =
   | ListProjectsMessage
+  | CreateProjectMessage
   | ListSessionsMessage
   | CreateSessionMessage
   | SubscribeMessage
@@ -266,12 +276,24 @@ export type ClientMessage =
   | ReloadMessage;
 
 /**
- * The Projects this server serves, as absolute paths in the order the launcher was given them. The
- * order is the owner's, so the client's picker shows the list in the order it was typed.
+ * Every Project this server serves, as absolute paths. Launch flags come first in the order they were
+ * typed; created and discovered Projects follow, newest directory first. `workspace` is the root a
+ * created name is joined to, or null when the server was started without one — the single signal a
+ * client needs to know whether creating a Project is possible at all.
  */
 export interface ProjectsMessage {
   readonly type: typeof ServerMessageType.Projects;
   readonly projects: readonly string[];
+  readonly workspace: string | null;
+}
+
+/**
+ * The absolute path of the Project a `createProject` request registered. It carries no list: the
+ * asking client re-asks with `ListProjects`, so no message holds two versions of the same state.
+ */
+export interface ProjectCreatedMessage {
+  readonly type: typeof ServerMessageType.ProjectCreated;
+  readonly project: string;
 }
 
 /**
@@ -454,6 +476,7 @@ export interface ReloadedMessage {
 
 export type ServerMessage =
   | ProjectsMessage
+  | ProjectCreatedMessage
   | SessionsMessage
   | SessionCreatedMessage
   | SnapshotMessage

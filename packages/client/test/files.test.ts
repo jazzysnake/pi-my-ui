@@ -106,7 +106,7 @@ function openTree(
   projects: readonly string[] = [PROJECT],
 ): void {
   flushSync(() => {
-    store.receive({ type: ServerMessageType.Projects, projects });
+    store.receive({ type: ServerMessageType.Projects, projects, workspace: null });
     store.receive(snapshotOf([]));
   });
   flushSync(() => {

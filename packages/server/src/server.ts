@@ -13,6 +13,7 @@ import type { AddressInfo } from "node:net";
 
 import {
   ClientMessageType,
+  ProtocolErrorCode,
   ServerMessageType,
   SessionMutation,
   parseClientMessage,
@@ -250,7 +251,11 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       // The list is disk facts about the working directory, not a Session, so it is answered here
       // rather than by a Session host; no Pi child starts to produce it.
       if (message.type === ClientMessageType.ListProjects) {
-        send(socket, { type: ServerMessageType.Projects, projects: registry.projects });
+        send(socket, {
+          type: ServerMessageType.Projects,
+          projects: registry.projects,
+          workspace: null,
+        });
         return;
       }
       if (message.type === ClientMessageType.ListSessions) {
@@ -297,6 +302,18 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       // Every remaining frame names one Session, so the pair is resolved before the connection's
       // watch moves: a pair this Project does not hold is refused with the Session the connection was
       // legitimately watching still attached.
+      if (!("session" in message)) {
+        // A frame no branch above claimed has no Session host to reach, so it cannot fall through to
+        // a lookup that would read a field it does not carry.
+        send(socket, {
+          type: ServerMessageType.Error,
+          error: {
+            code: ProtocolErrorCode.InternalError,
+            message: `no handler for ${message.type}`,
+          },
+        });
+        return;
+      }
       const host = await pool.hostFor(message.session);
       watchProject(attachment, message.session.project);
       if (message.type === ClientMessageType.Subscribe) {

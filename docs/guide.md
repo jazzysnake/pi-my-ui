@@ -32,9 +32,10 @@ On the **laptop**:
 2. **pi credentials** for the user that runs the server. pi stores them under `~/.pi`; run `pi` in
    a terminal once to log in (a global install is only needed for that). The server itself uses the
    pinned pi package from this repository, so it does not need `pi` on `PATH`.
-3. **Docker and a private tailnet**, set up as described in the [Caddy guide](deploy/caddy.md) and
-   the [compose guide](deploy/compose.md). The compose file produces the `--allowed-origin` value you
-   need below.
+3. **Docker and a private tailnet.** The server runs from node on the host and Caddy runs in a
+   container in front of it: the [server guide](deploy/server.md) is the server, the
+   [Caddy guide](deploy/caddy.md) and [compose guide](deploy/compose.md) the phone half. The server's
+   start command produces the `--allowed-origin` value you need below.
 
 On the **phone**:
 
@@ -55,16 +56,15 @@ This produces the server (`packages/server/dist/cli.js`), the phone client
 
 ## 4. Start the server
 
-On the phone path you do not run this command: `deploy/compose.yaml` runs it for you, and the
-[Caddy guide](deploy/caddy.md#3-start-the-stack) and [compose guide](deploy/compose.md) are the
-setup. This is the same server run by hand, which is what a development session or a debugging
-session uses:
+On the phone path the [server guide](deploy/server.md#start-it) runs this server with the flags it
+builds from `deploy/.env`, and the [Caddy guide](deploy/caddy.md#3-start-the-stack) puts Caddy in
+front of it. Running it by hand like this is what a development or a debugging session uses:
 
 ```bash
 node packages/server/dist/cli.js --project /path/to/project --port 8787
 ```
 
-With the compose stack running, `8787` is taken: use `--port 8788` and point the Vite proxy at it
+With the deployed server running, `8787` is taken: use `--port 8788` and point the Vite proxy at it
 with `PI_MY_UI_BACKEND_ORIGIN=http://127.0.0.1:8788`.
 
 - `--project` names one Project the server serves: one absolute path, whose Sessions and files are
@@ -331,9 +331,11 @@ To switch on the phone, open the drawer and tap **Switch**, or open a link carry
 Caddy site and one `--allowed-origin` cover every Project, because the origin does not change with
 the Project. The [Caddy guide](deploy/caddy.md) has the one-site setup.
 
-To keep the stack running across logouts and reboots, the compose services use
-`restart: unless-stopped`; the [compose guide](deploy/compose.md) covers logs, restarts and what a
-restart does to a running turn.
+To keep the app running, leave the server running in a terminal (tmux keeps it alive across a
+disconnect) and leave Caddy's `restart: unless-stopped` to the proxy; the
+[deploy overview](deploy/README.md) has the commands, and the [server guide](deploy/server.md) and
+[compose guide](deploy/compose.md) cover logs, restarts and what a restart does to a running turn.
+Nothing restarts the server for you, so after a reboot it is started again by hand.
 
 ### Launcher flags
 
@@ -370,6 +372,9 @@ So the missing features do not surprise you — these are deliberate:
 - [Troubleshooting](troubleshooting.md) — what you see, why, and what to do.
 - [Caddy on a private tailnet](deploy/caddy.md) — the phone address, TLS with a local CA, the origin
   allowlist and its failure modes.
-- [Docker Compose](deploy/compose.md) — the two containers, mounts, logs, restarts, several Projects.
+- [Deployment](deploy/README.md) — the prerequisites, the three commands, everyday logs and restarts.
+- [Host deployment](deploy/server.md) — starting the server by hand, its environment file, logs,
+  restarts, several Projects.
+- [Docker Compose](deploy/compose.md) — Caddy only: the proxy, the certificate volume, logs, restarts.
 - [Architecture decisions](adr/) — the reasoning behind the design.
 - [Glossary](../GLOSSARY.md) — the project's vocabulary.

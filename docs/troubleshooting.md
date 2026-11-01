@@ -54,9 +54,10 @@ proxy or process restart.
 **Why:** the server is not running, or Caddy proxies to a port no server is listening on.
 
 **What to do:** check the server directly: `curl -sS http://127.0.0.1:<port>/healthz` must answer
-`{"status":"ok","service":"pi-my-ui-server"}`. Then make sure the Caddyfile's `reverse_proxy` target
-matches the server's `--port`. The [Caddy guide](deploy/caddy.md) has the route matcher
-and the check commands.
+`{"status":"ok","service":"pi-my-ui-server"}`. If nothing answers, the server is not running — it is
+started by hand, so start it again ([server guide](deploy/server.md#start-it)), or check the pane it
+runs in for why it exited. Then make sure the Caddyfile's `reverse_proxy` target matches the server's
+`--port`. The [Caddy guide](deploy/caddy.md) has the route matcher and the check commands.
 
 ## The certificate is not trusted
 
@@ -65,7 +66,7 @@ and the check commands.
 
 **Why:** the site's certificate comes from Caddy's local CA, and this device does not trust that CA —
 never installed it, or installed a previous one. A recreated `caddy-data` volume mints a new root, so
-a stack that was working can start warning after a `docker compose down -v` or a volume cleanup.
+a Caddy that was working can start warning after a `docker compose down -v` or a volume cleanup.
 
 **What to do:** extract the current root and compare it with what the device trusts:
 
@@ -118,8 +119,8 @@ Project you pass as `--project`, so a second Project does not need a port of its
 
 **What to do:** start this server on a different `--port`, and update the Caddy `reverse_proxy`
 upstream to match. Find the holder on Linux with `ss -ltn`; on macOS with
-`lsof -nP -iTCP -sTCP:LISTEN`. The [compose guide](deploy/compose.md) covers the same failure in the
-container stack.
+`lsof -nP -iTCP -sTCP:LISTEN`. The [server guide](deploy/server.md#logs-restarts-the-port) covers the
+same failure in the server's own pane.
 
 ## `refusing to bind to 0.0.0.0`
 

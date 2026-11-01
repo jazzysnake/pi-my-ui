@@ -13,8 +13,9 @@ phone ──HTTPS──► Caddy (tailnet addresses :443) ──┬── /     
 ```
 
 The server itself serves no pages. Its whole HTTP surface is `GET /healthz`,
-`POST /files/download` and the `/ws` upgrade; Caddy is what makes it an app you can open. The process
-half — containers, mounts, restarts — is the [compose guide](compose.md).
+`POST /files/download` and the `/ws` upgrade; Caddy is what makes it an app you can open. The two
+process halves are the [server guide](server.md) — the node process on the host — and the
+[compose guide](compose.md), which is Caddy alone.
 
 ## Why the certificate is a local CA
 
@@ -33,12 +34,9 @@ reasoning, the rejected alternatives and what it forecloses are in
 1. **A tailnet** with MagicDNS enabled, and this machine signed in to it: `tailscale status` shows
    this machine and the phone. Nothing here depends on the tailnet's HTTPS-certificate feature, which
    a Headscale tailnet does not have.
-2. **Docker** with the Compose plugin: `docker compose version`.
-3. **pi credentials** under `~/.pi` for the user the containers run as. Run `pi` in a terminal once if
-   you have not.
-4. **The repository built at least once**: `npm ci && npm run build`. The client bundle in
-   `packages/client/dist` and the server entry point `packages/server/dist/cli.js` are build output,
-   not committed.
+2. **The two processes running**, as the [deploy overview](README.md) shows: Docker with the compose
+   plugin, the repository built, and the server started with pi logged in as the user that runs it.
+   This page assumes both are up.
 
 ## 2. The name, and the origin that follows from it
 
@@ -60,7 +58,8 @@ https://laptop.tailnet-name.ts.net
 ```
 
 That exact string is what the browser sends and what the server receives as `--allowed-origin` (the
-compose file passes it for you). The server compares origins exactly, after URL normalisation:
+start command builds it from `PI_MY_UI_TAILNET_NAME`). The server compares origins exactly, after URL
+normalisation:
 
 - `https://` and `http://` are different origins.
 - A non-default port is part of the origin: `https://host:8444` does not match `https://host`.
@@ -73,10 +72,14 @@ typed.
 
 ## 3. Start the stack
 
+The server comes first, so there is an upstream to proxy to; the
+[deploy overview](README.md#the-three-commands) has it, and its `/healthz` answers once it is up.
+Caddy is these two commands:
+
 ```bash
 cd deploy
-cp .env.example .env      # then fill in the name, the two tailnet addresses, the paths, the Projects
-docker compose up -d --build
+docker compose up -d
+docker compose ps         # caddy should be "running"
 ```
 
 The [compose guide](compose.md) explains every value. For this page, three of them matter:
@@ -86,7 +89,8 @@ The [compose guide](compose.md) explains every value. For this page, three of th
   Caddy binds.
 - `PI_MY_UI_PORT` — the backend port, used by both the server's `--port` and Caddy's upstream.
 
-A healthy server logs one `pi-my-ui: project` line per served Project, then the listening line:
+A healthy server logs one `pi-my-ui: project` line per served Project, then the listening line, in
+the pane it was started in:
 
 ```text
 pi-my-ui: project /home/you/projects/api
@@ -240,7 +244,7 @@ A refusal leaks nothing back: the response is `HTTP/1.1 403 Forbidden` with no b
 A project's own `.pi` configuration — settings, MCP servers, extensions, skills, prompts, themes and
 system-prompt files — needs pi's trust decision. RPC mode cannot show the trust prompt, so with no
 saved decision pi skips those resources and the app behaves as if the project had no configuration.
-This applies to each Session's Project, inside the container as on the host.
+This applies to each Session's Project on the host.
 
 Decide once per project, outside the app: run `pi` in that folder in a terminal and save the decision
 (`/trust`), or set `defaultProjectTrust` in `~/.pi/agent/settings.json`, or keep the configuration at
@@ -250,19 +254,9 @@ has the details.
 
 ## 9. User actions
 
-Everything only you can do, in order. None of this is run by the repository's checks.
-
-1. **On the phone:** install the Tailscale app and sign in to the same tailnet; confirm it says
-   Connected.
-2. **On the laptop:** `npm ci && npm run build`, then `cd deploy && cp .env.example .env` and fill in
-   the tailnet name, both tailnet addresses, the paths and the Project list (§3).
-3. **Start the stack:** `docker compose up -d --build`, and `sudo systemctl enable --now docker` so it
-   returns after a reboot.
-4. **Extract and install the CA:** §5, once per device.
-5. **Open the Session address on the phone** and confirm the dot reaches **Connected**. If it does
-   not, read `docker compose logs -f server` (§7).
-6. **Per project directory:** record pi's project-trust decision before relying on that project's
-   `.pi` configuration (§8).
+The ordered first-run list is the [deploy overview](README.md#once). Two steps on this page are its
+own: trust the CA on each device (§5), and record pi's project-trust decision for each project
+directory before relying on its `.pi` configuration (§8).
 
 ## 10. What is checked and what you must confirm
 
@@ -273,7 +267,7 @@ subdomain lookalike or a missing origin (`403`), and the download route's own tr
 refusals.
 
 The **Caddy, Docker and tailnet side** — the local CA, `bind` to the tailnet addresses, the WebSocket
-upgrade through the proxy, exact `path` matching, `file_server`'s 404/405 behaviour, the container
-mounts, and the phone's acceptance of the CA — comes from those projects' documentation and has not
-been run as part of this repository's checks. Bring it up on your machine with §9 and treat the first
-run as a deployment step, not a test.
+upgrade through the proxy, exact `path` matching, `file_server`'s 404/405 behaviour, the Caddy
+container's mounts, and the phone's acceptance of the CA — comes from those projects' documentation
+and has not been run as part of this repository's checks. Bring it up on your machine with §9 and
+treat the first run as a deployment step, not a test.

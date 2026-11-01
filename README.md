@@ -14,9 +14,10 @@ until you deliberately bind beyond loopback and allow your browser's origin.
 - **pi credentials** under `~/.pi` for the user that runs the server. Run `pi` in a terminal once
   to log in (a global install is only needed for that); the server launches the workspace's pinned
   `@earendil-works/pi-coding-agent` package as a child and does not need `pi` on `PATH`.
-- **Docker and a private tailnet** to reach the app from a phone. Caddy runs in a container in
-  front of the server; the [Caddy guide](docs/deploy/caddy.md) covers the network and TLS, the
-  [compose guide](docs/deploy/compose.md) the containers and mounts.
+- **Docker and a private tailnet** to reach the app from a phone. The server runs from node on the
+  host; Caddy runs in a container in front of it. The [server guide](docs/deploy/server.md) is the
+  server, the [Caddy guide](docs/deploy/caddy.md) the network and TLS, the
+  [compose guide](docs/deploy/compose.md) Caddy's container.
 - **Chromium** for the browser suite: `npx playwright install chromium`.
 
 Both gates need no model credentials and never touch your real `~/.pi`: the test suite runs real pi
@@ -45,9 +46,10 @@ Six packages in one npm workspace:
 | `@pi-my-ui/scripted-provider` | A pi model-provider extension that replays recorded replies (test-only)                                  |
 | `@pi-my-ui/e2e`               | Hermetic harness, fixture builder, the browser suite under Playwright and the backend suite under vitest |
 
-The deployment lives outside the packages, in `deploy/`: a `compose.yaml` running the server and
-Caddy, the server's runtime `Dockerfile`, the `Caddyfile`, and a `.env.example`. See the
-[compose guide](docs/deploy/compose.md).
+The deployment lives outside the packages, in `deploy/`: a `compose.yaml` running Caddy, the
+`Caddyfile`, and a `.env.example` that both Caddy and the server read. The
+[server guide](docs/deploy/server.md) is how the server runs on the host; the
+[compose guide](docs/deploy/compose.md) is Caddy's container.
 
 The bridge is required. It ships with this repository and is loaded into every Pi child
 automatically; if it cannot load or connect, the Session or the server start reports the failure
@@ -86,10 +88,11 @@ every Pi child it started before exiting.
 
 ## Run the client
 
-In production, `deploy/compose.yaml` runs the server and Caddy: Caddy serves
-`packages/client/dist`, terminates TLS on the tailnet with its own local CA, and reverse-proxies
-`/ws`, `/healthz` and `/files/download` to the loopback server. The [Caddy guide](docs/deploy/caddy.md)
-has the certificate story and the [compose guide](docs/deploy/compose.md) the containers. The page
+In production the server runs from node on the host ([server guide](docs/deploy/server.md)) and
+`deploy/compose.yaml` runs Caddy: Caddy serves `packages/client/dist`, terminates TLS on the tailnet
+with its own local CA, and reverse-proxies `/ws`, `/healthz` and `/files/download` to the loopback
+server. The [Caddy guide](docs/deploy/caddy.md) has the certificate story and the
+[compose guide](docs/deploy/compose.md) Caddy's container. The page
 address names the Project to open, as `?project=<absolute path>`, and, within it,
 the Session, as `?session=<id>`. A Session link also needs its Project: either `?project=` in the
 same address, or a Project this device remembers, or a server that serves only one. The
@@ -105,7 +108,7 @@ node packages/server/dist/cli.js --project /path/to/project --port 8787
 npm exec --workspace @pi-my-ui/client -- vite dev
 ```
 
-If the compose stack is running it already holds `8787`: run this backend on `--port 8788` and set
+If the deployed server is running it already holds `8787`: run this backend on `--port 8788` and set
 `PI_MY_UI_BACKEND_ORIGIN=http://127.0.0.1:8788` for Vite.
 
 Open the URL Vite prints. With no `?project=` the link connects and shows the picker, or the only
@@ -170,7 +173,12 @@ set, and it never runs as part of either gate.
 - [Troubleshooting](docs/troubleshooting.md) — what you see, why, and what to do.
 - [Caddy on a private tailnet](docs/deploy/caddy.md) — the phone address, TLS with a local CA, the
   origin allowlist.
-- [Docker Compose](docs/deploy/compose.md) — the two containers, mounts, logs and restarts.
+- [Deployment](docs/deploy/README.md) — the prerequisites, the three commands, everyday logs and
+  restarts.
+- [Host deployment](docs/deploy/server.md) — starting the server by hand, its one environment file,
+  logs and restarts.
+- [Docker Compose](docs/deploy/compose.md) — Caddy only: the proxy, the certificate volume, logs and
+  restarts.
 - [Architecture decisions](docs/adr/) — the choices and their costs.
 - [Measurements](docs/measurements.md) — the numbers the pool defaults come from.
 - [Glossary](GLOSSARY.md) — Session, Pi child, Projection, Snapshot, Delta, Cursor, Leaf, Bridge,

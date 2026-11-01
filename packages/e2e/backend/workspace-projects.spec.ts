@@ -5,6 +5,7 @@
  */
 
 import {
+  chmod,
   mkdir,
   readdir,
   readFile,
@@ -80,6 +81,10 @@ async function startWorkspaceHarness(options: WorkspaceOptions = {}): Promise<Wo
 async function markProject(directory: string): Promise<void> {
   await mkdir(join(directory, ".git"), { recursive: true });
 }
+
+/** Root ignores a mode, and Windows has no such bit, so an unreadable-directory case only holds here. */
+const directoryPermissionApplies =
+  process.platform !== "win32" && !(typeof process.getuid === "function" && process.getuid() === 0);
 
 async function askProjects(client: WsSessionClient): Promise<ProjectsAnswer> {
   client.send({ type: "listProjects" });
@@ -165,6 +170,27 @@ test("a symlinked directory inside the Workspace is not entered", async () => {
     await harness.dispose();
   }
 });
+
+test.skipIf(!directoryPermissionApplies)(
+  "a directory the walk cannot read is skipped, and the Projects it could see are still served",
+  async () => {
+    const harness = await startWorkspaceHarness();
+    const locked = join(harness.workspace, "locked");
+    const readable = join(harness.workspace, "readable");
+    await mkdir(locked, { recursive: true });
+    await markProject(join(locked, "inside"));
+    await markProject(readable);
+    await chmod(locked, 0o000);
+    try {
+      // One directory this process cannot read costs its own subtree, never the whole answer.
+      expect((await listProjects(harness)).projects).toEqual([readable]);
+    } finally {
+      // The mode has to come back before the temporary tree can be removed.
+      await chmod(locked, 0o700);
+      await harness.dispose();
+    }
+  },
+);
 
 test("nested Projects are both served, and a flag naming one of them adds no second row", async () => {
   const harness = await startWorkspaceHarness({

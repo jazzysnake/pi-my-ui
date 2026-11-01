@@ -13,14 +13,17 @@
     projects,
     warning,
     workspace,
-    onCreate,
+    canCreate,
+    onOpenCreate,
     onChoose,
   }: {
     projects: readonly string[];
     warning: string | null;
     /** The Workspace new Projects are made in, or `null` when creating is impossible. */
     workspace: string | null;
-    onCreate: () => void;
+    /** Whether a create control belongs on this screen at all. */
+    canCreate: boolean;
+    onOpenCreate: () => void;
     onChoose: (project: string) => void;
   } = $props();
 
@@ -37,13 +40,13 @@
       <span class="block text-meta tracking-wider text-dim uppercase">Projects</span>
       <h1 class="text-body font-semibold">Choose a Project</h1>
     </span>
-    {#if workspace !== null}
+    {#if canCreate}
       <button
         type="button"
         class="grid size-11 shrink-0 place-items-center rounded text-body text-dim"
         aria-label="New Project"
         data-testid="create-project"
-        onclick={onCreate}
+        onclick={onOpenCreate}
       >
         <Icon name="plus" />
       </button>
@@ -63,16 +66,16 @@
     {#if projects.length === 0}
       <div class="px-4 py-4" data-testid="project-empty">
         <p class="text-body text-ink">This server serves no Projects yet.</p>
-        {#if workspace !== null}
+        {#if canCreate}
           <p class="mt-1 text-meta text-dim">
-            Projects are folders inside the Workspace
+            Projects are created inside the Workspace
             <span class="break-all text-faint" data-testid="workspace-path">{workspace}</span>.
           </p>
           <button
             type="button"
             class="mt-3 min-h-11 rounded border border-hairline-strong px-3 text-body text-accent"
             data-testid="create-project-empty"
-            onclick={onCreate}
+            onclick={onOpenCreate}
           >
             New Project
           </button>

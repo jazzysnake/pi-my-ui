@@ -51,7 +51,7 @@ function refusalOf(code: ProtocolErrorCode): string {
     case ProtocolErrorCode.NoWorkspace:
       return "This server has no Workspace, so there is nowhere to create a Project.";
     case ProtocolErrorCode.InvalidProjectName:
-      return "That name cannot be a Project. Use one name, with no slashes, and do not start it with a dot.";
+      return "That name cannot be a Project. Use one name, with no slashes and no leading dot, and one that is not already a file or a link.";
     case ProtocolErrorCode.ProjectExists:
       return "A Project with that name is already served. Try another name.";
     default:
@@ -116,6 +116,15 @@ export function createProjectsSlice(
     // whatever the create said.
     if (wanted !== null && served.includes(wanted)) {
       choose(wanted);
+      return;
+    }
+    // A Project can leave while it is the chosen one — deleted, renamed or its volume unmounted — and
+    // the served list is the only news of it. The picker is the answer, as it is for a remembered
+    // Project the server does not serve.
+    const departing = chosen;
+    if (departing !== null && !served.includes(departing)) {
+      chosen = null;
+      warning = `This server no longer serves ${departing}. Choose a Project below.`;
       return;
     }
     if (chosen === null) {

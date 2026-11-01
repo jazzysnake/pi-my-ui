@@ -18,23 +18,26 @@
     rows,
     projects,
     chosenProject,
-    workspace,
+    createdProject,
+    canCreate,
     activeSessionId,
     onSelect,
     onSelectProject,
-    onCreateProject,
+    onOpenCreate,
     onCreateSession,
     onClose,
   }: {
     rows: readonly SessionRow[] | null;
     projects: readonly string[] | null;
     chosenProject: string | null;
-    /** The Workspace new Projects are made in, or `null` when creating is impossible. */
-    workspace: string | null;
+    /** The path this client's last create registered, which is the one choice this level made itself. */
+    createdProject: string | null;
+    /** Whether a create control belongs on the Project level at all. */
+    canCreate: boolean;
     activeSessionId: string | null;
     onSelect: (sessionId: string) => void;
     onSelectProject: (project: string) => void;
-    onCreateProject: () => void;
+    onOpenCreate: () => void;
     onCreateSession: () => void;
     onClose: () => void;
   } = $props();
@@ -68,11 +71,13 @@
     level = "sessions";
   }
 
-  // A Project chosen elsewhere — a create made from this level — has a Session list to land on, so
-  // the switching level must not stay in front of the Project it just chose.
+  // A create made from this level has a Session list to land on, so the level must not stay in front
+  // of the Project it just made. A Project chosen from the picker or a link is not this level's
+  // choice, so it must not yank the level away either.
   $effect(() => {
-    void chosenProject;
-    level = "sessions";
+    if (createdProject !== null && createdProject === chosenProject) {
+      level = "sessions";
+    }
   });
 </script>
 
@@ -97,13 +102,13 @@
           <Icon name="chevron-right" class="size-4 rotate-180" />
         </button>
         <span class="min-w-0 flex-1 text-meta tracking-wider text-dim uppercase">Projects</span>
-        {#if workspace !== null}
+        {#if canCreate}
           <button
             type="button"
             class="grid size-11 shrink-0 place-items-center rounded text-body text-dim"
             aria-label="New Project"
             data-testid="create-project-drawer"
-            onclick={onCreateProject}
+            onclick={onOpenCreate}
           >
             <Icon name="plus" />
           </button>

@@ -6,16 +6,19 @@
    */
   let {
     workspace,
+    canCreate,
     error,
     busy = false,
-    onCreate,
+    onSubmit,
     onClose,
   }: {
     workspace: string | null;
+    /** Whether this server has a Workspace to create in, which the hint only states when it has. */
+    canCreate: boolean;
     /** The server's refusal in the reader's words, or `null`. */
     error: string | null;
     busy?: boolean;
-    onCreate: (name: string) => void;
+    onSubmit: (name: string) => void;
     onClose: () => void;
   } = $props();
 
@@ -33,7 +36,7 @@
     if (busy) {
       return;
     }
-    onCreate(name);
+    onSubmit(name);
   }
 </script>
 
@@ -47,9 +50,9 @@
   <form class="flex flex-col gap-3 px-4 py-3" onsubmit={submit}>
     <div>
       <span class="block text-meta tracking-wider text-dim uppercase">New Project</span>
-      {#if workspace !== null}
+      {#if canCreate}
         <span class="block text-meta text-faint" data-testid="project-name-workspace">
-          Creates one folder in {workspace}
+          Creates a Project in {workspace}
         </span>
       {/if}
     </div>

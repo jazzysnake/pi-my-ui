@@ -4,12 +4,12 @@ Status: accepted
 
 ADR 0008 made the launch flag the whole allowlist, and ended by saying that adding a Project from the
 browser "would reopen that boundary and needs its own trust design". This is that design. The server
-now takes one `--workspace <dir>` root (defaulting to the process's working directory) alongside the
-unchanged, still-repeatable `--project`; every registered directory inside the workspace is a Project,
-registered either by a flag, by a create from the browser, or by discovery — the walk of the workspace
-that registers any directory holding a `.git` folder. A freshly created Project is an empty directory,
-not a repository: the server runs no `git init` and no other tool, so the choice of version control
-stays where it was.
+now takes one `--workspace <dir>` (defaulting to the process's working directory) alongside the
+unchanged, still-repeatable `--project`; every registered directory inside that Workspace is a
+Project, registered either by a flag, by a create from the browser, or by discovery — the walk of the
+Workspace that registers any directory holding a `.git` folder. A freshly created Project is an empty
+directory, not a repository: the server runs no `git init` and no other tool, so the choice of version
+control stays where it was.
 
 ## Why the boundary is not reopened
 
@@ -17,9 +17,9 @@ The launch flag bounded *which* files the server serves, and it was the only way
 It is no longer the only way, so the question is what a browser client can now reach. The answer is
 nothing it could not reach before: any client can already send a `Bash` message and have shell run
 inside a Project (`packages/server/src/live-bash.ts`), so `mkdir newdir` was already one command away,
-and create is bounded more tightly than that — one path segment, joined by the server to the workspace
-root, refused outside it. A gate on creation would guard a door bash already opens, at the cost of a
-deployment change on every install, so creation is allowed whenever the server is reachable. What
+and create is bounded more tightly than that — one path segment, joined by the server to the
+Workspace, refused outside it. A gate on creation would guard a door bash already opens, at the cost
+of a deployment change on every install, so creation is allowed whenever the server is reachable. What
 remains true from ADR 0008: an explicit `--project` is still launch-only, still the way to serve a
 repository that is *not* inside the workspace, and still an allowlist the browser cannot extend.
 
@@ -51,19 +51,19 @@ repository that is *not* inside the workspace, and still an allowlist the browse
 
 ## Consequences
 
-- **A Project and a git root are no longer the same set.** A registered directory need not hold a
-  `.git` folder — created Projects start without one, and `--project` never required one — while
-  discovery registers only directories that do. Every rule that used to be phrased about repositories
-  is phrased about registration.
+- **A Project and a directory holding `.git` are no longer the same set.** A registered directory need
+  not hold a `.git` folder — created Projects start without one, and `--project` never required one —
+  while discovery registers only directories that do. Every rule that used to be phrased about
+  repositories is phrased about registration.
 - **Projects may nest.** ADR 0008's no-nesting rule is dropped outright, not narrowed: a walk finds
   nested repositories by construction (submodules, vendored checkouts), so refusing them would refuse
   what discovery exists to find. The containment check is unchanged and still takes exactly one named
-  Project root per request, so a file request cannot name two roots; the accepted consequence is that
-  Project A's file panel can read files of Project B that lives inside A. Both are inside the
-  workspace, and a shell in A could already reach them.
+  Project per request, so a file request cannot name two; the accepted consequence is that Project A's
+  file panel can read files of Project B that lives inside A. Both are inside the Workspace, and a
+  shell in A could already reach them.
 - **Nothing registers a directory implicitly.** The `--workspace` default is a default flag value,
   like `--port 8787`; it never means "serve the cwd". Running in a repository serves it because the
-  walk finds `.git` at the root, and running in a plain directory serves nothing until a Project is
+  walk finds `.git` in it, and running in a plain directory serves nothing until a Project is
   created.
 - **Zero Projects is a valid server**, and the normal first-run state of a fresh workspace. ADR 0008's
   registry refused an empty list; the narrower rule survives — a *named* Project that is not served is
@@ -72,8 +72,8 @@ repository that is *not* inside the workspace, and still an allowlist the browse
   that guarantee is the user's; everything else — created and discovered — is sorted by the Project
   directory's modification time, newest first, tie-broken by path. That ordering is uniform and cheap
   but imperfect: a directory's mtime moves when entries are added, removed or renamed in it, not when
-  files change below it and not on commits, and a workspace root that is itself a Project is lifted to
-  the top whenever anything is created in the workspace. The alternatives — git's HEAD mtime, or
+  files change below it and not on commits, and a Workspace that is itself a Project is lifted to the
+  top whenever anything is created in the Workspace. The alternatives — git's HEAD mtime, or
   Session activity — order better but only for some Projects.
 - **One create fans out.** The creating device is answered with the new path alone and re-asks for the
   list, so no message carries two versions of the same state; every other connected device is pushed
@@ -88,7 +88,9 @@ repository that is *not* inside the workspace, and still an allowlist the browse
   label would read shorter but leave explicit Projects outside the workspace without a relative form,
   so the label rule would have to switch on membership.
 - **Test fixtures gain a marker.** The e2e harness's workspace contains no `.git` anywhere
-  (`packages/e2e/src/pi-harness.ts`), so a fixture Project needs one to be discovered. The 28 spec
-  files that pass `projects:` are untouched: `--project` still means what it meant.
+  (`packages/e2e/src/pi-harness.ts`), so a fixture Project needs one to be discovered. No spec's
+  intent changed, but two spec files gained a forced mechanical edit: two launcher spawns now pass an
+  explicit `--project .`, because nothing is served by default any more, and the protocol-snapshot
+  expectation gained `workspace: null`.
 - **Visibility is optional.** Nothing in the UI has to show the workspace; `ProjectsMessage` gains
   `workspace: string | null` only so a client knows whether creating is possible at all.

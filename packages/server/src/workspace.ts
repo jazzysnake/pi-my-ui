@@ -11,10 +11,13 @@ import { ProtocolError, ProtocolErrorCode } from "@pi-my-ui/protocol";
 
 import type { ProjectRegistry } from "./projects.js";
 
-/** The one marker that makes a directory a discovered Project: a directory, or a worktree's file. */
+/**
+ * The one marker that makes a directory a discovered Project; a worktree or submodule records it as a
+ * file rather than a directory. The walk stats this entry instead of running git, because a spawn per
+ * candidate directory would make a walk over a real Workspace unusably slow.
+ */
 const GIT_ENTRY = ".git";
 
-/** A Project is a directory holding a `.git` entry, so the walk asks for that entry and nothing else. */
 async function holdsGitEntry(directory: string): Promise<boolean> {
   try {
     await stat(join(directory, GIT_ENTRY));
@@ -30,17 +33,20 @@ async function holdsGitEntry(directory: string): Promise<boolean> {
  * silently hide a Project a few levels down. Nested Projects are all served.
  */
 export async function discoverProjects(workspace: string): Promise<readonly string[]> {
-  const root = await realpath(workspace);
+  const realWorkspace = await realpath(workspace);
   const found: string[] = [];
-  const pending: string[] = [root];
+  const pending: string[] = [realWorkspace];
   while (pending.length > 0) {
     const directory = pending.pop() as string;
     if (await holdsGitEntry(directory)) {
       found.push(directory);
     }
+    // One unreadable or vanished directory must not fail the whole list: the walk answers the
+    // Projects it could see rather than leaving the client with no answer at all.
+    const entries = await readdir(directory, { withFileTypes: true }).catch(() => []);
     // `withFileTypes` answers from the directory entry itself, so a symlink is not a directory here
     // and is never followed.
-    for (const entry of await readdir(directory, { withFileTypes: true })) {
+    for (const entry of entries) {
       if (!entry.isDirectory() || entry.name.startsWith(".")) {
         continue;
       }

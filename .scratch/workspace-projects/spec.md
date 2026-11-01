@@ -110,10 +110,11 @@ allowed.
 **Creation.** `CreateProject` carries a name, never a path. The server joins it to the workspace and
 requires a single path segment: not empty, no `/`, no NUL, not `.` or `..`, no leading dot (discovery
 prunes dot-directories, so such a directory could never be found by both routes). An existing regular
-file at that path is refused. No length limit is invented; the OS error is reported. If the directory
-is absent it is created; if it exists and is unregistered it is registered; if it is registered the
-request is refused. No version-control command runs. A failure after `mkdir` removes the directory it
-just made, so a half-made Project never appears.
+file or symlink at that path is refused: discovery never enters a symlinked directory, so a link could
+only become a Project the two routes disagree about. No length limit is invented; the OS error is
+reported. If the directory is absent it is created; if it exists and is unregistered it is registered;
+if it is registered the request is refused. No version-control command runs. A failure after `mkdir`
+removes the directory it just made, so a half-made Project never appears.
 
 **Ordering.** Explicit `--project` entries first, in typed order; then created and discovered
 Projects, sorted by the Project directory's modification time, newest first, tie-broken by path. The
@@ -165,8 +166,9 @@ half is covered where it lives. If the name sheet grows behaviour only a real la
 witness (soft keyboard, focus, viewport), that spec is admitted on the layout claim, not on creation.
 
 **Fixtures.** The e2e harness's workspace holds no `.git`, so a fixture Project needs a marker to be
-discovered. The 28 spec files that pass a Projects list are not touched: `--project` still means what
-it meant.
+discovered. No spec's intent changed, but two files gained a forced mechanical edit: two launcher
+spawns now pass an explicit `--project .`, because nothing is served by default any more, and the
+protocol-snapshot expectation gained `workspace: null`.
 
 ## Out of Scope
 

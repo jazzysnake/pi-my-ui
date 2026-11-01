@@ -38,7 +38,7 @@ export interface ListProjectsMessage {
 
 /**
  * Register one new Project, named by a single path segment rather than a path: the server joins it to
- * the workspace root, so a client can never name a directory outside the workspace it was given.
+ * the Workspace, so a client can never name a directory outside the one it was given.
  */
 export interface CreateProjectMessage {
   readonly type: typeof ClientMessageType.CreateProject;
@@ -277,8 +277,8 @@ export type ClientMessage =
 
 /**
  * Every Project this server serves, as absolute paths. Launch flags come first in the order they were
- * typed; created and discovered Projects follow, newest directory first. `workspace` is the root a
- * created name is joined to, or null when the server was started without one — the single signal a
+ * typed; created and discovered Projects follow, newest directory first. `workspace` is the Workspace
+ * a created name is joined to, or null when the server was started without one — the single signal a
  * client needs to know whether creating a Project is possible at all.
  */
 export interface ProjectsMessage {

@@ -16,6 +16,7 @@ export type ShutdownSignal = (typeof SHUTDOWN_SIGNALS)[number];
 
 /** Flag names without their dashes, used as parser keys and lookup keys. */
 export const FLAG = {
+  workspace: "workspace",
   project: "project",
   port: "port",
   host: "host",
@@ -40,11 +41,17 @@ interface FlagSpec {
 
 /** The whole flag surface. Handed to `parseArgs` and rendered into {@link LAUNCHER_USAGE}. */
 export const FLAG_SPECS: Readonly<Record<string, FlagSpec>> = {
+  [FLAG.workspace]: {
+    type: "string",
+    placeholder: "<dir>",
+    multiple: false,
+    summary: "Directory where Projects are discovered (default: the current directory)",
+  },
   [FLAG.project]: {
     type: "string",
     placeholder: "<dir>",
     multiple: true,
-    summary: "Project directory to serve (repeatable; default: the current directory)",
+    summary: "Project directory to serve (repeatable)",
   },
   [FLAG.port]: {
     type: "string",

@@ -20,10 +20,14 @@ Keep the prose in the existing register: no marketing, no bullet-point padding, 
 
 **Blocked by:** 01 (the flag names and defaults are settled there).
 
-**Status:** open
+**Status:** resolved
 
-- [ ] The README shows a real command line including `--workspace`, and states what the default is
-- [ ] The guide's flag table has a `--workspace` row and no line that says the cwd is served
-- [ ] The guide explains discovery by `.git` folder and browser creation, including that the server
+- [x] The README shows a real command line including `--workspace`, and states what the default is
+- [x] The guide's flag table has a `--workspace` row and no line that says the cwd is served
+- [x] The guide explains discovery by `.git` folder and browser creation, including that the server
       runs no version-control command
-- [ ] No document promises deleting, renaming or persisting a Project
+- [x] No document promises deleting, renaming or persisting a Project
+
+## Comments
+
+Merged as `16fd460` (ticket commit `b2151b4`); `npm run verify:full` passed all 5 steps at `47ad7cf`. README, guide and deploy server doc now name `--workspace` and its default, the banner's workspace line, discovery by `.git`, browser creation inside the workspace, and the honest boundaries; `47ad7cf` restores that a repeated `--project` is refused at startup, which the ticket had dropped. Server-side discovery and creation land with 03.

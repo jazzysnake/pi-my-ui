@@ -44,7 +44,8 @@ node packages/server/dist/cli.js $PI_MY_UI_PROJECTS \
   repository. Every directory under it holding a `.git` folder is discovered as a Project, the
   repository itself included.
 - **`--project`** repeats once per Project, and keeps the order you typed. A mount does not make
-  something a Project, and a discovered Project inside another one is served as its own row.
+  something a Project, and a discovered Project inside another one is served as its own row. Naming
+  the same path twice is refused, with the path in the message.
 
 A healthy start prints the workspace, one `pi-my-ui: project <path>` line per `--project`, then the
 listening line, plus a `bridge: listening on …` line and one line per Pi child. Discovery happens when

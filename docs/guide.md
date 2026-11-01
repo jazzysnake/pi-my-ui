@@ -350,11 +350,12 @@ node packages/server/dist/cli.js \
 ```
 
 `--project` Projects come first in the Project list, in the order you typed them; created and
-discovered Projects follow, newest directory first. The same path reached twice is one row. A Project
-whose directory is gone leaves the list, and a browser left on it lands on the picker with a warning
-naming the path. To switch on the phone, open the drawer and tap **Switch**, or open a link carrying
-`?project=`. One Caddy site and one `--allowed-origin` cover every Project, because the origin does
-not change with the Project. The [Caddy guide](deploy/caddy.md) has the one-site setup.
+discovered Projects follow, newest directory first. Passing the same path twice as `--project` is
+refused at startup, naming it. A Project whose directory is gone leaves the list, and a browser left
+on it lands on the picker with a warning naming the path. To switch on the phone, open the drawer and
+tap **Switch**, or open a link carrying `?project=`. One Caddy site and one `--allowed-origin` cover
+every Project, because the origin does not change with the Project. The
+[Caddy guide](deploy/caddy.md) has the one-site setup.
 
 To keep the app running, leave the server running in a terminal (tmux keeps it alive across a
 disconnect) and leave Caddy's `restart: unless-stopped` to the proxy; the

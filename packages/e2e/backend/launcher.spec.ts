@@ -6,9 +6,14 @@ import { fileURLToPath } from "node:url";
 
 import { expect, test, vi } from "vitest";
 import {
+  EXIT_FAILURE,
+  EXIT_USAGE_FAILURE,
   LOG_PREFIX,
+  parseLauncherArgs,
+  resolveLauncherConfig,
   runLauncher,
   startServer,
+  type LauncherConfig,
   type LauncherIo,
   type LauncherSignals,
   type RunningServer,
@@ -24,6 +29,7 @@ const CLI_PATH = fileURLToPath(new URL("../../server/dist/cli.js", import.meta.u
 
 /** The flags `--help` must name; a flagship without a line here is undiscoverable. */
 const DOCUMENTED_FLAGS = [
+  "--workspace",
   "--project",
   "--port",
   "--host",
@@ -144,6 +150,32 @@ function signalSource(): { source: LauncherSignals; emit(signal: NodeJS.Signals)
 
 const SILENT_IO: LauncherIo = { out: () => undefined, err: () => undefined };
 
+/** The launcher's own seam for flag rules: what the flags resolve to, with no server involved. */
+function resolvedConfig(argv: readonly string[], processCwd: string): LauncherConfig {
+  const parsed = parseLauncherArgs(argv);
+  if (parsed.kind !== "launch") {
+    throw new Error(`expected a launch for ${argv.join(" ")}`);
+  }
+  return resolveLauncherConfig(parsed.values, processCwd);
+}
+
+/** Run the launcher in-process against flags that must be refused, without letting a server start. */
+async function refusedLaunch(
+  argv: readonly string[],
+): Promise<{ code: number; err: readonly string[] }> {
+  const err: string[] = [];
+  const code = await runLauncher({
+    argv,
+    processCwd: process.cwd(),
+    io: { out: () => undefined, err: (line) => err.push(line) },
+    signals: signalSource().source,
+    startServer: () => {
+      throw new Error("the launcher started a server it should have refused");
+    },
+  });
+  return { code, err };
+}
+
 test("--help lists every flag", () => {
   const result = spawnSync("node", [CLI_PATH, "--help"], { encoding: "utf8" });
   expect(result.status).toBe(0);
@@ -155,7 +187,7 @@ test("--help lists every flag", () => {
 test("a taken port fails with one line naming --port", async () => {
   const taken = await occupiedPort();
   try {
-    const result = spawnSync("node", [CLI_PATH, "--port", String(taken.port)], {
+    const result = spawnSync("node", [CLI_PATH, "--port", String(taken.port), "--project", "."], {
       encoding: "utf8",
       timeout: 20_000,
     });
@@ -170,7 +202,7 @@ test("a taken port fails with one line naming --port", async () => {
 test("health answers and the server serves no pages", async () => {
   const home = await createHermeticHome();
   const port = home.ports.allocate();
-  const child = spawn("node", [CLI_PATH, "--port", String(port)], {
+  const child = spawn("node", [CLI_PATH, "--port", String(port), "--project", "."], {
     cwd: home.workspace,
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -297,15 +329,61 @@ test("two spellings of one Project are refused after resolution", async () => {
   }
 });
 
-test("a Project nested inside another served Project is refused naming both", async () => {
+test("a --project nested inside another served Project is accepted in typed order", async () => {
   const home = await createHermeticHome();
   try {
     const nested = join(home.workspace, "packages");
     mkdirSync(nested);
-    const stderr = refusedStartup(["--project", home.workspace, "--project", nested]);
-    expect(stderr).toContain("--project");
-    expect(stderr).toContain(realpathSync(home.workspace));
-    expect(stderr).toContain(realpathSync(nested));
+    const config = resolvedConfig(["--project", home.workspace, "--project", nested], home.root);
+    expect(config.projects).toEqual([realpathSync(home.workspace), realpathSync(nested)]);
+  } finally {
+    await home.dispose();
+  }
+});
+
+test("two --workspace flags are a usage error naming the flag", async () => {
+  const home = await createHermeticHome();
+  try {
+    const { code, err } = await refusedLaunch([
+      "--workspace",
+      home.workspace,
+      "--workspace",
+      home.root,
+    ]);
+    expect(code).toBe(EXIT_USAGE_FAILURE);
+    expect(err).toHaveLength(1);
+    expect(err[0]).toContain("--workspace");
+  } finally {
+    await home.dispose();
+  }
+});
+
+test("a --workspace that is not a readable directory refuses startup and names it", async () => {
+  const home = await createHermeticHome();
+  try {
+    const missing = join(realpathSync(home.root), "no-such-workspace");
+    const { code, err } = await refusedLaunch(["--workspace", missing]);
+    expect(code).toBe(EXIT_FAILURE);
+    expect(err).toHaveLength(1);
+    expect(err[0]).toContain("--workspace");
+    expect(err[0]).toContain(missing);
+  } finally {
+    await home.dispose();
+  }
+});
+
+test("the working directory is the workspace default, and --workspace resolves through realpath", async () => {
+  const home = await createHermeticHome();
+  try {
+    const defaulted = resolvedConfig([], home.workspace);
+    expect(defaulted.workspace).toBe(realpathSync(home.workspace));
+    expect(defaulted.projects).toEqual([]);
+
+    const link = join(home.root, "workspace-link");
+    symlinkSync(home.workspace, link);
+    expect(resolvedConfig(["--workspace", link], home.root).workspace).toBe(
+      realpathSync(home.workspace),
+    );
   } finally {
     await home.dispose();
   }
@@ -317,11 +395,14 @@ test("--cwd is not an alias for --project", () => {
   expect(result.stderr).toContain("unknown flag --cwd");
 });
 
-test("--help describes --project as repeatable", () => {
+test("--help describes the directory flags", () => {
   const result = spawnSync("node", [CLI_PATH, "--help"], { encoding: "utf8" });
   expect(result.status).toBe(0);
   expect(result.stdout).toContain("--project <dir>");
   expect(result.stdout).toContain("repeatable");
+  expect(result.stdout).toContain("--workspace <dir>");
+  expect(result.stdout).toContain("discovered");
+  expect(result.stdout).toContain("current directory");
   expect(result.stdout).not.toContain("--cwd");
 });
 
@@ -342,6 +423,62 @@ test("a foreign or missing origin is refused and logged", async () => {
     expect(logLines.some((line) => line.includes("http://evil.example"))).toBe(true);
   } finally {
     await server.close();
+  }
+});
+
+test("the banner names the workspace once, before every Project", async () => {
+  const home = await createHermeticHome();
+  const second = join(home.root, "second-project");
+  mkdirSync(second);
+  const launch = await scriptedPiLaunch(home, UNUSED_SCRIPT);
+  const signals = signalSource();
+  const lines: string[] = [];
+  let running: RunningServer | undefined;
+
+  try {
+    const run = runLauncher({
+      argv: [
+        "--port",
+        String(home.ports.allocate()),
+        "--workspace",
+        home.workspace,
+        "--project",
+        home.workspace,
+        "--project",
+        second,
+      ],
+      processCwd: home.root,
+      io: { out: (line) => lines.push(line), err: () => undefined },
+      signals: signals.source,
+      startServer: async (config) => {
+        running = await startServer({
+          ...config,
+          sessionDir: home.sessionsDir,
+          pi: {
+            args: launch.args,
+            env: launch.env,
+            provider: launch.provider,
+            model: launch.model,
+          },
+        });
+        return running;
+      },
+    });
+
+    await vi.waitFor(() => expect(lines.some((line) => line.includes("listening"))).toBe(true), {
+      timeout: LAUNCHER_WAIT_TIMEOUT_MS,
+    });
+    expect(lines.slice(0, 3)).toEqual([
+      `${LOG_PREFIX} workspace ${realpathSync(home.workspace)}`,
+      `${LOG_PREFIX} project ${realpathSync(home.workspace)}`,
+      `${LOG_PREFIX} project ${realpathSync(second)}`,
+    ]);
+
+    signals.emit("SIGINT");
+    expect(await run).toBe(0);
+  } finally {
+    await running?.close().catch(() => undefined);
+    await home.dispose();
   }
 });
 

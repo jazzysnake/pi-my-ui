@@ -8,7 +8,7 @@
  */
 
 import { accessSync, constants, realpathSync, statSync } from "node:fs";
-import { isAbsolute, relative, resolve } from "node:path";
+import { resolve } from "node:path";
 
 import { DEFAULT_HOST, type ServerConfig } from "../config.js";
 import { isLoopbackHostname } from "../loopback.js";
@@ -29,6 +29,8 @@ export const LOG_PREFIX = "pi-my-ui:";
 
 /** A validated launcher configuration. */
 export interface LauncherConfig {
+  /** Absolute and `realpath`-resolved; defaults to `processCwd`, and registers nothing by itself. */
+  readonly workspace: string;
   /** Absolute and `realpath`-resolved, in the order the flags were given. */
   readonly projects: readonly string[];
   readonly host: string;
@@ -58,7 +60,7 @@ export interface LauncherHooks {
 
 export interface RunLauncherOptions extends LauncherHooks {
   readonly argv: readonly string[];
-  /** The directory a relative `--project` resolves against, which is the process's own. */
+  /** The directory a relative `--project` or `--workspace` resolves against: the process's own. */
   readonly processCwd: string;
 }
 
@@ -73,65 +75,51 @@ function processIo(): LauncherIo {
   };
 }
 
-function projectError(detail: string): LauncherConfigurationError {
-  return new LauncherConfigurationError(
-    flagLabel(FLAG.project),
-    `${flagLabel(FLAG.project)} ${detail}`,
-  );
+function directoryError(flagName: string, detail: string): LauncherConfigurationError {
+  return new LauncherConfigurationError(flagLabel(flagName), `${flagLabel(flagName)} ${detail}`);
 }
 
-/** `realpath` one `--project`, then refuse anything a Pi child could not run in. */
-function resolveProject(processCwd: string, given: string): string {
+/** `realpath` a directory flag, then refuse anything a Pi child could not run in. */
+function resolveDirectory(flagName: string, processCwd: string, given: string): string {
   const absolute = resolve(processCwd, given);
   let resolved: string;
   try {
     resolved = realpathSync(absolute);
   } catch (error) {
-    throw projectError(`is not a readable directory: ${absolute} (${errorText(error)})`);
+    throw directoryError(
+      flagName,
+      `is not a readable directory: ${absolute} (${errorText(error)})`,
+    );
   }
   let isDirectory: boolean;
   try {
     isDirectory = statSync(resolved).isDirectory();
     accessSync(resolved, constants.R_OK);
   } catch (error) {
-    throw projectError(`is not a readable directory: ${resolved} (${errorText(error)})`);
+    throw directoryError(
+      flagName,
+      `is not a readable directory: ${resolved} (${errorText(error)})`,
+    );
   }
   if (!isDirectory) {
-    throw projectError(`must be a directory, but ${resolved} is not`);
+    throw directoryError(flagName, `must be a directory, but ${resolved} is not`);
   }
   return resolved;
 }
 
-/** Whether `child` sits anywhere below `parent`, so both cannot be served as separate roots. */
-function contains(parent: string, child: string): boolean {
-  const below = relative(parent, child);
-  return below !== "" && !below.startsWith("..") && !isAbsolute(below);
-}
-
 /**
- * Resolve every `--project` and refuse a list that cannot describe distinct roots. The order the
- * owner typed is kept, because that is the order the picker shows.
+ * Resolve every `--project`, refusing only a list that names one directory twice. Projects may
+ * nest, because discovery finds nested repositories by construction. The order the owner typed is
+ * kept, because that is the order the picker shows.
  */
 function resolveProjects(processCwd: string, given: readonly string[]): readonly string[] {
-  const resolved = (given.length === 0 ? ["."] : given).map((entry) =>
-    resolveProject(processCwd, entry),
-  );
+  const resolved = given.map((entry) => resolveDirectory(FLAG.project, processCwd, entry));
   const seen = new Set<string>();
   for (const project of resolved) {
     if (seen.has(project)) {
-      throw projectError(`names the same Project twice: ${project}`);
+      throw directoryError(FLAG.project, `names the same Project twice: ${project}`);
     }
     seen.add(project);
-  }
-  for (const [index, project] of resolved.entries()) {
-    const enclosing = resolved.find(
-      (other, otherIndex) => otherIndex !== index && contains(other, project),
-    );
-    if (enclosing !== undefined) {
-      throw projectError(
-        `serves ${project}, which is inside the served Project ${enclosing}; Projects may not nest`,
-      );
-    }
   }
   return resolved;
 }
@@ -141,6 +129,9 @@ export function resolveLauncherConfig(
   values: LauncherArguments,
   processCwd: string,
 ): LauncherConfig {
+  // The working directory is an anchor, never a served Project: running in a repository serves it
+  // only because discovery finds `.git` there.
+  const workspace = resolveDirectory(FLAG.workspace, processCwd, values.workspace ?? ".");
   const projects = resolveProjects(processCwd, values.projects);
 
   if (values.host.trim().length === 0) {
@@ -161,6 +152,7 @@ export function resolveLauncherConfig(
   }
 
   return {
+    workspace,
     projects,
     host: values.host,
     port: values.port,
@@ -173,6 +165,7 @@ export function resolveLauncherConfig(
 function toServerConfig(config: LauncherConfig): ServerConfig {
   return {
     projects: config.projects,
+    workspace: config.workspace,
     host: config.host,
     port: config.port,
     allowedOrigins: config.allowedOrigins,
@@ -243,6 +236,7 @@ export async function runLauncher(options: RunLauncherOptions): Promise<number> 
       throw error instanceof ServerBindError ? launcherBindError(error) : error;
     }
 
+    io.out(`${LOG_PREFIX} workspace ${config.workspace}`);
     for (const project of config.projects) {
       io.out(`${LOG_PREFIX} project ${project}`);
     }

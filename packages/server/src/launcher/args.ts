@@ -17,7 +17,9 @@ export const MIN_IDLE_TIMEOUT_SECONDS = 1;
 
 /** The flags as parsed, with every default applied. */
 export interface LauncherArguments {
-  /** As given on the command line; empty means the current directory. */
+  /** As given on the command line; undefined means the process's own working directory. */
+  readonly workspace: string | undefined;
+  /** As given on the command line; nothing is served unless a Project is named. */
   readonly projects: readonly string[];
   readonly host: string;
   readonly port: number;
@@ -95,6 +97,10 @@ type ParsedToken =
   | { readonly kind: "positional"; readonly value: string }
   | { readonly kind: "option-terminator" };
 
+function workspaceOccurrences(tokens: readonly ParsedToken[]): number {
+  return tokens.filter((token) => token.kind === "option" && token.name === FLAG.workspace).length;
+}
+
 export function parseLauncherArgs(argv: readonly string[]): ParsedLauncherArgs {
   const values = parseArgs({
     args: [...argv],
@@ -120,6 +126,15 @@ export function parseLauncherArgs(argv: readonly string[]): ParsedLauncherArgs {
     }
   }
 
+  if (workspaceOccurrences(values.tokens as readonly ParsedToken[]) > 1) {
+    // `parseArgs` keeps the last value of a non-multiple flag; two answers to "inside the
+    // workspace" are refused rather than silently resolved.
+    throw argumentError(
+      flagLabel(FLAG.workspace),
+      `${flagLabel(FLAG.workspace)} may be given at most once`,
+    );
+  }
+
   const parsedValues = values.values;
   const portValue = readString(parsedValues, FLAG.port);
   const idleTimeoutValue = readString(parsedValues, FLAG.idleTimeout);
@@ -127,6 +142,7 @@ export function parseLauncherArgs(argv: readonly string[]): ParsedLauncherArgs {
   return {
     kind: "launch",
     values: {
+      workspace: readString(parsedValues, FLAG.workspace),
       projects: readStringList(parsedValues, FLAG.project),
       host: readString(parsedValues, FLAG.host) ?? DEFAULT_HOST,
       port:

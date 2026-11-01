@@ -30,6 +30,11 @@ export interface ServerConfig {
    * launcher, in the order they were given. Nothing adds to or reorders this once the server runs.
    */
   readonly projects: readonly string[];
+  /**
+   * The directory the server is anchored to: where Projects are discovered and created. Optional so
+   * a server can be started without one, as every spec that names its Projects does.
+   */
+  readonly workspace?: string | undefined;
   readonly sessionDir?: string | undefined;
   readonly host?: string | undefined;
   readonly port?: number | undefined;

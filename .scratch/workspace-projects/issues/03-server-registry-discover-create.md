@@ -37,8 +37,10 @@ protocol package or the client.
 
 **Status:** open
 
-- [ ] A workspace with a `.git` directory two levels down, one at the root, and one inside `node_modules`
-      and inside a dot-directory: only the first two are served
+- [ ] A workspace with a `.git` directory at the root, one two levels down, and one inside a dot-directory:
+      the first two are served and the third is pruned. `node_modules` is deliberately *not* pruned — the
+      ADR prunes dot-directories and the inside of `.git` only, so a checkout vendored there stays
+      servable
 - [ ] A `.git` **file** (worktree/submodule shape) marks a Project
 - [ ] A symlinked directory inside the workspace is not followed
 - [ ] Nested Projects are both served; an explicit `--project` inside the workspace appears once

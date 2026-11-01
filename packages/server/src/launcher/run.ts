@@ -60,7 +60,7 @@ export interface LauncherHooks {
 
 export interface RunLauncherOptions extends LauncherHooks {
   readonly argv: readonly string[];
-  /** The directory a relative `--project` or `--workspace` resolves against, which is the process's own. */
+  /** The directory a relative `--project` or `--workspace` resolves against: the process's own. */
   readonly processCwd: string;
 }
 

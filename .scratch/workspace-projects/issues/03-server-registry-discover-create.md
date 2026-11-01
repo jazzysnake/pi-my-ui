@@ -35,22 +35,31 @@ protocol package or the client.
 
 **Blocked by:** 01, 02.
 
-**Status:** open
+**Status:** resolved
 
-- [ ] A workspace with a `.git` directory at the root, one two levels down, and one inside a dot-directory:
+- [x] A workspace with a `.git` directory at the root, one two levels down, and one inside a dot-directory:
       the first two are served and the third is pruned. `node_modules` is deliberately *not* pruned — the
       ADR prunes dot-directories and the inside of `.git` only, so a checkout vendored there stays
       servable
-- [ ] A `.git` **file** (worktree/submodule shape) marks a Project
-- [ ] A symlinked directory inside the workspace is not followed
-- [ ] Nested Projects are both served; an explicit `--project` inside the workspace appears once
-- [ ] The list is flag Projects in typed order, then derived Projects newest mtime first, ties by path
-- [ ] Zero Projects answers an empty list with the workspace named, and starts no Pi child
-- [ ] A registered Project whose directory is deleted leaves the next list
-- [ ] Create: makes the directory, registers it, and a Session then starts in it (the acceptance spec)
-- [ ] Create: each refusal rule returns its typed code, `ProjectExists` for a registered name, and an
+- [x] A `.git` **file** (worktree/submodule shape) marks a Project
+- [x] A symlinked directory inside the workspace is not followed
+- [x] Nested Projects are both served; an explicit `--project` inside the workspace appears once
+- [x] The list is flag Projects in typed order, then derived Projects newest mtime first, ties by path
+- [x] Zero Projects answers an empty list with the workspace named, and starts no Pi child
+- [x] A registered Project whose directory is deleted leaves the next list
+- [x] Create: makes the directory, registers it, and a Session then starts in it (the acceptance spec)
+- [x] Create: each refusal rule returns its typed code, `ProjectExists` for a registered name, and an
       existing unregistered directory is registered instead
-- [ ] Create with no workspace configured is `NoWorkspace`
-- [ ] A second socket receives the pushed `ProjectsMessage` after another socket creates
-- [ ] Existing backend and e2e specs still pass untouched, including servers started with only a
+- [x] Create with no workspace configured is `NoWorkspace`
+- [x] A second socket receives the pushed `ProjectsMessage` after another socket creates
+- [x] Existing backend and e2e specs still pass untouched, including servers started with only a
       Projects list and no workspace
+
+## Comments
+
+- Merged as `0138ab5` (`--no-ff`, no conflicts); `npm run verify:full` passed all five steps
+  (typecheck, lint and format, build, 233 store/component plus 65 backend tests, 85 browser tests).
+  Landed `packages/server/src/workspace.ts` (walk and create), the three-producer memory-only registry
+  in `projects.ts`, `CreateProject` and the discovery-on-`ListProjects` wiring in `server.ts`, the
+  13-test `workspace-projects.spec.ts`, and in `e9d8e02` the `--workspace` help line that now says
+  Projects are "discovered and created" there, matching the guide.

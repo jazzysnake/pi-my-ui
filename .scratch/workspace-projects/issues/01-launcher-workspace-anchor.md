@@ -16,17 +16,21 @@ to the current directory.
 
 **Blocked by:** None. Start now.
 
-**Status:** open
+**Status:** resolved
 
-- [ ] `--workspace <dir>` resolves with `realpath` and refuses a path that is not a readable directory,
+- [x] `--workspace <dir>` resolves with `realpath` and refuses a path that is not a readable directory,
       naming it
-- [ ] Two `--workspace` flags are a usage error; the flag also appears in `--help` and in the usage text
-- [ ] With no `--workspace`, the resolved workspace is `processCwd` — and nothing is registered from it
-- [ ] The workspace reaches the server config as an optional field
-- [ ] Two `--project` values where one contains the other are accepted; duplicates still refused
-- [ ] The banner names the workspace once, before the Project lines
-- [ ] Launcher specs cover: two workspaces, unreadable workspace, the default, nested `--project`
+- [x] Two `--workspace` flags are a usage error; the flag also appears in `--help` and in the usage text
+- [x] With no `--workspace`, the resolved workspace is `processCwd` — and nothing is registered from it
+- [x] The workspace reaches the server config as an optional field
+- [x] Two `--project` values where one contains the other are accepted; duplicates still refused
+- [x] The banner names the workspace once, before the Project lines
+- [x] Launcher specs cover: two workspaces, unreadable workspace, the default, nested `--project`
       accepted, banner order
 
 Do not assert on a server with zero registered Projects here: the registry refuses an empty list until
 ticket 03. Assert the resolved configuration and the banner, which are this ticket's seam.
+
+## Comments
+
+- Merged as `279486f`; `npm run verify:full` passed all 5 steps green (85 browser tests). Landed: `--workspace` flag (single, `realpath`, readable-dir refusal, `--help`/usage text), default `processCwd`, optional `ServerConfig.workspace` forwarded from the launcher, nesting refusal deleted (duplicate refusal kept), and the `pi-my-ui: workspace <path>` banner line before the Project lines. Six new launcher specs.

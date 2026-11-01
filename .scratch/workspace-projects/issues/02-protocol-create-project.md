@@ -20,10 +20,14 @@ minimal one. Do not add the transport's send method or any store behaviour — t
 
 **Blocked by:** None. Start now.
 
-**Status:** open
+**Status:** resolved
 
-- [ ] `CreateProject` and `ProjectCreated` exist in the message unions, with their type discriminators
-- [ ] `ProjectsMessage.workspace` is `string | null`
-- [ ] `NoWorkspace`, `InvalidProjectName` and `ProjectExists` are in the closed error set
-- [ ] A `CreateProject` frame with a missing or non-string `name` is refused as `MalformedPayload`
-- [ ] Protocol and client typecheck pass; no store or transport behaviour is added
+- [x] `CreateProject` and `ProjectCreated` exist in the message unions, with their type discriminators
+- [x] `ProjectsMessage.workspace` is `string | null`
+- [x] `NoWorkspace`, `InvalidProjectName` and `ProjectExists` are in the closed error set
+- [x] A `CreateProject` frame with a missing or non-string `name` is refused as `MalformedPayload`
+- [x] Protocol and client typecheck pass; no store or transport behaviour is added
+
+## Comments
+
+- `cf4ebaa` — `npm run verify:full` green in a pristine worktree of the merge commit (5/5 steps: typecheck, lint+format, build, 25+13 test files / 222+48 tests, 85 browser tests); landed `createProject`/`projectCreated` on the wire, `ProjectsMessage.workspace` and the three refusal codes, plus the server's `workspace: null` answer and no-Session guard the compiler demanded.

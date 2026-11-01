@@ -45,7 +45,7 @@ export const FLAG_SPECS: Readonly<Record<string, FlagSpec>> = {
     type: "string",
     placeholder: "<dir>",
     multiple: false,
-    summary: "Directory where Projects are discovered (default: the current directory)",
+    summary: "Directory where Projects are discovered and created (default: the current directory)",
   },
   [FLAG.project]: {
     type: "string",

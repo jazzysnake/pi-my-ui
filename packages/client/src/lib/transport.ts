@@ -69,6 +69,8 @@ export interface Transport {
   switchSession(session: SessionRef): void;
   /** Ask the server to start a fresh Session in the watched Project; the answer opens it. */
   createSession(): void;
+  /** Ask the server to register a new Project named by a single path segment. */
+  createProject(name: string): void;
   /** Send one message to the Session's Pi child. Ignored while the link is down. */
   prompt(text: string, images?: readonly ImageAttachment[], behavior?: StreamingBehavior): void;
   /** Run a `!`/`!!` shell command. Ignored while the link is down. */
@@ -250,6 +252,11 @@ export function createTransport(options: TransportOptions): Transport {
         options.handlers.onMessage(message);
         return;
       }
+      if (message.type === ServerMessageType.ProjectCreated) {
+        // A create answers with the path alone, so the list is asked for before the store hears about
+        // the create: the store may only select a Project it has seen in a Projects answer.
+        send({ type: ClientMessageType.ListProjects });
+      }
       if (message.type === ServerMessageType.Snapshot || message.type === ServerMessageType.Delta) {
         // A frame from the Session switched away from is dropped before it can move the Cursor, so
         // the next subscribe starts the new Session from the beginning of its stream.
@@ -321,6 +328,9 @@ export function createTransport(options: TransportOptions): Transport {
         return;
       }
       send({ type: ClientMessageType.CreateSession, project: activeProject });
+    },
+    createProject(name) {
+      send({ type: ClientMessageType.CreateProject, name });
     },
     prompt(text, images, behavior) {
       sendForSession((session) => ({

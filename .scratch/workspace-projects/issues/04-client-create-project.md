@@ -22,16 +22,26 @@ component, plus client store and component tests. Do not touch the protocol pack
 
 **Blocked by:** 02.
 
-**Status:** open
+**Status:** resolved
 
-- [ ] `ProjectsMessage.workspace` is stored and exposed; the create control is absent when it is null
-- [ ] Zero Projects shows an empty state that names the workspace and offers Create
-- [ ] The sheet refuses nothing itself: it sends the name and renders the server's refusal, keeping the
+- [x] `ProjectsMessage.workspace` is stored and exposed; the create control is absent when it is null
+- [x] Zero Projects shows an empty state that names the workspace and offers Create
+- [x] The sheet refuses nothing itself: it sends the name and renders the server's refusal, keeping the
       typed text
-- [ ] `ProjectCreated` triggers a `ListProjects`, and the new path is selected only when that answer
+- [x] `ProjectCreated` triggers a `ListProjects`, and the new path is selected only when that answer
       contains it
-- [ ] The create control is reachable from the picker and from the drawer's project level
-- [ ] Store tests: empty state, workspace-null control, refusal line and retained text, select-after-
+- [x] The create control is reachable from the picker and from the drawer's project level
+- [x] Store tests: empty state, workspace-null control, refusal line and retained text, select-after-
       answer, and no selection when the answer omits the path
-- [ ] Component tests render the sheet and the empty state; existing project, drawer and files tests
+- [x] Component tests render the sheet and the empty state; existing project, drawer and files tests
       still pass
+
+## Comments
+
+- Merged in `2ece59b` with no conflicts; `npm run verify:full` passed all 5 steps (85 browser tests,
+  29.8 s of a 45 s budget). Landed: `workspace`/`canCreate`/`creating`/`createError`/`createdProject`
+  on the projects slice, `createProject` on the transport (which asks for `ListProjects` on
+  `ProjectCreated` before the store may select), `ProjectNameSheet.svelte`, the create control in the
+  picker header and the drawer's Project level, the zero-Project empty state, and 223 lines of tests.
+  The empty-state and workspace-null cases live in the component block of `projects.test.ts` rather
+  than the store block, per the two-layer test policy; the coverage the box asks for is all there.

@@ -1,6 +1,7 @@
 # One server serves many Projects, and a Project is an absolute path
 
-Status: accepted
+Status: accepted; its rule that there is no way to add a Project at runtime, and its rule that
+Projects may not nest, are superseded by ADR 0012.
 
 A phone user with four repositories had to run four servers on four ports, each with its own idle
 pool of Pi children, and switch by changing port. One server now serves a launch-time list of

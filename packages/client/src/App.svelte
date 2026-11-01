@@ -69,6 +69,7 @@
     transport?.switchSession(session);
   }}
   onCreateSession={() => transport?.createSession()}
+  onCreateProject={(name) => transport?.createProject(name)}
   onPrompt={(text, images, behavior) => transport?.prompt(text, images, behavior)}
   onBash={(command, excludeFromContext) => transport?.bash(command, excludeFromContext)}
   onSteerSubagent={(agentId, message) => transport?.steerSubagent(agentId, message)}

@@ -16,6 +16,7 @@ import type {
   ClientMessage,
   CloneSessionMessage,
   CompactMessage,
+  CreateProjectMessage,
   ExportSessionMessage,
   ForkSessionMessage,
   GetForkMessagesMessage,
@@ -106,6 +107,19 @@ function validateListDirectory(record: Record<string, unknown>): ListDirectoryMe
     project: requireProject(record),
     path: requirePath(record),
   };
+}
+
+/**
+ * The name of the Project to create. Only the JSON type is checked here: an empty, dotted or nested
+ * name is a refusal the server spells with `InvalidProjectName`, which a client shows as one line,
+ * rather than a malformed frame that reads like a bug in the browser.
+ */
+function validateCreateProject(record: Record<string, unknown>): CreateProjectMessage {
+  const name = record["name"];
+  if (typeof name !== "string") {
+    malformed('"name" must be a string');
+  }
+  return { type: ClientMessageType.CreateProject, name };
 }
 
 function validatePreviewFile(record: Record<string, unknown>): PreviewFileMessage {
@@ -355,6 +369,8 @@ export function validateClientMessage(value: unknown): ClientMessage {
   switch (type) {
     case ClientMessageType.ListProjects:
       return { type: ClientMessageType.ListProjects };
+    case ClientMessageType.CreateProject:
+      return validateCreateProject(record);
     case ClientMessageType.ListSessions:
       return { type: ClientMessageType.ListSessions, project: requireProject(record) };
     case ClientMessageType.CreateSession:

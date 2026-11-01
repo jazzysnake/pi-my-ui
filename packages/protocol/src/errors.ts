@@ -13,6 +13,12 @@ export const ProtocolErrorCode = {
   UnknownSession: "unknownSession",
   /** The named Project is not one this server serves. */
   UnknownProject: "unknownProject",
+  /** A Project cannot be created because the server was started with no workspace to anchor one. */
+  NoWorkspace: "noWorkspace",
+  /** The name cannot become a Project directory: empty, dotted, nested or not one path segment. */
+  InvalidProjectName: "invalidProjectName",
+  /** The name already names a registered Project, so creating it would not add one. */
+  ProjectExists: "projectExists",
   /** The server failed to do what the message asked; the message itself was well-formed. */
   InternalError: "internalError",
   /** A filesystem path that escapes the served root: a security refusal, not a malformed request. */

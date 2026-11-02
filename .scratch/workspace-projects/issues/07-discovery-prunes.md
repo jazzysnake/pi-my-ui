@@ -44,3 +44,8 @@ asserted by name. Measured on `/home/matee/Workspace/Personal` with the built co
 1.7–2.1 s, against 37 in 2.9–3.0 s for the same walk before the prunes, and the 36 Projects / 3.3 s
 baseline in ADR 0012. What is left is `exploration/`-style trees no `.gitignore` excludes; the
 installed trees (`node_modules`, and a 3166-directory untracked `venv/`) are gone from the walk.
+
+Merged to `integration/workspace-projects` as `1f984c5` (lockfile merged clean; `npm install` was
+needed here because `ignore@7.0.8` was absent from `node_modules`): `npm run verify:full` green, 5/5
+steps, 236 client and 73 backend tests, 86 browser specs in 27.8 s of the 45 s budget, and the
+37-Project measurement above still holds.

@@ -48,8 +48,8 @@ repository that is *not* inside the workspace, and still an allowlist the browse
   matters — when a client asks for the Projects list.
 - **Capping the walk's depth.** Rejected: a cap would silently hide a Project four levels down, and
   depth was never what made the walk slow. The slow part was breadth: a real workspace of 36 Projects
-  took 3.3 s per list, almost all of it inside installed package trees. The walk prunes `node_modules`
-  and whatever an in-repo `.gitignore` excludes instead, and still has no cap.
+  took 3.3 s per list, almost all of it inside installed package trees. The walk prunes `node_modules`,
+  `__pycache__` and whatever an in-repo `.gitignore` excludes instead, and still has no cap.
 
 ## Consequences
 
@@ -70,13 +70,15 @@ repository that is *not* inside the workspace, and still an allowlist the browse
 - **Zero Projects is a valid server**, and the normal first-run state of a fresh workspace. ADR 0008's
   registry refused an empty list; the narrower rule survives — a *named* Project that is not served is
   a typed refusal, never a fallback to another Project.
-- **The walk skips what is not worth walking.** `node_modules` is pruned by name at any depth, and so
-  is every directory an in-repo `.gitignore` excludes, read with git's own precedence: a file governs
-  its directory and everything below it, ancestor rules still apply in a subdirectory, and a negation
-  can re-open a directory an earlier line excluded. The measurement is why — 3.3 s per list on a real
-  workspace of 36 Projects, almost all of it inside installed package trees. Dot-directories stay
-  pruned, which is what already keeps `.venv`, `.venvs`, `.git` and `.worktrees` out at no cost, so
-  there is no list of virtualenv names. Git's own `.git/info/exclude` and `core.excludesFile` are not
+- **The walk skips what is not worth walking.** `node_modules` and `__pycache__` are pruned by name at
+  any depth, and so is every directory an in-repo `.gitignore` excludes, read with git's own
+  precedence: a file governs its directory and everything below it, ancestor rules still apply in a
+  subdirectory, and a negation can re-open a directory an earlier line excluded. The measurement is
+  why — 3.3 s per list on a real workspace of 36 Projects, almost all of it inside installed package
+  trees, and, once those were pruned, `__pycache__` alone still being 2,602 of the 13,343 directories
+  walked. Dot-directories stay pruned, which is what already keeps `.venv`, `.venvs`, `.git` and
+  `.worktrees` out at no cost, so there is no list of virtualenv names. Git's own
+  `.git/info/exclude` and `core.excludesFile` are not
   read, and neither is a `.gitignore` outside the workspace: a list that depended on how one machine
   is configured would be a different list on every machine. The walk still runs no git command, and an
   unreadable `.gitignore` costs its own directory's rules rather than the list.

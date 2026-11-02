@@ -465,6 +465,19 @@ test("a node_modules directory is not walked, with no .gitignore anywhere", asyn
   }
 });
 
+test("a __pycache__ directory is not walked, with no .gitignore anywhere", async () => {
+  const harness = await startWorkspaceHarness();
+  try {
+    const tool = join(harness.workspace, "reporting");
+    await markProject(tool);
+    await markProject(join(tool, "jobs", "__pycache__"));
+
+    expect((await listProjects(harness)).projects).toEqual([tool]);
+  } finally {
+    await harness.dispose();
+  }
+});
+
 test("a root .gitignore hides a marked directory inside what it excludes", async () => {
   const harness = await startWorkspaceHarness();
   try {

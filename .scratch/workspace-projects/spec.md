@@ -104,7 +104,8 @@ producers dedupe to one entry per directory.
 **Discovery.** Walk the workspace on each `ListProjects` request; cache nothing. A directory is a
 Project when it holds a `.git` entry (a directory normally, a file for worktree and submodule
 checkouts), found by `stat`, never by executing git. Prune dot-directories and the inside of `.git`,
-`node_modules` at any depth, and every directory an in-repo `.gitignore` excludes — the file in a
+`node_modules` and `__pycache__` at any depth, and every directory an in-repo `.gitignore` excludes —
+the file in a
 directory governs that directory and its subtree, ancestor rules still apply below it, and a negation
 re-opens a directory an earlier line excluded. Git's own exclude files, a global `core.excludesFile`
 and any `.gitignore` outside the workspace are not read; an unreadable one costs its own rules, never
@@ -154,7 +155,8 @@ being skipped, a symlinked directory not being followed, nested Projects both be
 `--project` inside the workspace appearing once, the derived group ordered by mtime with the typed
 group first, a Project whose directory is deleted leaving the list, and a `ListProjects` on a workspace
 with nothing in it answering an empty list with the workspace named. The prunes are proven the same
-way: `node_modules` skipped at depth with no `.gitignore` anywhere, a root file hiding a marked
+way: `node_modules` and `__pycache__` skipped at depth with no `.gitignore` anywhere, a root file
+hiding a marked
 directory inside what it excludes, a nested file governing its own subtree and not its sibling, an
 ancestor rule still applying one level down, a `!keep/` line re-opening a directory and the walk
 entering it, an unreadable `.gitignore` costing only its own rules, and `.venv` named as staying

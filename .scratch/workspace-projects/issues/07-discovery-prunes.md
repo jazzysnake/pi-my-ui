@@ -23,14 +23,24 @@ skips, the spec's Discovery decision, and ADR 0012's consequence that recorded t
 
 **Blocked by:** None.
 
-**Status:** open
+**Status:** resolved
 
-- [ ] `node_modules` at any depth is not walked, with or without a `.gitignore`
-- [ ] A root `.gitignore` excluding `vendor/` hides a `.git`-marked directory inside it
-- [ ] A nested `.gitignore` applies to its own subtree and not to its siblings
-- [ ] Ancestor rules still apply one level down
-- [ ] `!keep/` re-includes a directory an earlier line excluded, and the walk enters it
-- [ ] An unreadable `.gitignore` does not fail the walk
-- [ ] `.venv` and `.venvs` remain pruned as dot-directories, asserted so the behaviour is named
-- [ ] The walk still runs no git command, and still never follows a symlinked directory
-- [ ] The guide, the spec and ADR 0012 agree with the code
+- [x] `node_modules` at any depth is not walked, with or without a `.gitignore`
+- [x] A root `.gitignore` excluding `vendor/` hides a `.git`-marked directory inside it
+- [x] A nested `.gitignore` applies to its own subtree and not to its siblings
+- [x] Ancestor rules still apply one level down
+- [x] `!keep/` re-includes a directory an earlier line excluded, and the walk enters it
+- [x] An unreadable `.gitignore` does not fail the walk
+- [x] `.venv` and `.venvs` remain pruned as dot-directories, asserted so the behaviour is named
+- [x] The walk still runs no git command, and still never follows a symlinked directory
+- [x] The guide, the spec and ADR 0012 agree with the code
+
+## Comments
+
+Merged from `ticket/07-discovery-prunes`: the prunes are `node_modules` by name and `ignore`-based
+`.gitignore` rules carried down the walk one directory at a time, so a nested file's patterns stay
+relative to the file that holds them and the deepest file decides. Six new backend cases plus `.venv`
+asserted by name. Measured on `/home/matee/Workspace/Personal` with the built code: 37 Projects in
+1.7–2.1 s, against 37 in 2.9–3.0 s for the same walk before the prunes, and the 36 Projects / 3.3 s
+baseline in ADR 0012. What is left is `exploration/`-style trees no `.gitignore` excludes; the
+installed trees (`node_modules`, and a 3166-directory untracked `venv/`) are gone from the walk.

@@ -451,3 +451,113 @@ test("a Project whose directory is deleted leaves the next list", async () => {
     await harness.dispose();
   }
 });
+
+test("a node_modules directory is not walked, with no .gitignore anywhere", async () => {
+  const harness = await startWorkspaceHarness();
+  try {
+    const app = join(harness.workspace, "web");
+    await markProject(app);
+    await markProject(join(app, "node_modules", "a-dependency"));
+
+    expect((await listProjects(harness)).projects).toEqual([app]);
+  } finally {
+    await harness.dispose();
+  }
+});
+
+test("a root .gitignore hides a marked directory inside what it excludes", async () => {
+  const harness = await startWorkspaceHarness();
+  try {
+    const kept = join(harness.workspace, "kept");
+    await markProject(kept);
+    await markProject(join(harness.workspace, "vendor", "checkout"));
+    await writeFile(join(harness.workspace, ".gitignore"), "vendor/\n", "utf8");
+
+    expect((await listProjects(harness)).projects).toEqual([kept]);
+  } finally {
+    await harness.dispose();
+  }
+});
+
+test("a nested .gitignore applies to its own subtree and not to a sibling", async () => {
+  const harness = await startWorkspaceHarness();
+  try {
+    const ignoresBuild = join(harness.workspace, "ignores-build");
+    await mkdir(ignoresBuild, { recursive: true });
+    await writeFile(join(ignoresBuild, ".gitignore"), "build/\n", "utf8");
+    await markProject(join(ignoresBuild, "build", "checkout"));
+    const sibling = join(harness.workspace, "sibling", "build", "checkout");
+    await markProject(sibling);
+
+    expect((await listProjects(harness)).projects).toEqual([sibling]);
+  } finally {
+    await harness.dispose();
+  }
+});
+
+test("a rule from an ancestor .gitignore still applies one level down", async () => {
+  const harness = await startWorkspaceHarness();
+  try {
+    await writeFile(join(harness.workspace, ".gitignore"), "build/\n", "utf8");
+    await markProject(join(harness.workspace, "app", "build", "checkout"));
+    const kept = join(harness.workspace, "app", "source");
+    await markProject(kept);
+
+    expect((await listProjects(harness)).projects).toEqual([kept]);
+  } finally {
+    await harness.dispose();
+  }
+});
+
+test("a later negation re-includes a directory an earlier line excluded, and the walk enters it", async () => {
+  const harness = await startWorkspaceHarness();
+  try {
+    await writeFile(join(harness.workspace, ".gitignore"), "gone/\n!gone/\ndropped/\n", "utf8");
+    const reopened = join(harness.workspace, "gone", "checkout");
+    await markProject(reopened);
+    // The same walk skips the directory no line re-opens, so the negation is what kept the other.
+    await markProject(join(harness.workspace, "dropped", "checkout"));
+
+    expect((await listProjects(harness)).projects).toEqual([reopened]);
+  } finally {
+    await harness.dispose();
+  }
+});
+
+test.skipIf(!directoryPermissionApplies)(
+  "a .gitignore the walk cannot read is ignored, and the Projects it could see are still served",
+  async () => {
+    const harness = await startWorkspaceHarness();
+    const guarded = join(harness.workspace, "guarded");
+    const insideExcluded = join(guarded, "vendor", "checkout");
+    const readable = join(harness.workspace, "readable");
+    try {
+      await mkdir(guarded, { recursive: true });
+      await mkdir(readable, { recursive: true });
+      await writeFile(join(guarded, ".gitignore"), "vendor/\n", "utf8");
+      await writeFile(join(readable, ".gitignore"), "vendor/\n", "utf8");
+      await markProject(insideExcluded);
+      await markProject(join(readable, "vendor", "checkout"));
+      await chmod(join(guarded, ".gitignore"), 0o000);
+
+      // The rules this process cannot read cost nothing but themselves, and the readable file in the
+      // same walk still applies.
+      expect((await listProjects(harness)).projects).toEqual([insideExcluded]);
+    } finally {
+      await chmod(join(guarded, ".gitignore"), 0o600);
+      await harness.dispose();
+    }
+  },
+);
+
+test("dot-directories stay pruned, which is what keeps .venv and .venvs out of the walk", async () => {
+  const harness = await startWorkspaceHarness();
+  try {
+    await markProject(join(harness.workspace, ".venv", "checkout"));
+    await markProject(join(harness.workspace, ".venvs", "checkout"));
+
+    expect((await listProjects(harness)).projects).toEqual([]);
+  } finally {
+    await harness.dispose();
+  }
+});

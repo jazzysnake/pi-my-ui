@@ -328,7 +328,8 @@ The server is anchored to one **workspace**: the directory you pass as `--worksp
 you run the command from. A directory inside it is a Project once it holds a `.git` entry — that entry
 is the whole test, and the server runs no git command to find it — so anything you clone or create
 inside the workspace appears the next time the phone asks for the Project list, with no restart and
-no flag. The walk skips dot-directories and does not follow symlinked directories. Projects may nest,
+no flag. The walk skips dot-directories and `node_modules`, does not enter a directory an in-repo
+`.gitignore` excludes, and does not follow symlinked directories. Projects may nest,
 so a vendored checkout or a submodule is served as its own row.
 
 Creating a Project from the phone is a control in the picker's header and at the top of the drawer's

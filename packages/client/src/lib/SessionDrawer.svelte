@@ -18,18 +18,26 @@
     rows,
     projects,
     chosenProject,
+    createdProject,
+    canCreate,
     activeSessionId,
     onSelect,
     onSelectProject,
+    onOpenCreate,
     onCreateSession,
     onClose,
   }: {
     rows: readonly SessionRow[] | null;
     projects: readonly string[] | null;
     chosenProject: string | null;
+    /** The path this client's last create registered, which is the one choice this level made itself. */
+    createdProject: string | null;
+    /** Whether a create control belongs on the Project level at all. */
+    canCreate: boolean;
     activeSessionId: string | null;
     onSelect: (sessionId: string) => void;
     onSelectProject: (project: string) => void;
+    onOpenCreate: () => void;
     onCreateSession: () => void;
     onClose: () => void;
   } = $props();
@@ -62,6 +70,15 @@
     onSelectProject(project);
     level = "sessions";
   }
+
+  // A create made from this level has a Session list to land on, so the level must not stay in front
+  // of the Project it just made. A Project chosen from the picker or a link is not this level's
+  // choice, so it must not yank the level away either.
+  $effect(() => {
+    if (createdProject !== null && createdProject === chosenProject) {
+      level = "sessions";
+    }
+  });
 </script>
 
 <div class="absolute inset-0 z-20 flex">
@@ -84,7 +101,18 @@
         >
           <Icon name="chevron-right" class="size-4 rotate-180" />
         </button>
-        <span class="text-meta tracking-wider text-dim uppercase">Projects</span>
+        <span class="min-w-0 flex-1 text-meta tracking-wider text-dim uppercase">Projects</span>
+        {#if canCreate}
+          <button
+            type="button"
+            class="grid size-11 shrink-0 place-items-center rounded text-body text-dim"
+            aria-label="New Project"
+            data-testid="create-project-drawer"
+            onclick={onOpenCreate}
+          >
+            <Icon name="plus" />
+          </button>
+        {/if}
       </div>
     {:else}
       <div class="flex items-center gap-1 border-b border-hairline px-3 py-2">
@@ -119,16 +147,20 @@
 
     {#if level === "projects"}
       <nav class="min-h-0 flex-1 overflow-y-auto" aria-label="Project list">
-        <ul data-testid="project-list">
-          {#each served as project (project)}
-            <ProjectRow
-              {project}
-              label={labelOf(project)}
-              current={project === chosenProject}
-              onChoose={chooseProject}
-            />
-          {/each}
-        </ul>
+        {#if served.length === 0}
+          <p class="px-3 py-4 text-dim" data-testid="drawer-project-empty">No Projects yet.</p>
+        {:else}
+          <ul data-testid="project-list">
+            {#each served as project (project)}
+              <ProjectRow
+                {project}
+                label={labelOf(project)}
+                current={project === chosenProject}
+                onChoose={chooseProject}
+              />
+            {/each}
+          </ul>
+        {/if}
       </nav>
     {:else}
       <nav class="min-h-0 flex-1 overflow-y-auto" aria-label="Session list">

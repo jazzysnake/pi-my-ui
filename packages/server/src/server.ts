@@ -35,6 +35,7 @@ import { createProjectRegistry } from "./projects.js";
 import type { SessionViewer } from "./session-host.js";
 import { createSessionPool } from "./session-pool.js";
 import { listSessions } from "./sessions.js";
+import { createProject, discoverProjects } from "./workspace.js";
 
 /** Health-check route path. */
 export const HEALTHZ_PATH = "/healthz";
@@ -112,6 +113,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     });
   const trust = createTrustPolicy(config.allowedOrigins ?? []);
   const registry = createProjectRegistry(config.projects);
+  const workspace = config.workspace;
 
   const httpServer = createHttpServer((request, response) => {
     const pathname = pathnameOf(request.url);
@@ -232,6 +234,18 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     attachment.watchedProject = project;
   }
 
+  /**
+   * The Projects answer, built from the registry as it stands. Discovery is not run here: the walk
+   * belongs to the request that asks for the whole list, not to a push that adds one row.
+   */
+  function projectsAnswer(): ServerMessage {
+    return {
+      type: ServerMessageType.Projects,
+      projects: registry.list(),
+      workspace: workspace ?? null,
+    };
+  }
+
   async function handle(
     socket: WebSocket,
     attachment: SocketAttachment,
@@ -250,7 +264,24 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       // The list is disk facts about the working directory, not a Session, so it is answered here
       // rather than by a Session host; no Pi child starts to produce it.
       if (message.type === ClientMessageType.ListProjects) {
-        send(socket, { type: ServerMessageType.Projects, projects: registry.projects });
+        if (workspace !== undefined) {
+          // Discovery exists so that a repository created elsewhere appears without a restart, so the
+          // walk runs with the request that asks for the Projects, and nothing is cached.
+          registry.discover(await discoverProjects(workspace));
+        }
+        send(socket, projectsAnswer());
+        return;
+      }
+      if (message.type === ClientMessageType.CreateProject) {
+        const project = await createProject({ registry, workspace, name: message.name });
+        // The asking device re-asks with `ListProjects`, so no message carries two versions of the
+        // same state; every other device watching is pushed the fresh list instead.
+        send(socket, { type: ServerMessageType.ProjectCreated, project });
+        for (const other of sockets.clients) {
+          if (other !== socket) {
+            send(other, projectsAnswer());
+          }
+        }
         return;
       }
       if (message.type === ClientMessageType.ListSessions) {

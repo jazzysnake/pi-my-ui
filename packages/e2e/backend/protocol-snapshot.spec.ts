@@ -123,7 +123,7 @@ test("a Projects request answers with the served Projects in order and starts no
   const client = await connectWsSession(server.url);
   try {
     client.send({ type: "listProjects" });
-    expect(await client.next()).toEqual({ type: "projects", projects });
+    expect(await client.next()).toEqual({ type: "projects", projects, workspace: null });
     // Answering the list is a registry read, not a reason to seat a child anywhere.
     expect(piChildPids()).toEqual([]);
   } finally {

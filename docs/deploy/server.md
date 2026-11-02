@@ -40,12 +40,18 @@ node packages/server/dist/cli.js $PI_MY_UI_PROJECTS \
   shares the host's network namespace and proxies from loopback.
 - **`--allowed-origin`** is the origin the browser sends: the tailnet name with `https://` and no
   path, port or trailing dot. It is exactly the string Caddy's site address serves.
-- **`--project`** repeats once per Project. A mount does not make something a Project, and Projects
-  may not nest or repeat: the launcher refuses both and names the offending path.
+- **`--workspace`** is not passed here, so it defaults to the directory the command runs in: the
+  repository. Every directory under it holding a `.git` folder is discovered as a Project, the
+  repository itself included.
+- **`--project`** repeats once per Project, and keeps the order you typed. A mount does not make
+  something a Project, and a discovered Project inside another one is served as its own row. Naming
+  the same path twice is refused, with the path in the message.
 
-A healthy start prints one `pi-my-ui: project <path>` line per Project and the listening line, plus a
-`bridge: listening on …` line and one line per Pi child. Keep `/healthz` for the cheap check that
-the listener is up; it says nothing about a Pi child, which starts lazily when a Session opens.
+A healthy start prints the workspace, one `pi-my-ui: project <path>` line per `--project`, then the
+listening line, plus a `bridge: listening on …` line and one line per Pi child. Discovery happens when
+someone asks for the Project list, so the banner does not name discovered Projects. Keep `/healthz`
+for the cheap check that the listener is up; it says nothing about a Pi child, which starts lazily
+when a Session opens.
 
 ```bash
 curl -sS http://127.0.0.1:8787/healthz
@@ -76,8 +82,8 @@ lines, `refused WebSocket upgrade: origin "…" is not in the allowlist`, bridge
 stderr forwarded per child. Scrolling back in tmux (`Ctrl-b [`) is the search.
 
 To restart: `Ctrl-C` in the pane, then the start command again. To pick up an environment change —
-one Project more or fewer, another port — restart is the moment it takes effect, because the whole
-list is read at launch.
+the `--project` list, another port — restart is the moment it takes effect, because the flags are read
+at launch. A Project created from the browser, or discovered inside the workspace, needs no restart.
 
 The launcher exits rather than picking another port:
 

@@ -58,21 +58,33 @@ and there is no mode that runs without it.
 ## Run the server
 
 ```bash
-node packages/server/dist/cli.js --project /path/to/project --port 8787
+node packages/server/dist/cli.js --workspace ~/work --port 8787
 ```
 
-`--project` names one Project the server serves: one absolute path, whose Sessions and files are the
-only ones served for that Project. Repeat the flag to serve several Projects from one server, for
-example `--project ~/work/api --project ~/oss/api`. With no `--project` the server serves the current
-directory. `--port` defaults to `8787`. One server means one URL and one WebSocket, however many
-Projects it serves.
+`--workspace` names the directory the server is anchored to, default the directory you run the
+command from. Every Project discovered inside it is served, and a Project created from the browser is
+made directly inside it; nothing outside it is ever created.
 
-The browser opens on the Project picker, remembers the last Project you chose on that device, and
-skips the picker when the server serves exactly one. `?project=<absolute path>` opens a Project
-directly, so a bookmark or homescreen shortcut lands in the right repository. A healthy start prints
-one `pi-my-ui: project <path>` line per Project, then the listening line:
+`--project` names one Project explicitly: one absolute path, whose Sessions and files are the only
+ones served for that Project. Repeat the flag to serve several Projects from one server, in the order
+you type them, and it is how a repository outside the workspace is served, for example
+`--workspace ~/work --project ~/oss/api`. `--port` defaults to `8787`. One server means one URL and
+one WebSocket, however many Projects it serves.
+
+The working directory is an anchor, not a served Project: running in a repository serves it because
+discovery finds its `.git`, and running in a plain directory serves nothing until a Project is
+created. Every directory under the workspace holding a `.git` entry is a Project, the only marker the
+server looks for, and the server runs no git command. Creating a Project makes one empty directory and
+registers it; version control is your next move, run inside the new Project. A server with no Project
+starts normally, on an empty picker that offers creation.
+
+The browser remembers the last Project you chose on that device and skips the picker when the server
+serves exactly one. `?project=<absolute path>` opens a Project directly, so a bookmark or homescreen
+shortcut lands in the right repository. A healthy start prints the workspace, one
+`pi-my-ui: project <path>` line per `--project`, then the listening line:
 
 ```text
+pi-my-ui: workspace /home/you/work
 pi-my-ui: project /path/to/project
 pi-my-ui: listening on http://127.0.0.1:8787
 ```
@@ -102,7 +114,7 @@ For client development, Vite serves the source and proxies the real backend:
 
 ```bash
 # terminal 1: the backend
-node packages/server/dist/cli.js --project /path/to/project --port 8787
+node packages/server/dist/cli.js --workspace ~/work --project /path/to/project --port 8787
 
 # terminal 2: the client
 npm exec --workspace @pi-my-ui/client -- vite dev

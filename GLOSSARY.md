@@ -5,8 +5,16 @@ A phone-first web UI for `pi`. A local server drives pi processes and keeps each
 ## Language
 
 **Project**:
-The folder a Session's Pi child runs in, and whose files the server serves. One Project is one absolute path.
-_Avoid_: Cwd, workspace, repo, folder
+The folder a Session's Pi child runs in, and whose files the server serves. One Project is one absolute path, and a directory is a Project only once it is registered with the server.
+_Avoid_: Cwd, workspace, repo, folder, git root
+
+**Workspace**:
+The directory a server is anchored to: every Project discovered inside it is served, and nothing outside it is ever created.
+_Avoid_: Root, workdir, projects folder
+
+**Discovery**:
+The walk of a Workspace that registers every directory holding a `.git` folder as a Project. The only thing a `.git` folder means to the server.
+_Avoid_: Scan, traversal, sync
 
 **Session**:
 One pi conversation, a tree of entries, persisted as a file.

@@ -5,6 +5,7 @@
   import AgentList from "./AgentList.svelte";
   import ForkPicker from "./ForkPicker.svelte";
   import MessageTreeModal from "./MessageTreeModal.svelte";
+  import ProjectNameSheet from "./ProjectNameSheet.svelte";
   import ProjectPicker from "./ProjectPicker.svelte";
   import RunStateRow from "./RunStateRow.svelte";
   import SessionDrawer from "./SessionDrawer.svelte";
@@ -44,6 +45,7 @@
     onPreviewFile,
     onDownloadFile,
     onCreateSession = () => undefined,
+    onCreateProject = () => undefined,
     onReconnect = () => undefined,
     onReload = () => undefined,
     onSteerSubagent = () => undefined,
@@ -77,6 +79,8 @@
     onPreviewFile: (project: string, path: string) => void;
     onDownloadFile: (project: string, path: string) => void;
     onCreateSession?: () => void;
+    /** Register a new Project named by the sheet's one field; the server owns every rule. */
+    onCreateProject?: (name: string) => void;
     onReconnect?: () => void;
     onReload?: () => void;
     /** Steer one running subagent; a typed message while its conversation is shown. */
@@ -91,6 +95,7 @@
   /** The Project the open panel was opened for, so a different choice can close it. */
   let filesProject = $state<string | null>(null);
   let sessionsOpen = $state(false);
+  let projectNameOpen = $state(false);
   /**
    * The panel is rooted at the chosen Project, so with no Project chosen there is no root to name and
    * the control is disabled. A chosen Project always enables it, however many the server serves.
@@ -196,6 +201,20 @@
       composerText = draft.text;
     }
   });
+
+  // The server answers a create by registering the directory and nothing more, so the sheet's work
+  // is done when that path arrives; which Project it then lands on is the store's decision.
+  $effect(() => {
+    if (projectNameOpen && store.projects.createdProject !== null) {
+      projectNameOpen = false;
+    }
+  });
+
+  /** The one way into the name sheet, from the picker or from the drawer's Project level. */
+  function openProjectName(): void {
+    store.projects.resetCreate();
+    projectNameOpen = true;
+  }
 
   /**
    * The one way into the message tree: the typed command and the composer's branch control both land
@@ -469,7 +488,26 @@
     <ProjectPicker
       projects={store.projects.projects}
       warning={store.projects.warning}
+      workspace={store.projects.workspace}
+      canCreate={store.projects.canCreate}
+      onOpenCreate={openProjectName}
       onChoose={onSelectProject}
+    />
+  {/if}
+  {#if projectNameOpen}
+    <ProjectNameSheet
+      workspace={store.projects.workspace}
+      canCreate={store.projects.canCreate}
+      error={store.projects.createError}
+      busy={store.projects.creating}
+      onSubmit={(name) => {
+        store.projects.requestCreate();
+        onCreateProject(name);
+      }}
+      onClose={() => {
+        projectNameOpen = false;
+        store.projects.resetCreate();
+      }}
     />
   {/if}
   {#if sessionsOpen}
@@ -477,9 +515,12 @@
       rows={store.sessions.rows}
       projects={store.projects.projects}
       chosenProject={store.projects.chosen}
+      createdProject={store.projects.createdProject}
+      canCreate={store.projects.canCreate}
       activeSessionId={store.sessions.activeSessionId}
       onSelect={onSelectSession}
       {onSelectProject}
+      onOpenCreate={openProjectName}
       {onCreateSession}
       onClose={() => {
         sessionsOpen = false;

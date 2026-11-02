@@ -61,30 +61,37 @@ builds from `deploy/.env`, and the [Caddy guide](deploy/caddy.md#3-start-the-sta
 front of it. Running it by hand like this is what a development or a debugging session uses:
 
 ```bash
-node packages/server/dist/cli.js --project /path/to/project --port 8787
+node packages/server/dist/cli.js --workspace ~/work --project /path/to/project --port 8787
 ```
 
 With the deployed server running, `8787` is taken: use `--port 8788` and point the Vite proxy at it
 with `PI_MY_UI_BACKEND_ORIGIN=http://127.0.0.1:8788`.
 
+- `--workspace` names the directory the server is anchored to, default the folder you run the command
+  from. Projects are discovered inside it and created inside it, and nothing outside it is ever
+  created. It registers nothing by itself: the folder you run the command from is served only when
+  discovery finds a `.git` in it.
 - `--project` names one Project the server serves: one absolute path, whose Sessions and files are
-  the only ones served for that Project. Repeat the flag to serve several from one server. With no
-  `--project` the server serves the folder you run the command from.
+  the only ones served for that Project. Repeat the flag to serve several from one server, in the
+  order you type them; it is also how a repository outside the workspace is served.
 - `--port` defaults to `8787`. One server serves every Project, so the port does not change with
   them (see [Running several Projects](#14-running-several-projects)).
 - Leave `--host` alone for the Caddy setup. The default is `127.0.0.1`, so only the local Caddy can
   reach the server.
 
-A healthy start prints one `pi-my-ui: project` line per Project, then the listening line:
+A healthy start prints the workspace, one `pi-my-ui: project` line per `--project`, then the
+listening line:
 
 ```text
+pi-my-ui: workspace /home/you/work
 pi-my-ui: project /path/to/project
 pi-my-ui: listening on http://127.0.0.1:8787
 ```
 
 The phone uses one address and one connection for every Project. The browser remembers the last
 Project you chose on that device and shows the Project picker when it remembers none; a server that
-serves exactly one Project skips the picker.
+serves exactly one Project skips the picker, and a workspace with no Project yet opens the picker
+saying that the server serves no Projects yet, naming the workspace and offering **New Project**.
 
 The `listening on` address is for the **laptop** only, and it is a **backend** address: opening it in
 a browser gives a 404, because the server serves no pages. The phone UI comes from Caddy, which
@@ -108,9 +115,9 @@ file name under pi's session directory (`~/.pi/agent/sessions/--<project path>--
 on the phone; it is the address you open. Choosing a Project or a Session rewrites the address to
 name both, so a copied link lands in the same place.
 
-Opening the bare address without `?project=` still connects: the picker opens when the server serves
-several Projects and nothing is remembered, and the only served Project is chosen directly. Once a
-Project is chosen the drawer lists its Sessions and its `+` starts a new one.
+Opening the bare address without `?project=` still connects: the picker opens when nothing is
+remembered and the server does not serve exactly one Project, and the only served Project is chosen
+directly. Once a Project is chosen the drawer lists its Sessions and its `+` starts a new one.
 
 ## 6. Open it on the phone
 
@@ -300,8 +307,7 @@ Install the extension in pi the normal way if you want this surface:
 ## 13. Files
 
 Tap the **Files** control in the top bar. It opens a read-only file tree rooted at the **chosen
-Project** — the folder you passed as `--project`, or the one you picked in the Project list, not the
-open Session.
+Project** — the one you picked in the Project list, however it got there, and not the open Session.
 
 - **Directories** expand on tap and load their contents on demand.
 - **Tap a file** to download it to the phone. Text-like files also get a **Preview** control that
@@ -316,20 +322,41 @@ open Session.
 
 `pi-my-ui` is **one server serving one or more Projects**: one port, one phone address, one
 WebSocket. Sessions and files never mix between Projects — the drawer lists the chosen Project's
-Sessions, and the file panel is rooted at it. Repeat `--project` at startup:
+Sessions, and the file panel is rooted at it.
+
+The server is anchored to one **workspace**: the directory you pass as `--workspace`, or the folder
+you run the command from. A directory inside it is a Project once it holds a `.git` entry — that entry
+is the whole test, and the server runs no git command to find it — so anything you clone or create
+inside the workspace appears the next time the phone asks for the Project list, with no restart and
+no flag. The walk skips dot-directories, `node_modules` and `__pycache__`, does not enter a directory
+an in-repo `.gitignore` excludes, and does not follow symlinked directories. Projects may nest,
+so a vendored checkout or a submodule is served as its own row.
+
+Creating a Project from the phone is a control in the picker's header and at the top of the drawer's
+Project list. It creates one directory directly inside the workspace and registers it. That is all
+the server does: no `git init`, no other tool, so a new Project is an empty directory and version
+control is your next move — run it inside the Project from the same client, or however else you like.
+A name that cannot be used is refused in the sheet, which keeps what you typed; a name with a `/` in
+it is refused too, because the directory is always one level down, and nothing outside the workspace
+is ever created.
+
+Repeat `--project` at startup for Projects of your own, and for repositories outside the workspace:
 
 ```bash
 node packages/server/dist/cli.js \
+  --workspace /home/you/work \
   --project /path/to/project-a \
   --project /path/to/project-b \
   --port 8787
 ```
 
-The flag order is the order the Project list uses. The same path may not be served twice, and one
-served Project may not sit inside another; the server refuses startup and names the offending path.
-To switch on the phone, open the drawer and tap **Switch**, or open a link carrying `?project=`. One
-Caddy site and one `--allowed-origin` cover every Project, because the origin does not change with
-the Project. The [Caddy guide](deploy/caddy.md) has the one-site setup.
+`--project` Projects come first in the Project list, in the order you typed them; created and
+discovered Projects follow, newest directory first. Passing the same path twice as `--project` is
+refused at startup, naming it. A Project whose directory is gone leaves the list, and a browser left
+on it lands on the picker with a warning naming the path. To switch on the phone, open the drawer and
+tap **Switch**, or open a link carrying `?project=`. One Caddy site and one `--allowed-origin` cover
+every Project, because the origin does not change with the Project. The
+[Caddy guide](deploy/caddy.md) has the one-site setup.
 
 To keep the app running, leave the server running in a terminal (tmux keeps it alive across a
 disconnect) and leave Caddy's `restart: unless-stopped` to the proxy; the
@@ -341,15 +368,16 @@ Nothing restarts the server for you, so after a reboot it is started again by ha
 
 These are the only command-line flags. `--help` prints the same list.
 
-| Flag                        | Meaning                                                                     | Default               |
-| --------------------------- | --------------------------------------------------------------------------- | --------------------- |
-| `--project <dir>`           | Project to serve (its Sessions and files); repeatable                      | the current directory |
-| `--port <port>`             | TCP port to listen on                                                       | `8787`                |
-| `--host <address>`          | Address to bind; binding beyond loopback requires `--allowed-origin`         | `127.0.0.1`           |
-| `--idle-timeout <seconds>`  | Evict an idle, unwatched Session's child after this long                    | `120`                 |
-| `--keep-alive`              | Disable idle eviction entirely                                              | off                   |
-| `--allowed-origin <origin>` | Browser origin allowed to connect; repeatable; a bare `scheme://host[:port]` | none                  |
-| `-h`, `--help`              | Print usage and exit                                                        | —                     |
+| Flag                        | Meaning                                                                     | Default                  |
+| --------------------------- | --------------------------------------------------------------------------- | ------------------------ |
+| `--workspace <dir>`         | Directory where Projects are discovered and created                         | the current directory    |
+| `--project <dir>`           | Project to serve (its Sessions and files); repeatable                      | none                     |
+| `--port <port>`             | TCP port to listen on                                                       | `8787`                   |
+| `--host <address>`          | Address to bind; binding beyond loopback requires `--allowed-origin`         | `127.0.0.1`              |
+| `--idle-timeout <seconds>`  | Evict an idle, unwatched Session's child after this long                    | `120`                    |
+| `--keep-alive`              | Disable idle eviction entirely                                              | off                      |
+| `--allowed-origin <origin>` | Browser origin allowed to connect; repeatable; a bare `scheme://host[:port]` | none                     |
+| `-h`, `--help`              | Print usage and exit                                                        | —                        |
 
 With no `--allowed-origin`, a browser on a loopback host (`localhost`, `127.0.0.1`) is accepted and
 nothing else is. With an allowlist configured, every request must carry an origin in the list; the
@@ -363,6 +391,14 @@ So the missing features do not surprise you — these are deliberate:
 - **No offline use and no install-to-home-screen.** It needs the laptop and the network.
 - **No desktop-first layout.** The UI targets the phone.
 - **No editing files in the browser.** The file tree is read-only.
+- **No deleting or renaming a Project from the browser.** Creating one is the whole surface;
+  removing a Project is a filesystem action, and its row leaves the list once the directory is gone.
+- **No stored Project registry.** The list is rebuilt on every start from the `--project` flags, the
+  Projects created since, and the last walk of the workspace, so a Project that has neither a `.git`
+  entry nor a flag is forgotten by a restart; creating the same name again registers the directory it
+  already owns instead of failing.
+- **No version control.** The server runs no `git init` and no other tool: creating a Project makes
+  the directory and nothing else.
 - **No voice input.**
 - **No pi TUI-only commands.** They are refused, not faked.
 - **No cross-Session notifications or toasts.**

@@ -1,29 +1,89 @@
 /**
- * The Projects one running server serves, fixed when the server starts. Nothing adds, removes or
- * reorders a Project at runtime: the launcher's flags are the whole allowlist.
+ * The Projects one running server serves. Three producers register a directory: the launcher's flags,
+ * a create in this process, and the last walk of the Workspace. The registry is memory-only, so the
+ * filesystem stays the authority over what exists and a list is where a departed directory is dropped.
  */
+
+import { statSync } from "node:fs";
 
 import { ProtocolError, ProtocolErrorCode } from "@pi-my-ui/protocol";
 
 export interface ProjectRegistry {
-  /** Absolute paths, in the order the launcher was given them. */
-  readonly projects: readonly string[];
+  /**
+   * The Projects served right now: flag Projects first in typed order, then the created and
+   * discovered ones, newest directory first and ties by path.
+   */
+  list(): readonly string[];
   has(project: string): boolean;
-  /** The Project as served, or a typed refusal for a path outside the registry. */
+  /** The Project as served, or a typed refusal for a path no producer registered. */
   require(project: string): string;
+  /** Record a Project this process created. Only a list can drop it again, by finding it gone. */
+  register(project: string): void;
+  /** Replace the walked half with what the latest walk found; nothing is cached between walks. */
+  discover(projects: readonly string[]): void;
 }
 
-/** No request may fall back to another Project, so a server with no Project is refused outright. */
-export function createProjectRegistry(projects: readonly string[]): ProjectRegistry {
-  if (projects.length === 0) {
-    throw new Error("a server needs at least one Project to serve");
+/** Ties break by path rather than by encounter order, so one set of Projects lists alike everywhere. */
+function byPath(left: string, right: string): number {
+  if (left === right) {
+    return 0;
   }
-  const served = new Set(projects);
+  return left < right ? -1 : 1;
+}
+
+/** A vanished Project is not served, and `throwIfNoEntry` keeps a departure from throwing. */
+function directoryStats(path: string): ReturnType<typeof statSync> | undefined {
+  const stats = statSync(path, { throwIfNoEntry: false });
+  return stats?.isDirectory() === true ? stats : undefined;
+}
+
+export function createProjectRegistry(projects: readonly string[]): ProjectRegistry {
+  // Zero Projects is the normal first-run state of a fresh Workspace; only a named Project that is
+  // not registered is refused.
+  const flags = [...projects];
+  const createdProjects = new Set<string>();
+  const discoveredProjects = new Set<string>();
+
+  function served(project: string): boolean {
+    return (
+      flags.includes(project) || createdProjects.has(project) || discoveredProjects.has(project)
+    );
+  }
+
+  /** The derived half, newest directory first: the two books a walk and a create keep. */
+  function derivedProjects(): { readonly path: string; readonly modifiedMs: number }[] {
+    const rows = new Map<string, number>();
+    for (const source of [createdProjects, discoveredProjects]) {
+      for (const project of source) {
+        if (flags.includes(project) || rows.has(project)) {
+          continue;
+        }
+        const stats = directoryStats(project);
+        if (stats === undefined) {
+          // The filesystem is the authority over what exists, so a path that is gone is forgotten
+          // here rather than offered as a row no request can use.
+          source.delete(project);
+          continue;
+        }
+        rows.set(project, Number(stats.mtimeMs));
+      }
+    }
+    return [...rows.entries()]
+      .map(([path, modifiedMs]) => ({ path, modifiedMs }))
+      .sort((left, right) => right.modifiedMs - left.modifiedMs || byPath(left.path, right.path));
+  }
+
   return {
-    projects: Object.freeze([...projects]),
-    has: (project) => served.has(project),
+    list() {
+      // A flag names a directory the same way a walk result does, so one that is gone is left out of
+      // this answer. The flags themselves stay put: a temporarily unmounted volume is served again
+      // once it is back, without a restart.
+      const servedFlags = flags.filter((project) => directoryStats(project) !== undefined);
+      return [...servedFlags, ...derivedProjects().map((row) => row.path)];
+    },
+    has: served,
     require(project) {
-      if (!served.has(project)) {
+      if (!served(project)) {
         throw new ProtocolError(
           ProtocolErrorCode.UnknownProject,
           `this server does not serve the Project ${JSON.stringify(project)}`,
@@ -31,6 +91,15 @@ export function createProjectRegistry(projects: readonly string[]): ProjectRegis
         );
       }
       return project;
+    },
+    register(project) {
+      createdProjects.add(project);
+    },
+    discover(found) {
+      discoveredProjects.clear();
+      for (const project of found) {
+        discoveredProjects.add(project);
+      }
     },
   };
 }

@@ -2,6 +2,7 @@ import { flushSync, mount, type Component } from "svelte";
 import { describe, expect, it } from "vitest";
 
 import {
+  ProtocolErrorCode,
   ServerMessageType,
   SessionActivity,
   type CommandInfo,
@@ -21,9 +22,22 @@ const PROJECT_A = "/workspace/api";
 const PROJECT_B = "/workspace/oss/api";
 const SESSION = { project: PROJECT_A, id: "session-1" };
 const GONE = "/workspace/retired";
+const WORKSPACE = "/workspace";
+const CREATED = "/workspace/notes";
 
-function projectsMessage(projects: readonly string[]): ServerMessage {
-  return { type: ServerMessageType.Projects, projects };
+function projectsMessage(
+  projects: readonly string[],
+  workspace: string | null = null,
+): ServerMessage {
+  return { type: ServerMessageType.Projects, projects, workspace };
+}
+
+function createdMessage(project: string): ServerMessage {
+  return { type: ServerMessageType.ProjectCreated, project };
+}
+
+function errorMessage(code: ProtocolErrorCode): ServerMessage {
+  return { type: ServerMessageType.Error, error: { code, message: "the server refused it" } };
 }
 
 function sessionsMessage(
@@ -89,11 +103,13 @@ function mountInto<Props extends Record<string, unknown>>(
 function mountShell(
   store: ClientStore,
   onSelectProject: (project: string) => void = () => undefined,
+  onCreateProject: (name: string) => void = () => undefined,
 ): HTMLElement {
   return mountInto(Shell as Component<Record<string, unknown>>, {
     store,
     status: ConnectionStatus.Connected,
     onSelectProject,
+    onCreateProject,
     onSelectSession: () => undefined,
     onPrompt: () => undefined,
     onBash: () => undefined,
@@ -112,6 +128,21 @@ function click(target: HTMLElement, testId: string, index = 0): void {
   flushSync(() => {
     element.click();
   });
+}
+
+function typeInto(target: HTMLElement, testId: string, text: string): void {
+  const input = target.querySelector<HTMLInputElement>(`[data-testid="${testId}"]`);
+  if (input === null) {
+    throw new Error(`no input ${testId}`);
+  }
+  flushSync(() => {
+    input.value = text;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+function textOf(target: HTMLElement, testId: string): string | null {
+  return target.querySelector(`[data-testid="${testId}"]`)?.textContent?.trim() ?? null;
 }
 
 function filesToggle(target: HTMLElement): HTMLButtonElement {
@@ -195,6 +226,19 @@ describe("the Projects slice", () => {
     expect(store.projects.warning).toContain(GONE);
   });
 
+  it("shows the picker and names a Project that left while it was chosen", () => {
+    const store = new ClientStore(PROJECT_A);
+    store.receive(projectsMessage([PROJECT_A, PROJECT_B]));
+    expect(store.projects.chosen).toBe(PROJECT_A);
+
+    // The directory is gone from the served list while this browser was looking at it.
+    store.receive(projectsMessage([PROJECT_B]));
+    expect(store.projects.chosen).toBeNull();
+    expect(store.projects.warning).toBe(
+      `This server no longer serves ${PROJECT_A}. Choose a Project below.`,
+    );
+  });
+
   it("keeps the picker when the only served Project is not the remembered one", () => {
     const store = new ClientStore(null, memoryOf(GONE));
     store.receive(projectsMessage([PROJECT_A]));
@@ -253,6 +297,9 @@ describe("the Project picker", () => {
     const target = mountInto(ProjectPicker, {
       projects: [PROJECT_A, PROJECT_B],
       warning: null,
+      workspace: null,
+      canCreate: false,
+      onOpenCreate: () => undefined,
       onChoose: () => undefined,
     });
     const labels = [...target.querySelectorAll('[data-testid="project-label"]')].map((element) =>
@@ -265,6 +312,9 @@ describe("the Project picker", () => {
     const target = mountInto(ProjectPicker, {
       projects: [PROJECT_A, PROJECT_B],
       warning: `This server no longer serves ${GONE}. Choose a Project below.`,
+      workspace: null,
+      canCreate: false,
+      onOpenCreate: () => undefined,
       onChoose: () => undefined,
     });
     const notice = target.querySelector('[data-testid="project-warning"]');
@@ -297,6 +347,205 @@ describe("the file control", () => {
     store.receive(projectsMessage([PROJECT_A]));
     const target = mountShell(store);
     expect(filesToggle(target).disabled).toBe(true);
+  });
+});
+
+describe("the Workspace", () => {
+  it("is stored, and says whether the server can create a Project", () => {
+    const store = new ClientStore();
+    store.receive(projectsMessage([], WORKSPACE));
+    expect(store.projects.workspace).toBe(WORKSPACE);
+    expect(store.projects.canCreate).toBe(true);
+
+    const unanchored = new ClientStore();
+    unanchored.receive(projectsMessage([PROJECT_A]));
+    expect(unanchored.projects.workspace).toBeNull();
+    expect(unanchored.projects.canCreate).toBe(false);
+  });
+});
+
+describe("creating a Project", () => {
+  it("selects the created path only once the Projects answer names it", () => {
+    const store = new ClientStore();
+    store.receive(projectsMessage([PROJECT_A, PROJECT_B], WORKSPACE));
+    store.projects.requestCreate();
+    store.receive(createdMessage(CREATED));
+    expect(store.projects.chosen).toBeNull();
+
+    store.receive(projectsMessage([PROJECT_A, PROJECT_B, CREATED], WORKSPACE));
+    expect(store.projects.chosen).toBe(CREATED);
+  });
+
+  it("keeps the current Project when the answer omits the created path", () => {
+    const store = new ClientStore(PROJECT_A);
+    store.receive(projectsMessage([PROJECT_A, PROJECT_B], WORKSPACE));
+    store.projects.requestCreate();
+    store.receive(createdMessage(CREATED));
+
+    store.receive(projectsMessage([PROJECT_A, PROJECT_B], WORKSPACE));
+    expect(store.projects.chosen).toBe(PROJECT_A);
+  });
+
+  it("turns each refusal into an ordinary sentence", () => {
+    const refusals: readonly (readonly [ProtocolErrorCode, RegExp])[] = [
+      [ProtocolErrorCode.InvalidProjectName, /name/i],
+      [ProtocolErrorCode.ProjectExists, /already/i],
+      [ProtocolErrorCode.NoWorkspace, /Workspace/],
+      [ProtocolErrorCode.InternalError, /could not/i],
+    ];
+
+    for (const [code, wording] of refusals) {
+      const store = new ClientStore();
+      store.receive(projectsMessage([PROJECT_A], WORKSPACE));
+      store.projects.requestCreate();
+      expect(store.projects.creating).toBe(true);
+
+      store.receive(errorMessage(code));
+      const line = store.projects.createError;
+      expect(line).toMatch(wording);
+      expect(line).not.toContain("{");
+      expect(line).not.toContain(code);
+      expect(line).not.toMatch(/internal error/i);
+      expect(store.projects.creating).toBe(false);
+    }
+  });
+
+  it("does not blame punctuation for a name that is already a file", () => {
+    const store = new ClientStore();
+    store.receive(projectsMessage([PROJECT_A], WORKSPACE));
+    store.projects.requestCreate();
+    store.receive(errorMessage(ProtocolErrorCode.InvalidProjectName));
+
+    const line = store.projects.createError;
+    // The same refusal answers a slashed name, a leading dot, and a path already taken by a file or a
+    // link, so the sentence has to leave room for the last two.
+    expect(line).toMatch(/file/);
+    expect(line).toMatch(/link/);
+  });
+
+  it("leaves the sheet's line empty for a failure the create did not cause", () => {
+    const store = new ClientStore(PROJECT_A);
+    store.receive(projectsMessage([PROJECT_A], WORKSPACE));
+    store.receive(errorMessage(ProtocolErrorCode.CommandFailed));
+    expect(store.projects.createError).toBeNull();
+  });
+
+  it("records the created path for the sheet to close on, until it is reset", () => {
+    const store = new ClientStore(PROJECT_A);
+    store.receive(projectsMessage([PROJECT_A], WORKSPACE));
+    store.projects.requestCreate();
+    store.receive(createdMessage(CREATED));
+    expect(store.projects.creating).toBe(false);
+    expect(store.projects.createdProject).toBe(CREATED);
+
+    store.projects.resetCreate();
+    expect(store.projects.createdProject).toBeNull();
+  });
+});
+
+describe("the create control", () => {
+  it("is absent from the picker without a Workspace, and present with one", () => {
+    const unanchored = mountInto(ProjectPicker, {
+      projects: [PROJECT_A],
+      warning: null,
+      workspace: null,
+      canCreate: false,
+      onOpenCreate: () => undefined,
+      onChoose: () => undefined,
+    });
+    expect(unanchored.querySelector('[data-testid="create-project"]')).toBeNull();
+
+    const anchored = mountInto(ProjectPicker, {
+      projects: [PROJECT_A],
+      warning: null,
+      workspace: WORKSPACE,
+      canCreate: true,
+      onOpenCreate: () => undefined,
+      onChoose: () => undefined,
+    });
+    expect(anchored.querySelector('[data-testid="create-project"]')).not.toBeNull();
+  });
+
+  it("names the Workspace and offers the action when no Project exists", () => {
+    const store = new ClientStore();
+    store.receive(projectsMessage([], WORKSPACE));
+    const target = mountShell(store);
+
+    expect(textOf(target, "project-empty")).toContain(WORKSPACE);
+    expect(target.querySelector('[data-testid="create-project-empty"]')).not.toBeNull();
+  });
+
+  it("opens the name sheet, creates from it, and closes on Cancel", () => {
+    const store = new ClientStore();
+    store.receive(projectsMessage([PROJECT_A, PROJECT_B], WORKSPACE));
+    const asked: string[] = [];
+    const target = mountShell(
+      store,
+      () => undefined,
+      (name) => {
+        asked.push(name);
+      },
+    );
+
+    click(target, "create-project");
+    expect(target.querySelector('[data-testid="project-name-sheet"]')).not.toBeNull();
+    typeInto(target, "project-name-input", "notes");
+    click(target, "project-name-create");
+    expect(asked).toEqual(["notes"]);
+    expect(store.projects.creating).toBe(true);
+
+    flushSync(() => {
+      store.receive(createdMessage(CREATED));
+    });
+    expect(target.querySelector('[data-testid="project-name-sheet"]')).toBeNull();
+
+    click(target, "create-project");
+    click(target, "project-name-cancel");
+    expect(target.querySelector('[data-testid="project-name-sheet"]')).toBeNull();
+  });
+
+  it("keeps the sheet open with the typed name when the server refuses it", () => {
+    const store = new ClientStore();
+    store.receive(projectsMessage([PROJECT_A, PROJECT_B], WORKSPACE));
+    const target = mountShell(store);
+
+    click(target, "create-project");
+    typeInto(target, "project-name-input", "notes/api");
+    click(target, "project-name-create");
+    flushSync(() => {
+      store.receive(errorMessage(ProtocolErrorCode.InvalidProjectName));
+    });
+
+    expect(target.querySelector('[data-testid="project-name-sheet"]')).not.toBeNull();
+    expect(textOf(target, "project-name-error")).toMatch(/name/i);
+    expect(
+      target.querySelector<HTMLInputElement>('[data-testid="project-name-input"]')?.value,
+    ).toBe("notes/api");
+  });
+
+  it("is reachable from the drawer's Project level", () => {
+    const store = new ClientStore(PROJECT_A);
+    store.receive(projectsMessage([PROJECT_A], WORKSPACE));
+    const target = mountShell(store);
+
+    click(target, "sessions-toggle");
+    click(target, "project-switch");
+    click(target, "create-project-drawer");
+    expect(target.querySelector('[data-testid="project-name-sheet"]')).not.toBeNull();
+
+    typeInto(target, "project-name-input", "notes");
+    click(target, "project-name-create");
+    flushSync(() => {
+      store.receive(createdMessage(CREATED));
+      store.receive(projectsMessage([PROJECT_A, CREATED], WORKSPACE));
+      store.receive(sessionsMessage(CREATED, []));
+    });
+
+    // The created Project is chosen and the drawer lands on its Session list rather than staying on
+    // the level it was created from.
+    expect(store.projects.chosen).toBe(CREATED);
+    expect(textOf(target, "current-project-label")).toBe("notes");
+    expect(target.querySelector('[data-testid="session-list-empty"]')).not.toBeNull();
   });
 });
 
@@ -337,6 +586,24 @@ describe("the drawer's Project switcher", () => {
     ).toEqual(["session-b"]);
     expect(target.querySelector('[data-testid="current-project-label"]')?.textContent?.trim()).toBe(
       "oss/api",
+    );
+  });
+
+  it("stays on the Project level when a choice other than a create is made", () => {
+    const store = new ClientStore(PROJECT_A);
+    store.receive(projectsMessage([PROJECT_A, PROJECT_B]));
+    store.receive(sessionsMessage(PROJECT_A, [SESSION.id]));
+    const target = mountShell(store);
+
+    click(target, "sessions-toggle");
+    click(target, "project-switch");
+    flushSync(() => {
+      // The picker can choose while this level is still open behind it — the Project this browser was
+      // looking at left, and the picker replaced it — and that choice is not this level's own create.
+      store.selectProject(PROJECT_B);
+    });
+    expect(target.querySelector('[data-testid="session-drawer"]')?.getAttribute("data-level")).toBe(
+      "projects",
     );
   });
 });
